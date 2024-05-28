@@ -131,7 +131,7 @@ Specifically, for internal pages, iterate over the entries with a _sliding_ wind
 * (40, 20)
 * (20, NULL)
 
-in specifically that order.  You're searching to find a `(left, right)`, where `left.data \<= target_key && target_key < right.data`, and skip the comparison on `NULL`.  If your target key is less than the first ``InternalEntry``'s data value, then your target key is not found in the B-Tree.  Start with the root page.  Repeat on each page indicated by the identified ``InternalEntry``'s PgNo until you reach a page where `page.level == 1`.
+in specifically that order.  You're searching to find a `(left, right)`, where `left.data <= target_key && target_key < right.data`, and skip the comparison on `NULL`.  If your target key is less than the first ``InternalEntry``'s data value, then your target key is not found in the B-Tree.  Start with the root page.  Repeat on each page indicated by the identified ``InternalEntry``'s PgNo until you reach a page where `page.level == 1`.
 
 Once you're on a leaf page, there will be ``KeyDataEntry``s instead.
 

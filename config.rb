@@ -10,6 +10,7 @@ end
 require 'asciidoctor-diagram'
 require_relative 'asciidoc_extensions/inline_macros'
 require_relative 'asciidoc_extensions/ophistory_diagram'
+require_relative 'asciidoc_extensions/postprocessors'
 activate :asciidoc, backend: 'xhtml5', safe: :unsafe, template_dirs: 'asciidoc_templates', attributes: ['source-highlighter=rouge', 'toc-title=']
 set :skip_build_clean, proc {|f| f.start_with? 'build/images/'}
 
