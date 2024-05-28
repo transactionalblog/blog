@@ -34,7 +34,7 @@ struct DBT {
 
 See also the https://docs.oracle.com/cd/E17276_01/html/api_reference/C/frame_main.html[official docs for DBT].
 
-Our goal for this section is to implement the `get()` method in the `DB` struct:
+The `get()` method to implement is defined as:
 
 .dh.h
 [source,c]
