@@ -1,0 +1,72 @@
+= Durable Main-Memory Index Using Flash (2011)
+:revdate: 2024-05-25
+:page-order: 98
+:toc: preamble
+:nospace:
+
+== Archival Note
+
+:uri-contest-2011: https://db.csail.mit.edu/sigmod11contest/
+:uri-contest-2011-archive: https://web.archive.org/web/20150225014740/https://db.csail.mit.edu/sigmod11contest/
+:uri-contest-original-code: https://github.com/thisismiller/sigmod-contest-2011/tree/f88d8df8aa3b53e8cc89ca8d4989f02ad34167ae
+:uri-dexter-paper: https://scholar.google.com/scholar?cluster=12696725282482406625
+
+The {uri-contest-2011}[original contest site] is no longer accessible.
+There is an {uri-contest-2011-archive}[Archive.org mirror] available, from which the text on the rest of this page was copied.
+
+The provided code for this contest is available at github:thisismiller/sigmod-contest-2011[].  The exact provided code is preserved as {uri-contest-original-code}[commit f88d8df8].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.  There was an extra tarball listed on the contest site (`scdb_final.tar.bz2`) which I've so far been unable to find a copy of.
+
+This contest was organized by MIT CSAIL.
+The winner of this contest was Thomas Kissinger and Benjamin Schlegel from TU Dresden.
+The winning submission was also later turned into a publication {uri-dexter-paper}[_Efficient in-memory indexing with generalized prefix trees_].
+
+'''
+
+== Task overview
+
+The task for this contest is to implement a high-throughput main-memory index that uses flash-based SSDs for durability. The index will fit entirely in the main-memory, and all updates to it must be recoverable in the face of crashes. The system should use and optimize for modern flash-based SSDs to achieve durability.
+
+The index offers an order-preserving key-value interface. It maintains key-value pairs that are byte strings and supports both random and ordered accesses to those pairs. All single-key operations are atomic. In addition to random and ordered access, the index offers a single-key atomic compare and swap primitive for building larger atomic operations. The index should support highly concurrent accesses. The optimization metric for this contest is overall operation throughput.
+
+Contestants must supply the source code for their entries, and agree to license their code under the BSD or MIT open source license should their system win the contest. The contestants must be full time students at a degree granting post secondary institution. Both undergraduate and graduate students are eligible. Submissions may be written in any language, but it must be capable of linking against our x86-64 "test driver" on Linux. Details of the API and implementation requirements are below.
+
+== Task Details, API and Test Implementation
+
+:uri-lexicographic-order: https://en.wikipedia.org/wiki/Lexicographic_order
+:uri-memcmp: https://www.gnu.org/software/libc/manual/html_node/String_002fArray-Comparison.html
+
+In addition to the requirements above, we list additional constraints and clarifications:
+
+- Keys and values are arbitrary byte strings, with keys up to 1024 byte long, and values up to 4096 bytes long.
+- Keys are unique; the index does not store duplicate keys.
+- Keys must be sorted in {uri-lexicographic-order}[lexicographical byte order], with bytes interpreted as 8-bit unsigned integers. This is the same ordering as the {uri-memcmp}[memcmp] C standard library function.
+- Writes must be durable, meaning that if the system crashes after a write is completed, it must be remembered when the system restarts.
+- When opening an existing index after a crash, the implementation must be capable of "rebuilding" a correct index that includes all writes that were reported as completed before the crash.
+- Data must be read and written using standard POSIX file APIs.
+- The total data size will be computed as the sum of key lengths plus value lengths, plus 8 bytes per key/value pair to store lengths.
+- The total memory available will be at least 2x the total data size.
+- The available space on the SSD will be approximately 3x the total data size.
+- The workload will generate more data than will fit on disk, so the implementation must free space used by overwritten and deleted data.
+- The benchmark will be a mixture of inserts, updates, deletes, compare and swap, and ordered traversal operations. We will use the overall operation throughput as the optimization metric.
+- The ordered traversals need not be isolated or repeatable, but they must return keys in increasing order, and only return committed values as they are encountered in the traversal.
+- We will generate a workload that is issued from at least 16 concurrent threads.
+
+=== API
+
+:uri-scdb-h: https://github.com/thisismiller/sigmod-contest-2011/blob/main/scdb.h
+:uri-doxygen-scdb-h: https://thisismiller.github.io/sigmod-contest-2011/scdb_8h.html
+
+The commands which your system must support are specified in the API, which can be downloaded from the following link:
+
+- {uri-doxygen-scdb-h}[API Documentation] -- Nicely formatted documentation for the header file.
+- {uri-scdb-h}[scdb.h] -- C header file for the API you must implement.
+
+=== Unit Test and Performance Test
+
+We have written a basic unit test and a performance test that you can use to test the performance and correctness of your implementation. This code might have bugs, so please discuss any issues on the mailing list, which we will also use to announce any updates. This also includes a reference implementation based on Berkley DB. It is not a high performance implementation, but it correctly implements the API. This implementation compiles on modern Linux systems with GCC.
+
+== Benchmark
+
+The benchmark will be a mixture of inserts, updates, deletes, compare and swap, and ordered traversal operations. The workload will begin by generating sufficient data to ensure that the entire SSD is full, and to force the implementation to perform garbage collection. We will then begin measuring the overall operation throughput. The measurement period will be long enough to ensure our measurement includes garbage collection. The overall throughput will be the metric used to compare implementations. We will also test the durability feature using fault-injection. Implementations that fail to durably record data will be disqualified.
+
+While we will be providing a "test workload," the final workload will not be the same. Thus, your implementation should provide good performance on a wide range of workloads, and should not be tuned for one specific benchmark.
