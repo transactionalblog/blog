@@ -3,20 +3,22 @@
 :page-order: 5
 :page-tag: reading
 :toc: preamble
-:page-hidden: true
 
 Support for searching down the tree in search of a single value.
 
 == Algorithm
 
-Examining the entries in an internal B-Tree page is going to yield internal entries that look like:
+Examining the entries in an internal B-Tree page is going to yield ``InternalEntry``s that look like:
 
 [ditaa]
 ----
+           Root Page
+
            +-----+----+----+----+----+
   offsets: | 100 | 80 | 60 | 40 | 20 |
            +-----+----+----+----+----+
-                                      
+           0     1    2    3    4
+
 hf_offset: +-------------------------+
            |                         |
       20   | PgNo： 6, Data： VVVV     |
@@ -40,9 +42,9 @@ hf_offset: +-------------------------+
            +-------------------------+
 ----
 
-And the goal is to find the correct next page to read by comparing the target key against the data in the internal entry.  The correct page to search on is the page with the lexicographically maximum key that's less than or equal to your target key.  One could binary search this, but the offsets are maintained in order, and so I found a linear scan the easiest.
+And the goal is to find the correct next page to read by comparing the target key against the data in the `InternalEntry`.  Your goal is to find the maximum key that's less than or equal to your target key.  If `get()` was provided a target key of `NNNN`, then the goal is to identify offset 60 of `PgNo: 4, Data: MMMM` as the proper entry, and repeat the search on page 4 next.  One could binary search this, but the offsets are maintained in order, and so I found a linear scan the easiest.
 
-Specifically, for internal entries a sliding window of 2 over the offsets, such that one visits:
+Specifically, for internal pages, iterate over the entries with a _sliding_ window of size 2, such that one visits the offset pairs of:
 
 * (NULL, 100)
 * (100, 80)
@@ -51,9 +53,39 @@ Specifically, for internal entries a sliding window of 2 over the offsets, such 
 * (40, 20)
 * (20, NULL)
 
-In that order.  You're searching for `(left, right)`, where `left.data <= target_key && target_key < right.data`, and skip the comparison on `NULL`.  Start with the root page.  Repeat until `page.level == 1`.
+in specifically that order.  You're searching to find a `(left, right)`, where `left.data \<= target_key && target_key < right.data`, and skip the comparison on `NULL`.  If your target key is less than the first ``InternalEntry``'s data value, then your target key is not found in the B-Tree.  Start with the root page.  Repeat on each page indicated by the identified ``InternalEntry``'s PgNo until you reach a page where `page.level == 1`.
 
-Once you're on a leaf page, there will be KeyData entries instead.  Recall that there will always be an even number of offsets and entries on a leaf page, with the first entry being a key, and the second being the data.  Iterate over all the entries in pairs, and if `pair[0].data == target_key`, then return `pair[1].data` as the found key.  If was no matching key, then the key doesn't exist in the B-Tree.
+Once you're on a leaf page, there will be ``KeyDataEntry``s instead.
+
+[ditaa]
+----
+           Page 4
+
+           +----+----+----+----+
+  offsets: | 80 | 60 | 40 | 20 |
+           +----+----+----+----+
+           0    1    2    3
+
+hf_offset: +-------------------+
+           |                   |
+      20   | Data： N_VAL       |
+           |                   |
+           +-------------------+
+           |                   |
+      40   | Data： NNNN        |
+           |                   |
+           +-------------------+
+           |                   |
+      60   | Data： M_VAL       |
+           |                   |
+           +-------------------+
+           |                   |
+      80   | Data： MMMM        |
+           |                   |
+           +-------------------+
+----
+
+Recall that there will always be an even number of offsets and entries on a leaf page, with the first entry being a key, and the second being the data.  Iterate over all the entries in pairs (a tumbling window of size 2), and if `pair[0].data == target_key`, then return `pair[1].data` as the found key.  If was no matching key, then the key doesn't exist in the B-Tree.
 
 == API
 
@@ -66,7 +98,7 @@ Once you're on a leaf page, there will be KeyData entries instead.  Recall that 
  * That's the actual comment from the BerkeleyDB source code.
  */
 struct DBT {
-  void   *data;    ///< Key/data 
+  void   *data;    ///< Key/data
   u_int32_t size;  ///< Key/data length
 
   u_int32_t ulen;  ///< Only used with DB_DBT_USERMEM
@@ -93,7 +125,7 @@ struct DB {
    *
    * @param db The opened DB in which to fetch a key.
    * @param txn The transaction within which this get operation is scoped.
-   *            For us, this must be NULL.  
+   *            For us, this must be NULL.
    * @param key A DBT owned by the user to describe the kv-pair to fetch.
    * @param data A zero-initialized DBT, which will be written to with
    *             the data and size of the associated data.
@@ -134,7 +166,7 @@ void test_get(DB* dbp, const char* keystr) {
     memset(&data, 0, sizeof(DBT));
     key.data = (char*)keystr;
     key.size = strlen(key.data);
-    
+
     // Get data from the database
     int rc = dbp->get(dbp, NULL, &key, &data, 0);
     if (rc == 0)
