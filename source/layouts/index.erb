@@ -38,6 +38,9 @@
         <span class="next"></span>
       </div>
     <% end %>
+    <% if current_page.data.aggregate %>
+    <p><a href="https://discu.eu/?q=<%= "https://transactional.blog" + current_page.url %>&submit_title=<%= current_page.data.title %>">See discussion of this page on Reddit, HN, and lobsters.</a></p>
+    <% end %>
     </main>
     <% if environment == :transactionalblog %>
     <script data-goatcounter="https://transactionalblog.goatcounter.com/count"

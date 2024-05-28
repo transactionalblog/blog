@@ -84,10 +84,10 @@ class ReadyQueue {
 
 
 
-== Poor Man's Determinism
+== Alternatives
 
 :uri-rr-project: https://rr-project.org/
-:uri-hermit: https://developers.facebook.com/blog/post/2022/11/22/hermit-deterministic-linux-testing/
+:uri-antithesis: https://antithesis.com/
 
 Though the scheduler is the most vital requirement for _deterministic_
 simulation, implementing the rest of this guide will instead provide
@@ -98,4 +98,10 @@ any number of times.  `rr` can provide deterministic replay, but will execute
 slower, but has a number of limitations, and won't allow you to recompile for
 printf debugging.
 
-Alternatively, {uri-hermit}[hermit] appears to be trying to solve the same problem of deterministically executing multi-threaded programs, but I have no personal familiarity with it.
+// Hermit was previously mentioned here, but it seems to be unmaintained
+// and possibly has no future, so I'm not sure I should mention it.
+
+If trying to retrofit simulation onto an existing architecture of multiple
+processes (or multiple languages) seems overly daunting, one can give money to
+{uri-antithesis}[Antithesis], who have taken the approach of making the entire
+OS deterministic, and offer a minimal SDK for integration.

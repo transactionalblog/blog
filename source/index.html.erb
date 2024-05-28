@@ -10,25 +10,56 @@ nofooter: true
   .map {|a| [a.data.category, a.title]}
   .to_h %>
 
-<% blog.articles
-  .select {|a| !(@app.environment? :transactionalblog) || !a.data.hidden}
-  .select {|a| !(a.path.end_with? 'index.html')}
-  .sort_by {|a| [a.date, (a.data&.order&.to_i || 0)]} # no nil allowed in sort
+<% by_category = blog.articles
+    .select {|a| !(@app.environment? :transactionalblog) || !a.data.hidden}
+    .group_by {|a| a.data.category}
+
+  articles = []
+  by_category.each do |category, pages|
+    index_page = pages.find {|a| a.path.end_with? 'index.html'}
+    if index_page == nil || !index_page.data.aggregate then
+      pages.each do |page|
+        if !page.path.end_with? 'index.html' then
+          articles << [page, nil]
+        end
+      end
+    else
+      other_pages = pages.select {|a| !a.path.end_with? 'index.html'}
+                         .sort_by {|a| [(a.data&.order&.to_i || 0), a.date]} # no nil allowed in sort
+      articles << [index_page, other_pages]
+    end
+  end
+  articles.sort_by {|a, children| [ if children then children.max_by {|a| a.date}.date else a.date end, (a.data&.order&.to_i || 0)]} # no nil allowed in sort
   .reverse
-  .each do |article| %>
+  .each do |index, children| %>
   <div class="article">
     <div class="heading">
-      <span class="date"><%= article.date.strftime("%Y-%m-%d") %></span>
+      <% article_date = if children == nil then index.date else children.max_by {|a| a.date}.date end %>
+      <span class="date"><%= article_date.strftime("%Y-%m-%d") %></span>
       <span class="title"><h3>
-        <% if article.data.category != 'blog' %>
-          <a href="<%= article.data.category %>/index.html" ><%= category_name[article.data.category] %></a>:
+        <% if index.data.category != 'blog' %>
+          <a href="<%= index.data.category %>/index.html" ><%= category_name[index.data.category] %></a><% if children == nil %>:<%end%>
         <% end %>
-        <a href="<%= article.url %>"><%= article.title %></a>
+        <% if children == nil %>
+        <a href="<%= index.url %>"><%= index.title %></a>
+        <% end %>
       </h3></span>
-      <% if article.data.hidden %><span class="attributes">Hidden</span><%end%>
+      <% if index.data.hidden %><span class="attributes">Hidden</span><%end%>
     </div>
     <div class="summary">
-      <%= article.summary %>
+      <%= index.summary %>
+      <% if children != nil %>
+        <% max_by_date = children.max_by {|a| a.date}.date %>
+        <% children.each_with_index do |page, idx| %>
+          <span class="series">
+          <% if page.date == max_by_date %><span class="series-new"><% end %>
+          <a href="<%= page.url %>"><%= page.title %></a>
+          <% if page.date == max_by_date %></span><% end %>
+          </span>
+          <% if page.data.hidden %><span class="attributes">[hidden]</span><%end%>
+          <% if idx != children.length - 1 %> • <% end %>
+        <% end %>
+      <% end %>
     </div>
   </div>
 <% end %>

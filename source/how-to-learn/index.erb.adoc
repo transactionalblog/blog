@@ -1,6 +1,7 @@
 = How to Learn
 :revdate: 2023-05-07
 :page-layout: index
+:page-aggregate: true
 
 Suggested reading material for various topics.
 
