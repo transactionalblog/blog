@@ -1,0 +1,306 @@
+= SQL on Key-Value Storage
+:revdate: 2024-06-08
+:page-hidden: true
+:toc: preamble
+:nospace:
+
+A popular method of implementing SQL has been to build a key-value database, and
+then map SQL down onto key-value pairs.  This is a listing of requirements for a
+SQL transaction manager being implemented on a key-value store, and commentary
+on tradeoffs therein.
+
+== Design Constraints
+
+////
+Design Constraints
+- Givens
+  - linearizable key-value store
+- need to support SQL datatypes and objects
+  - How to map SQL row to KV
+    - lexicographic encoding
+  - How to represent indexes, materialized views
+////
+
+It is assumed that the storage engine for the SQL database already exists, and
+is a linearizable key-value store with single key atomicity, with no in-built
+transaction support.  The emphasis on "linearizable" is due to this page being
+written with distributed key-value stores in mind, but the vast majority of it
+applies to a single-node database as well.  As a concrete example, consider
+your favorite partitioned Raft-replicated RocksDB system, or just RocksDB
+itself for the single-node case (ignoring RocksDB's own transaction support).
+
+=== SQL Data Model
+
+In order to support SQL, there must be a way to map a SQL row to a (list of) key-value pair(s).
+This encoding should preserve the lexicographic ordering of all supported datatypes so that efficient range queries may be supported.
+The data types to support include:
+
+- int / numeric
+- float / double
+- char / varchar / text
+- binary / blob
+- date / time / timestamp / timestamp with timezone
+
+And possibly a subset of the less common:
+
+- object / json / protobuf / xml
+- array
+- geometry
+- money
+
+And then how to encode tuples of these types such that the tuples still maintain lexicographic ordering for tuple comparison.
+
+But fear not, there are many examples{nospace}sidenote:ref[] to follow of how to define such an ordering scheme:
+[.aside]#sidenote:def[] If you're reading this and are in academia, I can't seem to find any publications on efficient lexicographical encoding schemes, despite non-lexicographic row encodings being a well-studied topic.  If you know of one, please reach out, or consider authoring a paper on the topic!#
+
+- https://github.com/Positeral/lre[Positeral/lre: Lexicographic Row Encoding]
+- https://pkg.go.dev/github.com/google/orderedcode[google/orderedcode]
+- https://github.com/danburkert/bytekey[danburkert/bytekey], and its whole family of forks
+- https://github.com/deanlandolt/bytewise[deanlandolt/bytewise]
+- https://github.com/apple/foundationdb/blob/main/design/tuple.md[apple/foundationdb: tuple layer specification]
+- https://github.com/cockroachdb/cockroach/blob/master/docs/tech-notes/jsonb_forward_indexing.md[CockroachDB: JSON forward indexing]
+- https://github.com/ealmansi/elen[ealmansi/elen: Efficient Lexicographic Encoding of Numbers (in Javascript)]
+
+However, you'll still need to define your own support for some of the less common data types.
+
+The part of the row that is not the primary key does not require lexicographic ordering, and thus the additional computational and space overhead of a lexicographic order preserving serialization format isn't necessary.
+Thus, a more efficient encoding for values can also be considered.
+This does, however, mean essentially implementing, optimizing, and maintaining two different encodings of data in your database.
+
+The encoding will need to be evolvable, and have a way add and remove columns from the row.
+Preferably, this would be gracefully, so that a schema change does not involve locking and rewriting the entire table synchronously.
+However, this might be a necessity depending on the type of schema change, or as a safe-by-default first implementation.
+
+A row is a part of a table, but the encoding thus far hasn't specified anything that's a part of a SQL schema.
+Some collection of metadata needs to exist associated with the row to identify to which SQL entity this row belongs.
+It could be a table, it could be an index, it could be a materialized view.
+This metadata will likely be prepended to each key (using the lexicographic encoding), so that all rows for a table/index/etc. are grouped together by lexicographic ordering.
+
+=== SQL Isolation Model
+
+////
+- need to support the SQL isolation model
+  - need to support reading old versions
+  - even read committed isn't read committed
+  - implies some form of MVCC necessary
+    - or Oracle/MySQL/OrioleDB style undo log
+  - RC/SI needs w-w conflict detection
+  - serializable needs r-w (and w-w?)
+////
+
+Our goal is to build something which supports Read Committed or Snapshot Isolation, but not an efficient implementation of Serializable.
+
+Note that by "Read Committed", there is a significant difference between what the ANSI standard defines as Read Committed, and what the database industry at large defines as Read Committed.  The ANSI Standard claims that Read Committed should behave like exactly what it says: any data which is committed is visible for reading, but unlike Snapshot Isolation, the committed data read might form an inconsistent snapshot which observes only parts of some transactions.  The database industry has largely implemented Read Committed as "Snapshot Isolation except the server is allowed to pick a new read snapshot".sidenote:ref[]sidenote:ref[]
+[.aside]#sidenote:def[] For a more detailed explanation, take a look at https://docs.oracle.com/cd/E25054_01/server.1111/e25789/consist.htm#BABEIHGJ[Oracle's documentation on Read Committed].#
+[.aside]#sidenote:def[] SQL Server appears to offer both Read Committed isolation levels.  It calls the ANSI Standard "Read Committed", and the commonly implemented variant https://sqlperformance.com/2014/05/t-sql-queries/read-committed-snapshot-isolation["Read Committed Snapshot Isolation"], though I haven't seen that name used elsewhere to identify this "Almost Snapshot Isolation" variant.#
+Databases implement "Almost Snapshot Isolation" Read Committed instead of just Snapshot Isolation as it retains one very important difference: if the query encounters a conflict, the server is permitted to retry the statement with a new read snapshot until it succeeds.  Under Snapshot Isolation, that failure must be returned to the client so that they can retry the entire transaction body.  This means that Read Committed observes significantly fewer transaction aborts than Snapshot Isolation.
+
+The strong suggestion of not pursuing Serializable is one of the divergences between a local-only database and a distributed database.
+For local-only, it's fine to chase after Serializable and two phase locking is a standard and reasonable way of achieving that goal, in the distributed case, it is a folly.
+To build an efficient implementation of Serializable, one needs non-trivial cooperation from the storage layer in a distributed system.
+For example, the storage layer could be extended to support Cockroach-style "remember the version at which each key was last read", or Spanner-style "maintain in-memory locks for each row read or written", or a model of a less well-known system.
+However, without some extension permitting support from the storage layer for serializability, I have yet to see an implementation strategy for Serializable which does not slaughter performance.
+
+There is an advantage of offering Serializable over Snapshot Isolation though, which is that an MVCC Serializable implementation only needs to check for read-after-write conflicts, and can omit checking for write-after-write or write-after-read conflicts.  MVCC itself removes the need to check for write-after-read conflicts.  If all writes in a transaction are written in the same version, then it's impossible to form a cycle using only writes, so write-after-write conflicts don't need to be checked.sidenote:ref[][.aside]#sidenote:def[] M. Yabandeh and D. Gómez Ferro, "A critique of snapshot isolation," in Proceedings of the 7th ACM european conference on Computer Systems - EuroSys '12, Bern, Switzerland: ACM Press, 2012, p. 155. doi: 10.1145/2168836.2168853.# Thus, write-after-write conflict heavy workloads could see an increase in performance when using Serializable over Snapshot Isolation due to the lack of write-after-write conflict causing statement aborts and restarts.
+
+=== SQL Transaction Model
+
+////
+- need to support the SQL transaction model
+  - transactions are interactive
+  - transactions can be multi-step
+  - transactions are long running and/or large
+////
+
+=== SQL Features
+
+////
+- need to support optimizations to support SQL features
+  - more on this later
+////
+Various features in SQL necessitate specific support from the storage layer.
+This is a bit of a teaser for later, because part of the 
+
+== Design Space
+
+=== Transaction Model
+
+:uri-postgres-savepoint: https://www.postgresql.org/docs/current/sql-savepoint.html
+
+Most transactional key-value stores offer one-shot transactions.  A collection
+of reads and writes form one transaction, and there's no incremental commits or
+rollbacks during the transaction execution.  This transaction model is simpler
+than that of SQL's, where multiple statements can run within a transaction,
+during which statements can be rolled back or potentially re-executed any number
+of times.
+
+SQL transaction model is either:
+
+. The beginning of each statement is a savepoint.sidenote:ref[]
+  [.aside]#sidenote:def[] Not to be confused with the {uri-postgres-savepoint}[unofficial SQL savepoint feature], but conceptually the same.#
+  At any time during execution, the transaction can roll back to the savepoint,
+  undoing the effects of a statement.
+. Each statement is a nested transaction within the parent SQL transaction.
+
+If the API to the database is async, and the database permits multiple
+statements to be running concurrently within the same transaction, then the
+nested transaction model needs to be used as savepoints can't support
+concurrently executing statements.  If execution can ever restart within a
+statement, as part of CTE evaluation or adaptive operators, then there is a
+second savepoint or third level of nested transactions that must be planned for.
+
+SQL transactions are also begun without any knowledge of the statements that
+will later be run, and the transaction is only ended when a client issues a
+`COMMIT` or `ROLLBACK`. This means that the system must support keeping
+transactions alive even while no statement related to the transaction is
+executing.  The transaction might be long running and write or read a large
+amount of data, or it might be a single autocommit statement.
+
+=== Transaction Protocol
+
+Given the necessity of supporting complex, long-running transactions with that
+write a large amount of data, there's essentially only one viable high level
+strategy for implementation:
+
+. A client starts a transaction by creating a transaction status record in the database
+. The client issues writes that are marked as being a part of the pending transaction, with some form of pointer to the transaction status record.
+. At the end of each statement and upon transaction commit, the transaction record is marked as committed.
+
+Which is a client-driven three-phase commit algorithm.
+Some variation of this is implemented by CockroachDB, TiDB, and YugaByte.
+
+The three most popular distributed SQL databases all using variants of the same transaction protocol isn't a coincidence.
+A number of other potential implementation strategies aren't viable given the breadth of what must be supported in SQL.
+
+A client can't locally buffer writes until a statement finishes or a transaction
+commits, as a single statement is allowed to write gigabytes of data.
+Furthermore, a subsequent statement is allowed to `SELECT` that data, and
+potentially involve the uncommitted data in a complex join against existing
+committed data, and that means that the server side performing the SQL execution
+needs to have access to the data.  Writes from in-progress statements must be
+registered with the server.
+
+Most, but not all distributed SQL databases follow this transaction protocol.  However, Spanner notably does not.  Rather than acquire locks via staging pending writes, it acquires an in-memory lock on the leader of the replication group responsible for that key. This is a significantly cheaper operation as the lock is both not replicated and not durable, but that also means that a crash can cause the lock to be lost while the transaction holding it is still executing.  Thus, at transaction commit, Spanner must re-validate that all acquired locks are still held.
+
+And there's still other databases that don't follow it at all, and potentially accept other limitations on what they can do.  VoltDB is very optimized towards single-partition statements, and accepts a very expensive global coordination phase for executing distributed statements.  LeanXcale 
+
+=== Concurrency Control
+
+
+
+== Optimizations
+
+=== MVCC Read Amplification
+
+=== Large Value Read Amplification
+
+=== Reading Backwards
+
+`SELECT min(primary_key) FROM Table` is optimally done with a forward scan.
+`SELECT max(primary_key) FROM Table` is optimally done with a reverse scan.
+Don't forget that reading backwards is going to be an important thing to support.
+
+Thus, if the solution to MVCC cleanup or 
+
+=== Deferred Constraints
+
+Primary key constraints can be deferred, so data models which assume that a primary key is unique will break.
+
+////
+Concurrency Control Design Space
+- MVCC implemented as a suffix on each key
+- Filter for most recent write according to a timestamp
+  - CRDB & YB: HLC
+  - TiDB: timestamp oracle
+- Writes double as locks for the key
+  - See percolator, but the idea probably predates that
+- Serializable sometimes forsaken
+  - CRDB: Serialize writes as of transaction start
+    - Makes Serializable cheap, but read-only queries aren't CC-free
+  - YB & TiDB: Serialize writes as of transaction end
+    - Makes Serializable expensive/unsupported
+    - But snapshot reads are CC-free
+  - Spanner: Maintain read locks only in memory
+    - Provides best of both worlds
+    - Except transaction bodies aren't serializable
+    - Probably fine as long as hidden by SQL engine
+  - There's niches where you can break the rules
+    - VoltDB: super fast SQL, but only for single-partition
+    - Spanner: Size limits on DMLs.  No read-your-writes in transactions.
+- Pessimism not optimism
+  - CRDB and TiDB both started with optimistic CC
+  - Moved to pessimistic CC
+
+Transaction Protocol Design Space
+
+- Client-driven 3PC is the standard
+  - CRDB, TiDB, YB all have minor variations
+  - Most of them call it "2PC", which it is not
+  - Follow-on optimization for -1 RTT for small transactions
+    - Link the CRDB blog post and Rystsov's blog post
+
+- Actual 2PC?
+  - Spanner only
+  - Note that this is because they broke the rules
+
+Intermezzio
+
+Put together the design in your head:
+
+class Transaction {
+}
+
+class Statement {
+}
+
+
+Implementation Details
+ - Here ends our high-level design space analysis
+ - Here begins the odd details and squirrly corners involved
+
+- Read Amplification
+  - Old versions
+    - Range-reads across keys with a lot of 
+    - If always reading at most recent recent version (2PL read locking), then Ressi split works great
+    - Otherwise, consider bounding the overhead
+
+  - Large value Read Amplification
+    - move them out of line
+
+- Write Amplification
+  - One row == one key-value
+  - Wide columns means N columns = N
+
+- MVCC cleanup
+  - Overwritten and deleted versions must be removed somehow
+  - If you control or can hook into the storage, it's a very good idea to inline this as part of storage cleanup
+    - ie. make it a part of LSM compaction.
+  - If this is driven from the client, be _very_ careful of races between range-reads and removing key-value pairs
+    - Adding key-value pairs is monotonic
+    - Removing key-value pairs breaks monotonicity, and 
+
+- Reading Backwards
+
+If your MVCC cleanup looks like:
+  if (key points to transaction record marked as committed) {
+    write key as committed
+    delete tentative key
+  }
+
+Then you forgot about reading backwards.
+
+`SELECT min(primary_key) FROM Table` is optimally done with a forward scan.
+`SELECT max(primary_key) FROM Table` is optimally done with a reverse scan.
+Don't forget that reading backwards is going to be an important thing to support.
+
+- Locking for SELECT FOR UPDATE
+
+- Detecting multiple writes to same key
+
+- Deferred Constraints
+
+
+- Writing in the past
+
+
+////
