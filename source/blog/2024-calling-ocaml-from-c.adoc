@@ -183,10 +183,10 @@ type t = { s : string }
 
 let () =
   let make_t_obj () = { s = "hello" } in
-  Callback.register_exn "make_t_obj" make_t_obj
+  Callback.register "make_t_obj" make_t_obj
 let () =
   let t_get_s obj = obj.s in
-  Callback.register_exn "t_get_s" t_get_s
+  Callback.register "t_get_s" t_get_s
 ----
 
 We'd then expose this in C as something like:
@@ -251,7 +251,7 @@ OCaml records and sum types are relatively opaque from C, but unexpectedly, `opt
 ----
 let () =
   let maybe_integer () = Some(1) in
-  Callback.register_exn "maybe_integer" maybe_integer
+  Callback.register "maybe_integer" maybe_integer
 ----
 
 And rather than having to also register `is_none` and `get_int_from_some` functions to invoke, one can just directly manipulate the `int option` type from C:
