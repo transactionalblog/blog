@@ -2,7 +2,6 @@
 :revdate: 2024-05-24
 :page-order: 99
 :toc: preamble
-:page-hidden: true
 
 == Archival Note
 
