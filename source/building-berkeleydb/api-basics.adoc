@@ -1,0 +1,278 @@
+= API Basics
+:revdate: 2024-04-07
+:page-order: 4
+:page-tag: reading
+:toc: preamble
+
+Opening and closing databases as a BerkeleyDB API-compatible library.
+
+== API
+
+When this series introduced itself as rebuilding BerkeleyDB, it wasn't a joke.  Our goal is to build something ABI-compatible with the existing BerkeleyDB.  This means that we'll implement our API exactly according to the existing BerkeleyDB headers, and then our library should be usable as an exact replacement for BerkeleyDB.  However, there is absolutely no goal of allowing BerkeleyDB and the re-implementation to both be used at the same time and to share data in memory.  Thus, the guidance provided in this series will completely disregard how BerkeleyDB uses various members of its structs, and we will completely willfully use them in unintended ways.
+
+The header of relevance is `db.h`.  The absolute basics of what's relevant for opening and closing a file is:
+
+.db.h
+[source,c]
+----
+struct DB {
+  /**
+   * Opens a database file.
+   *
+   * This supports many options.  We will ignore most of them.
+   *
+   * @param db The `this` pointer.  The same DB this method is attached to.
+   * @param txnid Ignored. (Allows transactionally creating a database.)
+   * @param file The path to open for the database.
+   * @param database The string name to assign to the database.
+   * @param type The database type.  Must be DB_BTREE==1.
+   * @param flags Ignored.
+   * @param mode The unix mode to set when opening the file.
+   *             A mode of `0` should be interpreted at `0660`.
+   */
+  int (*open)(DB *db, DB_TXN *txnid, const char *file, const char *database,
+              DBTYPE type, uint32_t flags, int mode);  
+
+  /**
+   * Close the database
+   * 
+   * This should free `db` as the last thing that it does.
+   *
+   * @param db The `this` pointer.  The same DB this method is attached to.
+   * @param flags Ignored.
+   */
+  int (*close)(DB *db, u_int32_t flags);  
+
+  // Here ends the "public API".
+  // Here begins our abuse of full access to the struct members.
+
+  // This function is meant to print statistics about the database.  Instead,
+  // I'd suggest taking your code from printing page and entry data, and making
+  // it accessible from here.
+  int (*stat_print)(DB *db, u_int32_t flags);
+
+  // There's a number of other members of possible use and interest, but really
+  // all you need is just a place to stash all the instance data for a database.
+  // We have bt_internal for that, so for where to put your file handle, or
+  // anything else, just make up your own struct for all the information, and
+  // store it into bt_internal.
+  // If you're writing in C++, this is a great place to keep a `this` pointer.
+  void *bt_internal;
+};
+
+/**
+ * Create a DB instance.
+ *
+ * @param dbp A pointer to a DB pointer, which will be non-null after return.
+ * @param dbenv Databases can be organized within an environment.  Can be null.
+ * @param flags Ignored.  DB_AM_* flags.
+ */
+int db_create(DB **dbp, DB_ENV *dbenv, u_int32_t flags);
+----
+
+And so you'll need an implementation that looks roughly like:
+
+.my_bdb.c
+[source,c]
+----
+#include <db.h>
+#include <stdlib.h>
+
+int __db_open(DB *db, DB_TXN *txnid, const char *file, const char *database,
+              DBTYPE type, uint32_t flags, int mode) {
+  // Create or open file, initialize structures.
+  return 0;
+}
+
+int __db_close(DB *db, u_int32_t flags) {
+  // Wait for outstanding work, close file descriptors, free all allocations.
+  return 0;
+}
+
+int db_create(DB **dbp, DB_ENV *dbenv, u_int32_t flags) {
+  DB* db = calloc(1, sizeof(DB));
+  db->open = &__db_open;
+  db->close = &__db_close;
+  // etc.
+  
+  *dbp = db;
+  return 0;
+}
+----
+
+.Compilation
+[source,bash]
+----
+gcc my_bdb.c -fPIC -shared -o libdb-5.3.so
+----
+
+== Task
+
+The following program should be able to run correctly, and function equivalently to whatever code you had from the last section:
+
+.test_dbopen.c
+[source,c]
+----
+#include <stdio.h>
+#include <stdlib.h>
+#include <db.h>
+
+int main() {
+  DB *dbp;
+  int ret;
+
+  // Initialize DB structure
+  if ((ret = db_create(&dbp, NULL, 0)) != 0) {
+      fprintf(stderr, "db_create: %d\n", ret);
+      return EXIT_FAILURE;
+  }
+
+  // Open the database
+  if ((ret = dbp->open(dbp, NULL, "my.db", NULL,
+                       DB_BTREE, DB_CREATE, 0664)) != 0) {
+      fprintf(stderr, "dbp->open: %d\n", ret);
+      return EXIT_FAILURE;
+  }
+
+  // If you implemented stat_print as the DB pretty printer
+  if ((ret = dbp->stat_print(dbp, 0)) != 0) {
+      fprintf(stderr, "dbp->stat_print: %d\n", ret);
+      return EXIT_FAILURE;
+  }
+
+  // Close the database
+  if ((ret = dbp->close(dbp, 0)) != 0) {
+      fprintf(stderr, "dbp->close: %d\n", ret);
+      return EXIT_FAILURE;
+  }
+
+  return EXIT_SUCCESS;
+}
+----
+
+To use our library, prefer `LD_LIBRARY_PATH` over `LD_PRELOAD` so that if there's any require symbols that aren't defined, you get an error rather than some mix-and-match from your code versus actual BerkeleyDB.
+
+.Compilation and Execution
+[source,bash]
+----
+gcc test_dbopen.c -o test_dbopen -ldb
+# Uses system BerkeleyDB
+./test_dbopen
+# Confirm that your library is the one chosen, and not /usr/lib/...
+# Adjust the shared library name if needed to match the printed libdb* filename
+LD_LIBRARY_PATH=library/output/dir/ ldd prog
+# Run the test against your library
+LD_LIBRARY_PATH=library/output/dir/ ./test_dbopen
+----
+
+== Bindings
+
+Or don't do that.  If you're working in a language with bindings, and it's easier to make a minimal abstraction layer over your own API and the existing BerkeleyDB bindings and write tests on top of that, then do that.  The real task here is just get _some_ minimal infrastructure in place for running tests on your own library of the official library interchangeably for testing.  You're here to learn how to write a B-Tree, not learn how to interface with C.
+
+If you're interested in using bindings from some other language to run your ABI-compatible BerkeleyDB, you can do that too.  There's a few more functions you'll want to provide stub implementations for.  I've pulled this list off of what symbols the .so from `pip install berkeleydb` requires:
+
+.my_bdb.c
+[source,c]
+----
+#include <errno.h>
+#include <string.h>
+
+/**
+ * Creates a DB_ENV.
+ *
+ * @param dbenv The outparam in which to store the DB_ENV.
+ * @param flags Ignored by us.
+ * @return 0 on success, nonzero on error.
+ */
+int db_env_create(DB_ENV **dbenv, u_int32_t flags) {
+    *dbenv = NULL;
+    return -ENOSYS;
+}
+
+/**
+ * Creates a sequence within a database.
+ *
+ * @param dbseq The outparam in which to store the DB_SEQUENCE.
+ * @param db The DB in which this sequence would be created.
+ * @param flags Ignored by us.
+ * @return 0 on success, nonzero on error.
+ */
+int db_sequence_create (DB_SEQUENCE **dbseq, DB *db, u_int32_t flags) {
+    *dbseq = NULL;
+    return -ENOSYS;
+}
+ 
+/**
+ * Returns a displayable string which describes an error.
+ *
+ * Part of BerkeleyDB's public API are a set of error codes between
+ * -30,800 and -30,999.  Ctrl-f "error return codes" in /usr/include/db.h.
+ *
+ * @return A printable string owned by the library.
+ */
+char* db_strerror(int error) {
+    return strerror(error);
+}
+
+/**
+ * Reports the version of the library being used.
+ *
+ * `major`.`minor`.`patch` was the historical BerkeleyDB versioning scheme.
+ *
+ * @return A string suitable for display containing the above information.
+ *         The returned pointer is owned by the library.
+ */
+char *db_version(int *major, int *minor, int *patch) {
+    *major = 0;
+    *minor = 1;
+    *patch = 0;
+    return (char*)"MyBDB 0.1.0";
+}
+
+/**
+ * Reports the version of the library being used.
+ *
+ * `family` and `release` are the Oracle versioning scheme.
+ * `major`.`minor`.`patch` was the historical BerkeleyDB versioning scheme.
+ *
+ * @return A string suitable for display containing the above information.
+ *         The returned pointer is owned by the library.
+ */
+char *db_full_version(int *family, int *release,
+                      int *major, int *minor, int *patch) {
+    *family = 0;
+    *release = 0;
+    *major = 0;
+    *minor = 1;
+    *patch = 0;
+    return (char*)"MyBDB 0.1.0";
+}
+----
+
+And different bindings use slightly different extra methods on the `DB` object.  The python bindings require `set_errcall`:
+
+.my_bdb.c
+[source,c]
+----
+void __db_set_errcall(DB *,
+    void (*)(const DB_ENV *, const char *, const char *)) {
+}
+
+int db_create(DB **dbp, DB_ENV *dbenv, u_int32_t flags) {
+  // ...
+  db->set_errcall = &__db_set_errcall;
+  // ... 
+}
+----
+
+And then the following should work:
+
+[source,bash]
+----
+LD_LIBRARY_PATH=library/output/dir python3 <<END
+import berkeleydb
+print(berkeleydb.db.version())
+db = berkeleydb.db.DB()
+db.close()
+END
+----
