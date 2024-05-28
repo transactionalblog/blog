@@ -1,0 +1,21 @@
+= SIGMOD Programming Contest Archive
+:revdate: 2024-04-27
+:page-layout: index
+:page-aggregate: true
+
+SIGMOD hosts a yearly competition to design a system which performs a set of queries as quickly as possible.  Each contest provides a starting framework and test harness.  They also make great intermediate database projects for learning.
+
+[.display-hidden]
+== Intro
+
+Unfortunately, the programming contest sites have been dropping off the internet as old year-specific SIGMOD domains are released or universities revamp their sites and drop old pages.  The challenges have generally been quite interesting projects, and every year someone puts good effort into providing a starting framework and testing harness for each challenge.  So to ensure these challenges remain easily accessible and available, I've located the original task description and source for each year, and copied them into the pages below to preserve the content.
+
+== Contests
+
+++++
+<%= partial("partials/index_section", :locals => {}) %>
+++++
+
+== Legal
+
+The code challenges are generally issued with an MIT license.  The task description is... probably copyrighted?  (I don't make any money off this site. Please don't sue me?)  Reach out to <millerdevel at google mail provider> if you'd like to request a challenge be taken down.

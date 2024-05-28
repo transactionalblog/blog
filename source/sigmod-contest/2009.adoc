@@ -1,0 +1,138 @@
+= Main Memory Transactional Index (2009)
+:revdate: 2024-04-28
+:page-order: 100
+:toc: preamble
+
+== Archival Note
+
+:uri-contest-2009: http://db.csail.mit.edu/sigmod09contest/index.html
+:uri-contest-2009-archive: https://web.archive.org/web/20160313232536/http://db.csail.mit.edu/sigmod09contest/index.html
+:uri-contest-original-code: https://github.com/thisismiller/sigmod-contest-2009/tree/5168164e4f43c428d0c0f6defe727536b65fe5e3
+:uri-dexter: https://web.archive.org/web/20130406034200/http://wwwdb.inf.tu-dresden.de/research-projects/projects/dexter/core-indexing-structure-and-techniques
+:uri-dexter-paper: https://scholar.google.com/scholar?cluster=12696725282482406625
+
+The {uri-contest-2009}[original contest site] is no longer accessible.
+There is an {uri-contest-2009-archive}[Archive.org mirror] available, from which the text on the rest of this page was copied.
+
+The provided code for this contest is available at github:thisismiller/sigmod-contest-2009[].  The exact provided code is preserved as {uri-contest-original-code}[commit 5168164e].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.
+
+This contest was organized by MIT CSAIL.
+Samuel Madden and Michael Stonebreaker filed for https://www.nsf.gov/awardsearch/showAward?AWD_ID=0848727[the grant].
+The contest itself written by Elizabeth Reid.
+The winner of this contest was Clément Genzmer of Ecole Polytechnique.
+The only submission for which details are still available is of {uri-dexter}[DEXTER], which resulted in a later submission to the 2011 Programming Contest and a paper {uri-dexter-paper}[_Efficient in-memory indexing with generalized prefix trees_].
+
+'''
+
+== Task Overview
+
+The goal of the contest is to design an index for main memory data. The index must be capable of supporting exact match queries and range queries, as well as updates, inserts, and deletes. The system must also support serializable execution of user-specified transactions. The choice of data structures (e.g., B-tree, AVL-tree, etc.) as well as the mechanism for enforcing serializability (locking, OCC, one-at-a-time) is up to you. The system does not need to support crash recovery.
+
+Contestants must supply the source code for their entries, and agree to license their code under the BSD or MIT open source license should their system win the contest.
+
+Submissions may be written in any language, but an x86 shared-library and source code that conforms to a supplied build environment will be required.
+
+== Task Details, API and Test Implementation
+
+The data structure is a collection of {key, payload} pairs. Your system must be able to index 32-bit integers (int32), 64-bit integers (int64) and variable-length characters strings of 128 bytes or less (varchars). Keys cannot be assumed to be unique.
+
+The payload is a variable length null-terminated string between 10 and 100 bytes.
+
+There are no restrictions on representation or compressions, but your system must be capable of supporting any number of indexes of the above form, as long as the total amount of "raw" (uncompressed) information does not exceed 4 Gbytes.
+
+=== API
+
+The commands which your system must support are specified in the API, which can be downloaded from the following link:
+
+* https://thisismiller.github.io/sigmod-contest-2009/server_8h.html[API Documentation] -- Nicely formatted documentation for the header file.
+* https://github.com/thisismiller/sigmod-contest-2009/blob/main/server.h[server.h] -- C header files for the API you must implement.
+
+An example implementation of the API was created using Berkeley DB. A set of unit tests have been provided which all valid implementations should pass. The example implementation and unit tests can be downloaded using the following links:
+
+* https://github.com/thisismiller/sigmod-contest-2009/blob/main/bdbimpl.c[bdbimpl.c] -- Our BerkeleyDB Implementation
+* https://github.com/thisismiller/sigmod-contest-2009/blob/main/unittests.c[unittests.c] -- A set of test cases your implementation should pass.
+
+More unit tests and our complete test driver will be released mid-January, but these should help get you started. You can also download these files, along with the API header file and Makefile using this link:
+
+* https://github.com/thisismiller/sigmod-contest-2009/[sigmod-contest-2009] -- GitHub repo containing all source files, as well as Makefile and README.
+
+Please note that you will need to modify the defines (e.g., BASE) at the beginning of the Makefile to point to your installation of BerkeleyDB.
+
+== Running the Test Cases
+
+In order to run the Berkeley DB implementation, you must have Berkeley DB installed on your machine. You can download it for free from this site: http://www.oracle.com/technology/products/berkeley-db/index.html
+
+If Berkeley DB was installed in `/usr/local/BerkeleyDB.4.7`, you can and run this command using our default Makefile (if BerkeleyDB is installed in some other location, you will have to modify the Makefile -- see the comments at the beginning of the Makefile):
+
+[source,bash]
+----
+make test
+----
+
+To compile on a MacOS machine, use the command:
+
+[source,bash]
+----
+make macos
+----
+
+The binary contest created by this can be executed to run the unit tests:
+
+[source,bash]
+----
+./contest
+----
+
+This will produce a directory ENV into which the Berkeley DB database and environment information is stored, as well as an output file error.log in which error messages are recorded (some error messages are expected while running these unit tests, as they purposefully test for invalid keys, etc.). Note that the test cases will not pass if the ENV directory already exists when the contest binary is run; the make test target deletes this directory before running.
+
+The current batch of unit tests run through all of the API calls via three threads: two threads run over the same index and check for basic transactional logic, while the third thread runs on a separate index, and so should not see any data from the first two threads. Furthermore, one of the threads uses two indices at the same time.
+
+== Your Implementation, Submission, and Our Hardware Configuration
+
+As with our test cases, the final driver will be written in C (with some scripting support in Python). It will connect to your implementation via a number of threads (implemented using the pthreads package.) You must supply a Linux shared library (.so file) called lib.so, which can be built as in our supplied Makefile, e.g.:
+
+[source,bash]
+----
+gcc -shared -I /usr/include/db4/ /usr/lib/libdb.a bdbimpl.c -o lib.so
+----
+
+In the above example, we have linked in BerkeleyDB since our test implementation depends on it. Your implementation probably won't use BerkeleyDB!
+
+We will build our contest binary that links against this shared library as follows (our supplied Makefile also includes this step):
+
+[source,bash]
+----
+gcc unittests.c ./lib.so -pthread -o contest
+----
+
+We will run on a 64-bit x86 machine running Red Hat Fedora Core 10. We will supply additional details of the test machine when they become available, but we anticipate using a new-ish Quad Core machine such as the Dell PowerEdge 1900 Enhanced (see this page), with 8 GB of main memory.
+We will provide a submission site where you can upload your implementation as the final deadline approaches.
+
+== Benchmark
+
+:uri-speed-test: https://github.com/thisismiller/sigmod-contest-2009/blob/main/tests/speed_test.c
+:uri-harness: https://github.com/thisismiller/sigmod-contest-2009/blob/main/harness.py
+
+The benchmark can be found here: {uri-speed-test}[speed_test.c]. We have also supplied a {uri-harness}[python script] which will execute test files provided to it, provided that they have a run() method.
+
+The benchmark will consist of approximately 50 concurrent streams of transactions, each executed by a separate thread. The system will start out with no data. A driver program will create between 1 and approximately 50 indexes totaling not more than 4 Gbytes. Each index will be created by a different thread. Then the driver will have all of the threads perform inserts to populate the index structures. The data type of the key and its distribution are not known in advance. Lastly, each thread will run a collection of transactions.
+
+There are three kinds of transactions that will be used in the benchmark:
+
+. (10%) Scan: Transaction does a get followed by K-1 getNext commands. K is uniformly distributed between 100 and 200.
+. (30%) Get: Transaction does a collection of L get commands. L is uniformly distributed between 20 and 30.
+. (60%) Update: Transaction does a collection of M (insert, delete) pairs. M is uniformly distributed between 5 and 10.
+
+However, your implementation must be able to handle any kind of transaction possible given the API, not just these three types of interactions (see the unit tests for some examples of other transactions your code should be able to handle).
+
+The driver program will run on the same machine as your indexing implementation.
+
+Your implementation must give the same answer as some serial execution of these transactions. You can decide how to achieve serializability.
+
+Each thread issue the next command when the answer to the previous command is returned. If you choose to abort a transaction, then it will be immediately retried by the same thread.
+
+Your implementation must correctly handle the "phantom problem".
+
+Your code must be multi-threaded, so that it can support simultaneous connections from the 50 threads (implemented using the pthreads library). These threads will first load a collection of {key, pointer} pairs in a collection of transactions as noted above. Then, the threads will submit a mix of queries of updates.
+
+The driver will run some number of transactions, in the ratios specified above, and the score for your submission will be based on the time taken to complete those transactions.
