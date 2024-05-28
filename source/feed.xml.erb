@@ -10,7 +10,11 @@ layout: none
   <lastBuildDate><%= Time.now.utc.rfc2822 %></lastBuildDate>
   <language>en-us</language>
   <atom:link href="<%= join_paths(config[:domain], config[:http_prefix], "feed.xml") %>" rel="self" type="application/rss+xml"/>
-
+<% category_name = blog.articles
+  .select {|a| !(@app.environment? :transactionalblog) || !a.data.hidden }
+  .select {|a| a.path.end_with? 'index.html'}
+  .map {|a| [a.data.category, a.title]}
+  .to_h %>
 <% blog.articles
   .select {|a| !(@app.environment? :transactionalblog) || !a.data.hidden}
   .select {|a| !(a.path.end_with? 'index.html')}
@@ -19,7 +23,8 @@ layout: none
   .reverse
   .each do |date, post| %>
   <item>
-    <title><%= post.title %></title>
+    <% category_heading = if post.data.category != 'blog' then category_name[post.data.category] + ": " else "" end %>
+    <title><%= category_heading + post.title %></title>
     <link><%= join_paths(config[:domain], config[:http_prefix], post.url) %></link>
     <guid><%= join_paths(config[:domain], config[:http_prefix], post.url) %></guid>
     <category><%= post.data.category %></category>
