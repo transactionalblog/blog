@@ -71,7 +71,7 @@ with Raft languishing in the middle.
 :uri-ydb-erasure-encode: https://ydb.tech/docs/en/concepts/cluster/distributed_storage
 :uri-tigerbeetle-fpaxos: https://docs.tigerbeetle.com/deploy/hardware/
 
-In the simplest Raft implementation, all operations sent to the leader, and the leader broadcasts the replication stream to its followers.  All nodes store and write the same data to disk.  At most two of the replicas are permitted to be unavailable.  Across any and all flavors of Raft and Multi-Paxos, the presence of a leader is fundamental, and gives a 1 in 5 chance of transient unavailability if a node fails.
+In the simplest Raft implementation, all operations sent to the leader, and the leader broadcasts the replication stream to its followers.  Tolerating stem:[f=2] failures requires stem:[2f+1 = 5] nodes.  All nodes store and write the same data to disk.  At most two of the replicas are permitted to be unavailable.  Across any and all flavors of Raft and Multi-Paxos, the presence of a leader is fundamental, and gives a 1 in 5 chance of transient unavailability if a node fails.
 
 [graphviz]
 ----
@@ -120,6 +120,8 @@ In summary, our resource efficiency for stem:[f=2] for a minimal Raft implementa
 
 == Leaderless Paxos / Majority Quorums
 
+While leaderless Paxos and majority quorums differ in terms of consistency guarantees, they're very similar in terms of resource efficiency.  Tolerating stem:[f=2] failures requires stem:[2f+1=5] nodes.  All nodes store the same data.  Writes are broadcast to all replicas and require a majority of responses.  Reads are broadcast to all replicas and require a majority of responses.
+
 [graphviz]
 ----
 digraph G {
@@ -130,6 +132,15 @@ digraph G {
   Client -> Replica5 [dir=both, style=dashed];
 }
 ----
+
+There's a much smaller variety of optimizations for leaderless replication algorithms.
+
+<<WitnessReplicas>> applies again, and allows storing only the log of most recent changes on 2 of the 5 nodes, thus bringing our storage efficiency from 20% to ~33%.
+
+<<RSPaxos>> examines applying erasure encoding to Paxos log entries, and concludes that space savings can only be obtained if fault tolerance is sacrificed.  For the
+The most fun optimization is applying erasure encoding to the quorums.
+
+The major advantage of leaderless, quorum-based algorithms is the lack of dependence on a leader.  As opposed to Raft and Multi-Paxos, the chance of unavailability on failure is 0%.  There are no leader leases which must first time out, or any reconfiguration step which needs to be done.
 
 [cols="1,1,1,1"]
 |===
@@ -245,12 +256,13 @@ Raft blends the worst aspects of Failure Masking (poor read/write throughput eff
 * [[[PullBasedConsensus,Pull-Based Consensus in MongoDB]]] Siyuan Zhou and Shuai Mu. 2021. Fault-Tolerant Replication with Pull-Based Consensus in MongoDB. In 18th USENIX Symposium on Networked Systems Design and Implementation (NSDI 21), USENIX Association, 687-703. Retrieved from https://www.usenix.org/conference/nsdi21/presentation/zhou
 * [[[ScalingReplication,Scaling Strongly Consistent Replication]]] Aleksey Charapko, Ailidani Ailijiang, and Murat Demirbas. 2021. PigPaxos: Devouring the Communication Bottlenecks in Distributed Consensus. In Proceedings of the 2021 International Conference on Management of Data (SIGMOD '21), Association for Computing Machinery, Virtual Event, China, 235-247. DOI: https://doi.org/10.1145/3448016.3452834
 * [[[CommutativeRaft,Exploiting Commutativity For Practical Fast Replication]]] Seo Jin Park and John Ousterhout. 2019. Exploiting Commutativity For Practical Fast Replication. In 16th USENIX Symposium on Networked Systems Design and Implementation (NSDI 19), USENIX Association, Boston, MA, 47-64. Retrieved from https://www.usenix.org/conference/nsdi19/presentation/park
-* [[[VertialPaxosII,Vertical Paxos II]]] Leslie Lamport, Dahlia Malkhi, and Lidong Zhou. 2009. Vertical Paxos and Primary-Backup Replication. Microsoft. Retrieved from https://www.microsoft.com/en-us/research/publication/vertical-paxos-and-primary-backup-replication/
+* [[[VerticalPaxosII,Vertical Paxos II]]] Leslie Lamport, Dahlia Malkhi, and Lidong Zhou. 2009. Vertical Paxos and Primary-Backup Replication. Microsoft. Retrieved from https://www.microsoft.com/en-us/research/publication/vertical-paxos-and-primary-backup-replication/
 * [[[CRAQ]]] Jeff Terrace and Michael J. Freedman. 2009. Object Storage on CRAQ: High-Throughput Chain Replication for Read-Mostly Workloads. In 2009 USENIX Annual Technical Conference (USENIX ATC 09), USENIX Association, San Diego, CA. Retrieved from https://www.usenix.org/conference/usenix-09/object-storage-craq-high-throughput-chain-replication-read-mostly-workloads
 * [[[PacificA]]] Wei Lin, Mao Yang, Lintao Zhang, and Lidong Zhou. 2008. PacificA: Replication in Log-Based Distributed Storage Systems. Retrieved from https://www.microsoft.com/en-us/research/publication/pacifica-replication-in-log-based-distributed-storage-systems/
 * [[[Hermes]]] Antonios Katsarakis, Vasilis Gavrielatos, M.R. Siavash Katebzadeh, Arpit Joshi, Aleksandar Dragojevic, Boris Grot, and Vijay Nagarajan. 2020. Hermes: A Fast, Fault-Tolerant and Linearizable Replication Protocol. In Proceedings of the Twenty-Fifth International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS '20), Association for Computing Machinery, Lausanne, Switzerland, 201-217. DOI: https://doi.org/10.1145/3373376.3378496
 * [[[HyperDex]]] Robert Escriva, Bernard Wong, and Emin Gün Sirer. 2012. HyperDex: a distributed, searchable key-value store. In Proceedings of the ACM SIGCOMM 2012 Conference on Applications, Technologies, Architectures, and Protocols for Computer Communication (SIGCOMM '12), Association for Computing Machinery, Helsinki, Finland, 25-36. DOI: https://doi.org/10.1145/2342356.2342360
 * [[[Kafka]]] Jay Kreps, Neha Narkhede, Jun Rao, and others. 2011. Kafka: A distributed messaging system for log processing. In Proceedings of the NetDB, Athens, Greece, 1-7.
 * [[[FoundationDB]]] Jingyu Zhou, Meng Xu, Alexander Shraer, Bala Namasivayam, Alex Miller, Evan Tschannen, Steve Atherton, Andrew J. Beamon, Rusty Sears, John Leach, Dave Rosenthal, Xin Dong, Will Wilson, Ben Collins, David Scherer, Alec Grieser, Young Liu, Alvin Moore, Bhaskar Muppana, Xiaoge Su, and Vishesh Yadav. 2021. FoundationDB: A Distributed Unbundled Transactional Key Value Store. In Proceedings of the 2021 International Conference on Management of Data (SIGMOD '21), Association for Computing Machinery, Virtual Event, China, 2653-2666. DOI:https://doi.org/10.1145/3448016.3457559
+* [[[RSPaxos,RS-Paxos]]] Shuai Mu, Kang Chen, Yongwei Wu, and Weimin Zheng. 2014. When paxos meets erasure code: reduce network and storage cost in state machine replication. In Proceedings of the 23rd International Symposium on High-Performance Parallel and Distributed Computing (HPDC '14), Association for Computing Machinery, Vancouver, BC, Canada, 61-72. DOI:https://doi.org/10.1145/2600212.2600218
 
 link:2024-resource-efficency-in-replication.bib[References as BibTex]

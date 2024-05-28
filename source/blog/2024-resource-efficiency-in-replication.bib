@@ -414,9 +414,26 @@
     doi = {10.1145/3448016.3457559},
     abstract = {FoundationDB is an open source transactional key value store created more than ten years ago. It is one of the first systems to combine the flexibility and scalability of NoSQL architectures with the power of ACID transactions (a.k.a. NewSQL). FoundationDB adopts an unbundled architecture that decouples an in-memory transaction management system, a distributed storage system, and a built-in distributed configuration system. Each sub-system can be independently provisioned and configured to achieve the desired scalability, high-availability and fault tolerance properties. FoundationDB uniquely integrates a deterministic simulation framework, used to test every new feature of the system under a myriad of possible faults. This rigorous testing makes FoundationDB extremely stable and allows developers to introduce and release new features in a rapid cadence. FoundationDB offers a minimal and carefully chosen feature set, which has enabled a range of disparate systems (from semi-relational databases, document and object stores, to graph databases and more) to be built as layers on top. FoundationDB is the underpinning of cloud infrastructure at Apple, Snowflake and other companies, due to its consistency, robustness and availability for storing user data, system metadata and configuration, and other critical information.},
     booktitle = {Proceedings of the 2021 International Conference on Management of Data},
-    pages = {2653–2666},
+    pages = {2653-2666},
     numpages = {14},
     keywords = {multiversion concurrency control, oltp, optimistic concurrency control, simulation testing, strict serializability, unbundled database},
     location = {Virtual Event, China},
     series = {SIGMOD '21}
+}
+@inproceedings{10.1145/2600212.2600218,
+    author = {Mu, Shuai and Chen, Kang and Wu, Yongwei and Zheng, Weimin},
+    title = {When paxos meets erasure code: reduce network and storage cost in state machine replication},
+    year = {2014},
+    isbn = {9781450327497},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    url = {https://doi.org/10.1145/2600212.2600218},
+    doi = {10.1145/2600212.2600218},
+    abstract = {Paxos-based state machine replication is a key technique to build highly reliable and available distributed services, such as lock servers, databases and other data storage systems. Paxos can tolerate any minority number of node crashes in an asynchronous network environment. Traditionally, Paxos is used to perform a full copy replication across all participants. However, full copy is expensive both in term of network and storage cost, especially in wide area with commodity hard drives.In this paper, we discussed the non-triviality and feasibility of combining erasure code into Paxos protocol, and presented an improved protocol named RS-Paxos (Reed Solomon Paxos). To the best of our knowledge, we are the first to propose such a combination. Compared to Paxos, RS-Paxos requires a limitation on the number of possible failures. If the number of tolerated failures decreases by 1, RS-Paxos can save over 50\% of network transmission and disk I/O. To demonstrate the benefits of our protocol, we designed and built a key-value store based on RS-Paxos, and evaluated it on EC2 with various settings. Experiment results show that RS-Paxos achieves at most 2.5x improvement on write throughput and as much as 30\% reduction on latency, in common configurations.},
+    booktitle = {Proceedings of the 23rd International Symposium on High-Performance Parallel and Distributed Computing},
+    pages = {61-72},
+    numpages = {12},
+    keywords = {asynchronous message passing model, consensus, erasure code, paxos, state machine replication},
+    location = {Vancouver, BC, Canada},
+    series = {HPDC '14}
 }
