@@ -1,0 +1,69 @@
+= Distributed Query Engine (2010)
+:revdate: 2024-05-24
+:page-order: 99
+:toc: preamble
+:page-hidden: true
+
+== Archival Note
+
+:uri-contest-2010: https://dig.telecom-paristech.fr/events/sigmod10contest/
+:uri-contest-2010-archive: https://web.archive.org/web/20240430124503/https://dig.telecom-paristech.fr/events/sigmod10contest/
+:uri-contest-original-code: https://github.com/thisismiller/sigmod-contest-2010/tree/5924335fe9c3cbb0c0748836c50fe1084ee11742
+
+The {uri-contest-2010}[original contest site] is still available!
+If it's unavailable in the future, it can be found on an {uri-contest-2010-archive}[Archive.org mirror] instead.
+
+The provided code for this contest is available at github:thisismiller/sigmod-contest-2010[].  The exact provided code is preserved as {uri-contest-original-code}[commit 5924335f].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.
+
+This contest was organized by Pierre Senellart of Télécom ParisTech, along with 2009's winner Clément Genzmer.
+
+'''
+
+== Task Details
+
+:uri-client-h: https://github.com/thisismiller/sigmod-contest-2010/blob/main/include/client.h
+:uri-readme: https://github.com/thisismiller/sigmod-contest-2010/blob/main/README
+
+Given a parsed SQL query, you have to return the right results as fast as possible. The data is stored on disk, the indexes are all in memory. The SQL queries always has the following form:
+
+[source,sql]
+----
+SELECT alias_name.field_name, ...
+FROM table_name AS alias_name, ...
+WHERE condition1 AND ... AND conditionN
+----
+
+A condition may be either:
+
+* `alias_name.field_name = fixed value`
+* `alias_name.field_name > fixed value`
+* `alias_name.field_name1 = alias_name.field_name2`
+
+The data is distributed on multiple nodes, and can be replicated. The distribution of data is horizontal: a given row of a table is never fragmented. The implementation of the indexes is provided and cannot be changed. Up to 50 queries are sent at the same time by 50 different threads, but only the total amount of time is measured. You do not have to take care of the partitioning, replication or creation of the indexes: these are done before the beginning of the benchmark of your client.
+
+Before the actual start of the benchmarks, you are given a predefined number of seconds to run some preprocessing on the data. You are also given a set of queries which is representative of the benchmark to help you run the preprocessing.
+
+There are 7 methods to implement. There are fully described in the {uri-client-h}[client.h] file. The following diagrams show the way they are called.
+sidenote:ref[][.aside]#sidenote:def[] It's in my TODO list to rename the code and diagrams away from master/slave as the terminology.#
+
+.Initialization Phase
+--
+image::phase1.svg[]
+--
+
+.Connection Phase
+--
+image::phase2.svg[]
+--
+
+.Query Phase
+--
+image::phase3.svg[]
+--
+
+.Closing Phase
+--
+image::phase4.svg[]
+--
+
+For more details, see the {uri-readme}[README file inside the GitHub repo].
