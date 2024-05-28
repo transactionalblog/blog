@@ -1,0 +1,292 @@
+= Calling OCaml from C
+:revdate: 2024-04-15
+:toc: preamble
+:nospace:
+
+Making an OCaml library usable from C.
+
+== Basics
+:uri-dune-forums-post: https://discuss.ocaml.org/t/linking-several-so-libraries-produced-by-dune/6133
+
+The official docs on this subject is https://v2.ocaml.org/manual/intfc.html[Interfacing C with OCaml], which is a useful read, though it focuses more on making C callable from OCaml.  It's also missing some collective guidance on how to 
+
+I'm going to assume a minimal directory structure, which looks like:
+
+[source]
+----
+project/
+├── bin
+│   ├── dune
+│   └── main.ml
+├── dune-project
+├── lib
+│   ├── dune
+│   ├── ocaml_library.ml
+├── project.opam
+----
+
+In this, you have some library `ocaml_library`, and the goal is to expose some methods it defines to C while still allowing the rest of your OCaml main/tests/etc. modules to work.  We'll accomplish this by adding a new folder for the bindings:
+
+.bindings/
+[source]
+----
+├── bindings
+    ├── capi.ml
+    ├── cstub.c
+    └── dune
+----
+
+This new `dune` file should contain the below:{nospace}sidenote:ref[]
+[.aside]#sidenote:def[] This was mostly copied from an example on an {uri-dune-forums-post}[OCaml forums post].#
+
+.dune
+[source,scheme]
+----
+(executable
+ (name capi) <1>
+ (libraries ocaml_library) <2>
+ (foreign_stubs (language c) (names cstub)) <3>
+ (flags :standard -linkall)
+ (modes (native shared_object)))
+
+(install <4>
+ (section lib)
+ (files
+  (capi.so as capi-1.0.0.so))) <5>
+----
+<1> `capi` here means dune expects a `capi.ml` file by that exact name.
+<2> Or whatever your library module name is which defines the public API you wish to export to C.  Only code (transitively) included in the specified modules here will be included in the generated `.so` file.
+<3> `cstubs` here means dune expects a `cstubs.c` file by that exact name.
+<4> The install section is skippable, and means you'll need a `.opam` and/or `dune-project` file as well.
+<5> The major point of having this is that install lets you rename the `.so`, otherwise its name will be your module name + `.so`.
+
+`capi.ml` is where you'll leverage the https://v2.ocaml.org/api/Callback.html[Callback] library to register the functions that you wish to make accessible to C.
+.capi.ml
+[source,ocaml]
+----
+let () = Callback.register "ocaml_library_func1" Ocaml_library.func1 <1>
+let () =
+  let func2_as_string str = <2>
+    str |> Bigstring.of_string |> Ocaml_library.func2 |> Bigstring.to_string
+  in
+  Callback.register "ocaml_library_func2" func2_as_string
+----
+<1> Associate each function you wish to expose with a unique string.
+<2> Accessing and manipulating primitive types is easier than OCaml types, so if there's easy opportunities to turn types into int/string/etc., then it's sometimes worth the small wrapper function to do so
+
+`cstubs.c` is where you'll implement the C half that knows how to invoke the registered OCaml functions.
+
+The first part we'll need to ensure is that the OCaml runtime is initialized.  If there's no clean singular entrypoint, then perform a (thread-safe) initialization check within each function exposed.
+
+.cstubs.c
+[source,c]
+----
+#include <caml/alloc.h>
+#include <caml/mlvalues.h>
+#include <caml/callback.h>
+
+void __caml_init() {
+    // Or pthread_once if you need it threadsafe.
+    static int once = 0;
+
+    if (once == 0) {
+        // Fake an argv by prentending we're an executable `./ocaml_startup`.
+        char* argv[] = {"ocaml_startup", NULL};
+
+        // Initialize the OCaml runtime
+        caml_startup(argv);
+
+        once = 1;
+    }
+}
+----
+
+Now, we can expose C functions which invoke their OCaml equivalent:
+
+Let's assume `Ocaml_library.func1` was implemented with type `() -> ()`.
+
+.cstubs.c
+[source,c]
+----
+void ocaml_library_func1() {
+  // Ensure the OCaml runtime is initialized before we invoke anything.
+  __caml_init();
+
+  // Fetch the function we registered via Callback.
+  static const value* _Ocaml_library_func1 = NULL;
+  if (_Ocaml_library_func1 == NULL)
+    _Ocaml_library_func1 = caml_named_value("Ocaml_library_func1"); <1>
+
+  // Invoke the function, supplying () as the argument.
+  caml_callback_exn(*_Ocaml_library_func1, Val_unit); <2>
+}
+----
+<1> The unique string for the function.
+<2> `caml_callback_exn` is the cornerstone of this post, as it's the way to invoke an OCaml function from C.
+
+You should now be able to run `dune build` or `dune install`, and see your `capi.so` file generated!
+`nm -D capi.so` will let you double check that `ocaml_library_func1` is an exported symbol.
+
+== Garbage Collection
+
+In our minimal example, we've ignored all interactions with the garbage collector.  This is fine, as the returned `()` from `func1` is immediately garbage anyway, so it's fine for it to be GC'd at any point.  Let's assume our exposed wrapper of `Ocaml_library.func2` is of type `string -> string`, and thus something less trivially safe for garbage collection.  This also means we also get to go into a minor digression on string handling!
+
+For allocating a string, there's two options:
+
+* Null-terminated: `value caml_copy_string (char const *)`
+* Known-size: `value caml_alloc_initialized_string (mlsize_t len, const char *)`
+
+And for extracting data out of a string, `mlsize_t caml_string_length (value)` returns the length of the string, and `String_val(value)` is a macro which returns the pointer to the beginning of the string.
+
+To prevent accidents, it's also nice to assert on the tag type of returned values when possible, so that it's obvious if the types don't line up across OCaml and C.  For strings, that looks like `assert(Tag_val(val) == String_tag)`.
+
+And now, the garbage collection safe pattern:
+
+.cstubs.c
+[source,c]
+----
+char* ocaml_library_func2(char* str_in) {
+  __caml_init();
+
+  CAMLparam0(); <1>
+
+  static const value* _Ocaml_library_func2 = NULL;
+  if (_Ocaml_library_func2 == NULL)
+    _Ocaml_library_func2 = caml_named_value("ocaml_library_func2");
+  
+  value ocaml_str_in = caml_copy_string(str_in);
+  
+  CAMLlocal1(result); <2>
+  result = caml_callback2_exn(*_Ocaml_library_func2, ocaml_str_in);
+  assert(Tag_val(result) == String_tag);
+
+  size_t result_len = caml_string_length(result);
+  char* str_out = malloc(result_len);
+  memcpy(str_out, String_val(result), result_len);
+
+  CAMLreturnT(char*, str_out); <3>
+}
+----
+<1> Start all functions with `CAMLparam0()`.  The `0` is that it takes 0 arguments.  The arguments would be any `value` arguments given by the OCaml runtime.  This is mostly meant for C functions called from OCaml, which isn't what we're doing, so it'll always be 0.
+<2> Use `CAMLlocal*()` to create locals which are GC-safe.  `CAMLlocal1(result);` is equivalent to `value result;`, but GC-safe.  The number can range from 1 through 5.
+<3> Use `CAMLreturnT` instead of `return`.  First argument is your return type, second is the return expression.  Most other example code shows `CAMLreturn(val)`, which is equivalent to `CAMLreturnT(value, val)`.  Except we aren't a C function being called from OCaml, so we probably never want to return a `value`.
+
+This idiom provides a way to ensure that values returned from OCaml stay alive during the local scope of the function.  To allow them to stay alive past the end of the function scope, then they need to be registered as a GC root with the OCaml runtime.  There's two ways of registering GC roots offered: `caml_register_global_root(value*)` and `caml_register_generational_global_root(value*)`.  The difference is in how often the pointed-to `value` will be mutated.  If nearly never, then use the latter `generational` variant.  If the pointed-to value is expected to change, then use the former not-`generational` variant.  Both forms of GC roots are un-registered via `caml_remove_global_root(value*)`.
+
+In both cases, the expected usage is to register the GC root immediately after a valid value has been written to the location, and one must not call any other OCaml runtime or allocation function in between.  As an example, we have a function which allocates a non-trivial OCaml object, and associated functions to get information about it:
+
+.capi.ml
+[source,ocaml]
+----
+(* Our non-trivial object. *)
+type t = { s : string }
+
+let () =
+  let make_t_obj () = { s = "hello" } in
+  Callback.register_exn "make_t_obj" make_t_obj
+let () =
+  let t_get_s obj = obj.s in
+  Callback.register_exn "t_get_s" t_get_s
+----
+
+We'd then expose this in C as something like:
+
+.cstubs.c
+[source,c]
+----
+typedef void* ocaml_obj_t; <1>
+
+ocaml_obj_t make_t_obj() {
+  __caml_init();
+  CAMLparam0();
+
+  static const value* _ocaml_make_t_obj = NULL;
+  if (_ocaml_make_t_obj == NULL)
+    _ocaml_make_t_obj = caml_named_value("make_t_obj");
+
+  CAMLlocal1(result);
+  result = caml_callback2_exn(*_ocaml_make_t_obj, Val_unit);
+
+  ocaml_obj_t *ocs = malloc(sizeof(ocaml_obj_t));
+  *((value*)ocs) = result;
+  caml_register_generational_global_root((value*)ocs); <2>
+
+  CAMLreturnT(ocaml_obj_t*, ocs);
+}
+
+char* ocaml_obj_t_get_s(ocaml_obj_t* obj) {
+  CAMLparam0(); <3>
+
+  static const value* _ocaml_t_get_s = NULL;
+  if (_ocaml_t_get_s == NULL)
+    _ocaml_t_get_s = caml_named_value("t_get_s");
+  
+  CAMLlocal1(result);
+  result = caml_callback2_exn(*_ocaml_t_get_s, *((value*)obj));
+  assert(Tag_val(result) == String_tag);
+
+  size_t result_len = caml_string_length(result);
+  char* str_out = malloc(result_len);
+  memcpy(str_out, String_val(result), result_len);
+
+  CAMLreturnT(char*, str_out);
+}
+
+void free_ocaml_obj_t(ocaml_obj_t* obj) {
+    caml_remove_global_root(obj); <4>
+    free(ocs);
+}
+----
+<1> Expose the ocaml object under some opaque type.  We'll cast it back to `value*` when needed, but this prevent anything else from knowing it's an OCaml value.
+<2> We know our `ocaml_obj_t` is something written to only once, so the `generational` variant is appropriate here.
+<3> `obj` is already a GC root, so there's no need to `CAMLparam1(obj)`.  Also, note that one wouldn't call this function without already having called `make_t_obj()`, so there's no need to repeat the `__caml_init()` check.
+<4> Remove the GC root as part of the normal C flow of destroying and freeing the object.
+
+== Option
+
+OCaml records and sum types are relatively opaque from C, but unexpectedly, `option` is trivial to manipulate from C.
+
+.capi.ml
+[source,ocaml]
+----
+let () =
+  let maybe_integer () = Some(1) in
+  Callback.register_exn "maybe_integer" maybe_integer
+----
+
+And rather than having to also register `is_none` and `get_int_from_some` functions to invoke, one can just directly manipulate the `int option` type from C:
+
+.cstubs.c
+[source,c]
+----
+typedef _optional_integer_t {
+  bool present;
+  int value;
+} optional_integer_t;
+
+optional_integer_t ocaml_maybe_integer() {
+  __caml_init();
+  CAMLparam0();
+
+  static const value* _ocaml_maybe_integer = NULL;
+  if (_ocaml_maybe_integer == NULL)
+    _ocaml_maybe_integer = caml_named_value("maybe_integer");
+  
+  CAMLlocal1(result);
+  result = caml_callback2_exn(*_ocaml_maybe_integer, Val_unit);
+  optional_integer_t ret_value;
+
+  if (Is_none(result)) { <1>
+    ret_value.present = false;
+  } else {
+    ret_value.present = true;
+    value some = Some_val(result); <2>
+    ret_value.value = Int_val(some); <3>
+  }
+
+  CAMLreturnT(optional_integer_t, ret_value);
+}
+----
+<1> `Is_none(v)` is a macro which is the same as `Option.is_none`.
+<2> `Some_val(v)` is a macro which is the same as `Option.get`.
+<3> And the unwrapped value can be treated as normal, which in this case, is interpret it as an integer.
