@@ -18,4 +18,4 @@ Unfortunately, the programming contest sites have been dropping off the internet
 
 == Legal
 
-The code challenges are generally issued with an MIT license.  The task description is... probably copyrighted?  (I don't make any money off this site. Please don't sue me?)  Reach out to <millerdevel at google mail provider> if you'd like to request a challenge be taken down.
+The code challenges are generally issued with an MIT license.  The task description is... probably copyrighted?  (I don't make any money off this site. Please don't sue me?)  Reach out to <domain of this site @ google mail provider> if you'd like to request a challenge be taken down.

@@ -7,14 +7,14 @@
 
 :uri-contest-2009: http://db.csail.mit.edu/sigmod09contest/index.html
 :uri-contest-2009-archive: https://web.archive.org/web/20160313232536/http://db.csail.mit.edu/sigmod09contest/index.html
-:uri-contest-original-code: https://github.com/thisismiller/sigmod-contest-2009/tree/5168164e4f43c428d0c0f6defe727536b65fe5e3
+:uri-contest-original-code: https://github.com/transactionalblog/sigmod-contest-2009/commit/49fd4f44deb208d13778308578305070b8dc8c6f
 :uri-dexter: https://web.archive.org/web/20130406034200/http://wwwdb.inf.tu-dresden.de/research-projects/projects/dexter/core-indexing-structure-and-techniques
 :uri-dexter-paper: https://scholar.google.com/scholar?cluster=12696725282482406625
 
 The {uri-contest-2009}[original contest site] is no longer accessible.
 There is an {uri-contest-2009-archive}[Archive.org mirror] available, from which the text on the rest of this page was copied.
 
-The provided code for this contest is available at github:thisismiller/sigmod-contest-2009[].  The exact provided code is preserved as {uri-contest-original-code}[commit 5168164e].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.
+The provided code for this contest is available at github:transactionalblog/sigmod-contest-2009[].  The exact provided code is preserved as {uri-contest-original-code}[commit 49fd4f44].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.
 
 This contest was organized by MIT CSAIL.
 Funding for this event was supplied by https://www.nsf.gov/awardsearch/showAward?AWD_ID=0848727[the NSF].
@@ -44,17 +44,17 @@ There are no restrictions on representation or compressions, but your system mus
 
 The commands which your system must support are specified in the API, which can be downloaded from the following link:
 
-* https://thisismiller.github.io/sigmod-contest-2009/server_8h.html[API Documentation] -- Nicely formatted documentation for the header file.
-* https://github.com/thisismiller/sigmod-contest-2009/blob/main/server.h[server.h] -- C header files for the API you must implement.
+* https://transactionalblog.github.io/sigmod-contest-2009/server_8h.html[API Documentation] -- Nicely formatted documentation for the header file.
+* https://github.com/transactionalblog/sigmod-contest-2009/blob/main/server.h[server.h] -- C header files for the API you must implement.
 
 An example implementation of the API was created using Berkeley DB. A set of unit tests have been provided which all valid implementations should pass. The example implementation and unit tests can be downloaded using the following links:
 
-* https://github.com/thisismiller/sigmod-contest-2009/blob/main/bdbimpl.c[bdbimpl.c] -- Our BerkeleyDB Implementation
-* https://github.com/thisismiller/sigmod-contest-2009/blob/main/unittests.c[unittests.c] -- A set of test cases your implementation should pass.
+* https://github.com/transactionalblog/sigmod-contest-2009/blob/main/bdbimpl.c[bdbimpl.c] -- Our BerkeleyDB Implementation
+* https://github.com/transactionalblog/sigmod-contest-2009/blob/main/unittests.c[unittests.c] -- A set of test cases your implementation should pass.
 
 More unit tests and our complete test driver will be released mid-January, but these should help get you started. You can also download these files, along with the API header file and Makefile using this link:
 
-* https://github.com/thisismiller/sigmod-contest-2009/[sigmod-contest-2009] -- GitHub repo containing all source files, as well as Makefile and README.
+* https://github.com/transactionalblog/sigmod-contest-2009/[sigmod-contest-2009] -- GitHub repo containing all source files, as well as Makefile and README.
 
 Please note that you will need to modify the defines (e.g., BASE) at the beginning of the Makefile to point to your installation of BerkeleyDB.
 
@@ -110,8 +110,8 @@ We will provide a submission site where you can upload your implementation as th
 
 == Benchmark
 
-:uri-speed-test: https://github.com/thisismiller/sigmod-contest-2009/blob/main/tests/speed_test.c
-:uri-harness: https://github.com/thisismiller/sigmod-contest-2009/blob/main/harness.py
+:uri-speed-test: https://github.com/transactionalblog/sigmod-contest-2009/blob/main/tests/speed_test.c
+:uri-harness: https://github.com/transactionalblog/sigmod-contest-2009/blob/main/harness.py
 
 The benchmark can be found here: {uri-speed-test}[speed_test.c]. We have also supplied a {uri-harness}[python script] which will execute test files provided to it, provided that they have a run() method.
 
