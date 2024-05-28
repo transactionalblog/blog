@@ -21,23 +21,23 @@ Examining the entries in an internal B-Tree page is going to yield ``InternalEnt
 
 hf_offset: +-------------------------+
            |                         |
-      20   | PgNo： 6, Data： VVVV     |
+      20   | PgNo 6, Data "VVVV"     |
            |                         |
            +-------------------------+
            |                         |
-      40   | PgNo： 5, Data： QQQQ     |
+      40   | PgNo 5, Data "QQQQ"     |
            |                         |
            +-------------------------+
            |                         |
-      60   | PgNo： 4, Data： MMMM     |
+      60   | PgNo 4, Data "MMMM"     |
            |                         |
            +-------------------------+
            |                         |
-      80   | PgNo： 3, Data： FFFF     |
+      80   | PgNo 3, Data "FFFF"     |
            |                         |
            +-------------------------+
            |                         |
-     100   | PgNo： 2, Data： BBBB     |
+     100   | PgNo 2, Data "BBBB"     |
            |                         |
            +-------------------------+
 ----
@@ -68,19 +68,19 @@ Once you're on a leaf page, there will be ``KeyDataEntry``s instead.
 
 hf_offset: +-------------------+
            |                   |
-      20   | Data： N_VAL       |
+      20   | Data "N_VAL"      |
            |                   |
            +-------------------+
            |                   |
-      40   | Data： NNNN        |
+      40   | Data "NNNN"       |
            |                   |
            +-------------------+
            |                   |
-      60   | Data： M_VAL       |
+      60   | Data "M_VAL"      |
            |                   |
            +-------------------+
            |                   |
-      80   | Data： MMMM        |
+      80   | Data "MMMM"       |
            |                   |
            +-------------------+
 ----
