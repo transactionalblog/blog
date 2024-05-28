@@ -47,7 +47,37 @@ class ManMacro < Extensions::InlineMacroProcessor
   end
 end
 
+# An inline macro that defines a sidenote reference number.
+#
+# Usage
+#
+#   sidenote:ref[] -> ^[N]^
+#   sidenote:def[] -> [N]:
+#
+class SidenoteMacro < Extensions::InlineMacroProcessor
+  use_dsl
+
+  named :sidenote
+
+  def process parent, target, attrs
+    if target == 'ref' then
+      sidenum = parent.document.counter '_side_ref'
+      text = "[#{sidenum}]"
+      type = :superscript
+    elsif target == 'def' then
+      sidenum = parent.document.counter '_side_def'
+      text = "[#{sidenum}]:"
+      type = :unquoted
+    else
+      raise "unknown target #{target}"
+    end
+
+    create_inline parent, :quoted, text, type: type
+  end
+end
+
 Asciidoctor::Extensions.register do
   inline_macro GitHubMacro
   inline_macro ManMacro
+  inline_macro SidenoteMacro
 end
