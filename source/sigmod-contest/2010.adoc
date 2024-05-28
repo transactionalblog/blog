@@ -9,13 +9,14 @@
 :uri-contest-2010: https://dig.telecom-paristech.fr/events/sigmod10contest/
 :uri-contest-2010-archive: https://web.archive.org/web/20240430124503/https://dig.telecom-paristech.fr/events/sigmod10contest/
 :uri-contest-original-code: https://github.com/thisismiller/sigmod-contest-2010/tree/5924335fe9c3cbb0c0748836c50fe1084ee11742
+:uri-contest-2010-overview: https://inria.hal.science/file/index/docid/537237/filename/genzmer2010sigmod.pdf
 
 The {uri-contest-2010}[original contest site] is still available!
 If it's unavailable in the future, it can be found on an {uri-contest-2010-archive}[Archive.org mirror] instead.
 
 The provided code for this contest is available at github:thisismiller/sigmod-contest-2010[].  The exact provided code is preserved as {uri-contest-original-code}[commit 5924335f].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.
 
-This contest was organized by Pierre Senellart of Télécom ParisTech, along with 2009's winner Clément Genzmer.
+This contest was organized by Pierre Senellart of Télécom ParisTech, along with 2009's winner Clément Genzmer.  The authors followed up with an {uri-contest-2010-overview}[overview report] on the contest and approaches taken by the finalist teams.
 
 '''
 
