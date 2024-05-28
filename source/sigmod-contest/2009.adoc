@@ -17,7 +17,7 @@ There is an {uri-contest-2009-archive}[Archive.org mirror] available, from which
 The provided code for this contest is available at github:thisismiller/sigmod-contest-2009[].  The exact provided code is preserved as {uri-contest-original-code}[commit 5168164e].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.
 
 This contest was organized by MIT CSAIL.
-Samuel Madden and Michael Stonebreaker filed for https://www.nsf.gov/awardsearch/showAward?AWD_ID=0848727[the grant].
+Funding for this event was supplied by https://www.nsf.gov/awardsearch/showAward?AWD_ID=0848727[the NSF].
 The contest itself written by Elizabeth Reid.
 The winner of this contest was Clément Genzmer of Ecole Polytechnique.
 The only submission for which details are still available is of {uri-dexter}[DEXTER], which resulted in a later submission to the 2011 Programming Contest and a paper {uri-dexter-paper}[_Efficient in-memory indexing with generalized prefix trees_].
