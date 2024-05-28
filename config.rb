@@ -83,8 +83,8 @@ require 'terser'
 config[:domain] = "http://localhost:4567"
 
 configure :ghpages do
-  config[:domain] = "https://thisismiller.github.io"
-  set :http_prefix, "/blog-middleman"
+  config[:domain] = "https://transactionalblog.github.io"
+  set :http_prefix, "/blog"
   activate :minify_css
   activate :minify_javascript, compressor: Terser.new
 end
