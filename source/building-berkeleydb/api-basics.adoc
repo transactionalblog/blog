@@ -22,13 +22,14 @@ struct DB {
    * This supports many options.  We will ignore most of them.
    *
    * @param db The `this` pointer.  The same DB this method is attached to.
-   * @param txnid Ignored. (Allows transactionally creating a database.)
+   * @param txnid Ignored by us. (Allows transactionally creating a database.)
    * @param file The path to open for the database.
    * @param database The string name to assign to the database.
    * @param type The database type.  Must be DB_BTREE==1.
-   * @param flags Ignored.
+   * @param flags Ignored by us.
    * @param mode The unix mode to set when opening the file.
    *             A mode of `0` should be interpreted at `0660`.
+   * @return 0 on success, non-zero on failure.
    */
   int (*open)(DB *db, DB_TXN *txnid, const char *file, const char *database,
               DBTYPE type, uint32_t flags, int mode);  
@@ -39,7 +40,8 @@ struct DB {
    * This should free `db` as the last thing that it does.
    *
    * @param db The `this` pointer.  The same DB this method is attached to.
-   * @param flags Ignored.
+   * @param flags Ignored by us.
+   * @return 0 on success, non-zero on failure.
    */
   int (*close)(DB *db, u_int32_t flags);  
 
@@ -63,9 +65,11 @@ struct DB {
 /**
  * Create a DB instance.
  *
- * @param dbp A pointer to a DB pointer, which will be non-null after return.
- * @param dbenv Databases can be organized within an environment.  Can be null.
- * @param flags Ignored.  DB_AM_* flags.
+ * @param dbp The outparam in which to write the allocated DB.
+ * @param dbenv Databases can be organized within an environment.
+                Can be NULL.  And for us, will be NULL.
+ * @param flags Ignored by us.  DB_AM_* flags.
+ * @return 0 on success, non-zero on failure.
  */
 int db_create(DB **dbp, DB_ENV *dbenv, u_int32_t flags);
 ----
@@ -182,7 +186,7 @@ If you're interested in using bindings from some other language to run your ABI-
  *
  * @param dbenv The outparam in which to store the DB_ENV.
  * @param flags Ignored by us.
- * @return 0 on success, nonzero on error.
+ * @return 0 on success, non-zero on error.
  */
 int db_env_create(DB_ENV **dbenv, u_int32_t flags) {
     *dbenv = NULL;
@@ -195,7 +199,7 @@ int db_env_create(DB_ENV **dbenv, u_int32_t flags) {
  * @param dbseq The outparam in which to store the DB_SEQUENCE.
  * @param db The DB in which this sequence would be created.
  * @param flags Ignored by us.
- * @return 0 on success, nonzero on error.
+ * @return 0 on success, non-zero on error.
  */
 int db_sequence_create (DB_SEQUENCE **dbseq, DB *db, u_int32_t flags) {
     *dbseq = NULL;
