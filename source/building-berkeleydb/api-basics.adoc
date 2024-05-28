@@ -10,7 +10,7 @@ Opening and closing databases as a BerkeleyDB ABI-compatible library.
 
 When this series introduced itself as rebuilding BerkeleyDB, it wasn't a joke.  Our goal is to build something ABI-compatible with the existing BerkeleyDB.  This means that we'll implement our API exactly according to the existing BerkeleyDB headers, and then our library should be usable as an exact replacement for BerkeleyDB.  However, there is absolutely no goal of allowing BerkeleyDB and the re-implementation to both be used at the same time and to share data in memory.  Thus, the guidance provided in this series will completely disregard how BerkeleyDB uses various members of its structs, and we will completely willfully use them in unintended ways.
 
-The header of relevance is `db.h`.  The absolute basics of what's relevant for opening and closing a file is:
+The system header of relevance is `db.h`.  You should be able to find it on your system at `/usr/include/db.h`.  The absolute basics of what's relevant for opening and closing a file is:
 
 .db.h
 [source,c]
@@ -154,7 +154,7 @@ int main() {
 }
 ----
 
-To use our library, prefer `LD_LIBRARY_PATH` over `LD_PRELOAD` so that if there's any require symbols that aren't defined, you get an error rather than some mix-and-match from your code versus actual BerkeleyDB.
+To use our library, prefer `LD_LIBRARY_PATH` over `LD_PRELOAD` so that if there's any required symbols which aren't defined in our custom library, the dynamic linker returns an error when trying to run the executable rather than resolving some mix-and-match of symbols from your code versus actual BerkeleyDB.
 
 .Compilation and Execution
 [source,bash]
@@ -173,7 +173,7 @@ LD_LIBRARY_PATH=library/output/dir/ ./test_dbopen
 
 Or don't do that.  If you're working in a language with bindings, and it's easier to make a minimal abstraction layer over your own API and the existing BerkeleyDB bindings and write tests on top of that, then do that.  The real task here is just get _some_ minimal infrastructure in place for running tests on your own library of the official library interchangeably for testing.  You're here to learn how to write a B-Tree, not learn how to interface with C.
 
-If you're interested in using bindings from some other language to run your ABI-compatible BerkeleyDB, you can do that too.  There's a few more functions you'll want to provide stub implementations for.  I've pulled this list off of what symbols the .so from `pip install berkeleydb` requires:
+If you're interested in using bindings from some other language to run your ABI-compatible BerkeleyDB, you can do that too.  There's a few more functions you'll want to provide stub implementations for.  I've pulled this list off of what symbols the `.so` from `pip install berkeleydb` requires:
 
 .my_bdb.c
 [source,c]

@@ -6,6 +6,84 @@
 
 Support for searching down the tree in search of a single value.
 
+== API
+
+BerkeleyDB offers a `get()` method on `DB`, allowing the reading of the stored value corresponding to a key.  To represent a key or value, it uses a `DBT` struct which describes the memory and its size.
+
+.db.h
+[source,c]
+----
+/**
+ * Key/data structure -- a Data-Base Thang
+ *
+ * That's the actual comment from the BerkeleyDB source code.
+ */
+struct DBT {
+  void   *data;    ///< Key/data
+  u_int32_t size;  ///< Key/data length
+
+  u_int32_t ulen;  ///< Only used with DB_DBT_USERMEM
+  u_int32_t dlen;  ///< Only used with DB_DBT_PARTIAL
+  u_int32_t doff;  ///< Only used with DB_DBT_PARTIAL
+
+  void *app_data;  ///< Applications are allowed to associate opaque data.
+
+  u_int32_t flags; ///< Unused
+}
+----
+
+See also the https://docs.oracle.com/cd/E17276_01/html/api_reference/C/frame_main.html[official docs for DBT].
+
+Our goal for this section is to implement the `get()` method in the `DB` struct:
+
+.dh.h
+[source,c]
+----
+struct DB {
+  /**
+   * Get the value for a key.
+   *
+   * It is the user's responsibility to manage the memory pointed to by
+   * `key`, and ensure that it is valid for the lifetime of the call.
+   *
+   * `data` should be zero-initialized upon calling get(), and it is the
+   * library's responsibility to manage the memory pointed to by data->data.
+   * This memory will remain valid until the next call to the library which
+   * returns a DBT to the user.
+   *
+   * @param db The opened DB in which to fetch a key.
+   * @param txn The transaction within which this get operation is scoped.
+   *            For us, this must be NULL.
+   * @param key A DBT owned by the user to describe the kv-pair to fetch.
+   * @param data A zero-initialized DBT, which will be written to with
+   *             the data and size of the associated data.
+   * @param flags Ignored for us.
+   * @return 0, if the key was found
+   *         DB_NOTFOUND, if the key was not found
+   */
+  int (*get)(DB *db, DB_TXN *txn, DBT *key, DBT *data, u_int32_t flags);
+
+  // The default mode of operation is that the library is responsible for
+  // freeing or reusing any returned state when the next call to any data
+  // returning operation is made.  The way that this works is that the DB
+  // struct has members which let you store what had been returned to a
+  // user previously, so that you can remember what pointers had been
+  // returned on a previous call.  There's more to remember for other APIs
+  // but for now, we only need to remember what was returned in the `data`
+  // argument to `get`.
+  DBT  my_rdata;  ///< My Remembered Data.
+}
+----
+
+See also the https://docs.oracle.com/cd/E17276_01/html/api_reference/C/frame_main.html[offical docs for DB->get()].
+
+There are flags you could optionally support, if it'd make it easier for you to write tests or demo code:
+
+* `DB_DBT_MALLOC`: `data` was allocated via `malloc()`, and it is the caller's responsibility to `free()` it.
+* `DB_DBT_USERMEM`: `data` was allocated by the user, and points to a region of memory of size `ulen`.
+
+If you don't support any flags, I would suggest ``ASSERT()``ing that `flags` is `0`, or return `-ENOTSUP`, as if you try out some bindings with your library later and they happen to pass the flags, it'll lead to a corruption or crash.
+
 == Algorithm
 
 Examining the entries in an internal B-Tree page is going to yield ``InternalEntry``s that look like:
@@ -86,76 +164,6 @@ hf_offset: +-------------------+
 ----
 
 Recall that there will always be an even number of offsets and entries on a leaf page, with the first entry being a key, and the second being the data.  Iterate over all the entries in pairs (a tumbling window of size 2), and if `pair[0].data == target_key`, then return `pair[1].data` as the found key.  If was no matching key, then the key doesn't exist in the B-Tree.
-
-== API
-
-.db.h
-[source,c]
-----
-/**
- * Key/data structure -- a Data-Base Thang
- *
- * That's the actual comment from the BerkeleyDB source code.
- */
-struct DBT {
-  void   *data;    ///< Key/data
-  u_int32_t size;  ///< Key/data length
-
-  u_int32_t ulen;  ///< Only used with DB_DBT_USERMEM
-  u_int32_t dlen;  ///< Only used with DB_DBT_PARTIAL
-  u_int32_t doff;  ///< Only used with DB_DBT_PARTIAL
-
-  void *app_data;  ///< Applications are allowed to associate opaque data.
-
-  u_int32_t flags; ///< Unused
-}
-----
-
-There are flags you could optionally support, if it'd make it easier for you to write tests or demo code:
-
-* `DB_DBT_MALLOC`: `data` was allocated via `malloc()`, and it is the caller's responsibility to `free()` it.
-* `DB_DBT_USERMEM`: `data` was allocated by the user, and points to a region of memory of size `ulen`.
-
-If you don't support any flags, I would suggest ``ASSERT()``ing that `flags` is `0`, or return `-ENOTSUP`, as if you try out some bindings with your library later and they happen to pass the flags, it'll lead to a corruption or crash.
-
-.dh.h
-[source,c]
-----
-struct DB {
-  /**
-   * Get the value for a key.
-   *
-   * It is the user's responsibility to manage the memory pointed to by
-   * `key`, and ensure that it is valid for the lifetime of the call.
-   *
-   * `data` should be zero-initialized upon calling get(), and it is the
-   * library's responsibility to manage the memory pointed to by data->data.
-   * This memory will remain valid until the next call to the library which
-   * returns a DBT to the user.
-   *
-   * @param db The opened DB in which to fetch a key.
-   * @param txn The transaction within which this get operation is scoped.
-   *            For us, this must be NULL.
-   * @param key A DBT owned by the user to describe the kv-pair to fetch.
-   * @param data A zero-initialized DBT, which will be written to with
-   *             the data and size of the associated data.
-   * @param flags Ignored for us.
-   * @return 0, if the key was found
-   *         DB_NOTFOUND, if the key was not found
-   */
-  int (*get)(DB *db, DB_TXN *txn, DBT *key, DBT *data, u_int32_t flags);
-
-  // The default mode of operation is that the library is responsible for
-  // freeing or reusing any returned state when the next call to any data
-  // returning operation is made.  The way that this works is that the DB
-  // struct has members which let you store what had been returned to a
-  // user previously, so that you can remember what pointers had been
-  // returned on a previous call.  There's more to remember for other APIs
-  // but for now, we only need to remember what was returned in the `data`
-  // argument to `get`.
-  DBT  my_rdata;  ///< My Remembered Data.
-}
-----
 
 == Task
 
