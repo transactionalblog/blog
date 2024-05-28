@@ -1,10 +1,10 @@
 = Page Format
 :revdate: 2024-02-24
-:page-order: 2
+:page-order: 3
 :page-tag: reading
 :toc: preamble
 
-Our first goal is to be able to read a page, and be able to print information contained in the header for that page.
+Support for parsing and printing information contained in the header for BerkeleyDB pages.
 
 == Meta Page
 

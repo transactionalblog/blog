@@ -1,6 +1,6 @@
 = Point Reads
 :revdate: 2024-04-08
-:page-order: 5
+:page-order: 6
 :page-tag: reading
 :toc: preamble
 
