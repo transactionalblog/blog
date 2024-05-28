@@ -1,5 +1,5 @@
 = SQL on Key-Value Storage
-:revdate: 2024-06-08
+:revdate: 2024-05-05
 :page-hidden: true
 :toc: preamble
 :nospace:
