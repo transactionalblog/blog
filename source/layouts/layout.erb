@@ -76,7 +76,7 @@ up_title = if current_page.data.category != 'blog' then category_name[current_pa
       <span class="up"><%= link_to "↑ " + up_title + " ↑", page_up %></span>
       <span class="next"><%= if page_next then link_to (page_next.title + " ↦"), page_next end %></span>
     </div>
-    <hr width="100%"/>
+    <hr width="100%" class="thin"/>
     <% end %>
     <div>
     <% if current_page.data.nofooter %>
@@ -104,7 +104,7 @@ up_title = if current_page.data.category != 'blog' then category_name[current_pa
     <%= yield %>
     <!-- TODO: consider https://utteranc.es/ for in-page comments. -->
     <% if !current_page.data.nofooter %>
-      <hr width="100%"/>
+      <hr width="100%" class="thin"/>
       <div class="nav_footer">
         <span class="prev"><%= if page_prev then link_to ("↤ " + page_prev.title), page_prev end %></span>
         <span class="up"><%= link_to "↑ " + up_title + " ↑", page_up %></span>
