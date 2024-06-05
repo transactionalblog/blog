@@ -8,13 +8,13 @@
 
 :uri-contest-2011: https://db.csail.mit.edu/sigmod11contest/
 :uri-contest-2011-archive: https://web.archive.org/web/20150225014740/https://db.csail.mit.edu/sigmod11contest/
-:uri-contest-original-code: https://github.com/thisismiller/sigmod-contest-2011/tree/f88d8df8aa3b53e8cc89ca8d4989f02ad34167ae
+:uri-contest-original-code: https://github.com/transactionalblog/sigmod-contest-2011/tree/11ba1c5ec12b17eeb68fcadc1146abd6777a5f8a
 :uri-dexter-paper: https://scholar.google.com/scholar?cluster=12696725282482406625
 
 The {uri-contest-2011}[original contest site] is no longer accessible.
 There is an {uri-contest-2011-archive}[Archive.org mirror] available, from which the text on the rest of this page was copied.
 
-The provided code for this contest is available at github:thisismiller/sigmod-contest-2011[].  The exact provided code is preserved as {uri-contest-original-code}[commit f88d8df8].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.  There was an extra tarball listed on the contest site (`scdb_final.tar.bz2`) which I've so far been unable to find a copy of.
+The provided code for this contest is available at github:transactionalblog/sigmod-contest-2011[].  The exact provided code is preserved as {uri-contest-original-code}[commit 11ba1c5e].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.  There was an extra tarball listed on the contest site (`scdb_final.tar.bz2`) which I've so far been unable to find a copy of.
 
 This contest was organized by MIT CSAIL.
 The winner of this contest was Thomas Kissinger and Benjamin Schlegel from TU Dresden.
@@ -53,8 +53,8 @@ In addition to the requirements above, we list additional constraints and clarif
 
 === API
 
-:uri-scdb-h: https://github.com/thisismiller/sigmod-contest-2011/blob/main/scdb.h
-:uri-doxygen-scdb-h: https://thisismiller.github.io/sigmod-contest-2011/scdb_8h.html
+:uri-scdb-h: https://github.com/transactionalblog/sigmod-contest-2011/blob/main/scdb.h
+:uri-doxygen-scdb-h: https://transactionalblog.github.io/sigmod-contest-2011/scdb_8h.html
 
 The commands which your system must support are specified in the API, which can be downloaded from the following link:
 
