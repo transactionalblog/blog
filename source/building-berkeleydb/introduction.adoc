@@ -1,8 +1,7 @@
 = Introduction
-:revdate: 2024-02-24
+:revdate: 2024-06-05
 :page-order: 1
 :page-tag: intro
-:page-hidden: true
 :toc: preamble
 
 Welcome to the B-Tree tutorial.
@@ -11,19 +10,19 @@ Welcome to the B-Tree tutorial.
 
 This is a tutorial series which will walk you step by step through building a BerkeleyDB replacement library.  We start by being able to read the data out of an existing database, then work on adding increasingly more complex mutation support, and finish by adding support for a WAL and recovery.  All of this is presented under the exact same API and ABI as BerkeleyDB, and so your library will be able to be used interchangeably.
 
-Most importantly, this tutorial series provides _structure_.  The process of reimplementing or breaking apart any BTree library should be the exact same.  If you wish to instead rebuild a different BTree library (InnoDB, Sqlite, Postgres, LMDB), following the same structure and accomplishing the same tasks in the same order will hopefully guide you to success.
+Most importantly, this tutorial series provides _structure_.  The process of reimplementing or breaking apart any B-Tree library should be the exact same.  If you wish to instead rebuild a different B-Tree library (InnoDB, Sqlite, Postgres, LMDB), following the same structure and accomplishing the same tasks in the same order will hopefully guide you to success.
 
 == Why BerkeleyDB?
 
 BerkeleyDB is ubiquitous.  It's installed on every platform, or easily installable, and there's bindings available to it in nearly every language.
 
-BerkeleyDB is simple.  It's not a highly optimized BTree implementation.  It isn't tuned or written with any one data model in mind.  The BTree is a plain key-value store.
+BerkeleyDB is simple.  It's not a highly optimized B-Tree implementation.  It isn't tuned or written with any one data model in mind.  The B-Tree is a plain key-value store.
 
-BerkeleyDB is realistic.  It's been used in real-world applications.  Features were added to it according to the needs of real software.  It influenced the design and of other embedded databases.  What one learns from BerkeleyDB will be applicable to other, more complicated BTrees.
+BerkeleyDB is realistic.  It's been used in real-world applications.  Features were added to it according to the needs of real software.  It influenced the design and of other embedded databases.  What one learns from BerkeleyDB will be applicable to other, more complicated B-Trees.
 
 == What do I need to know?
 
-To follow this series exactly, it's assumed that you're comfortable with C or something that can interoperate with C very well (C++, Zig, probably Rust(?)).  However, nothing stops you from abandoning the goal of implementing an exact ABI-compatible `libdb.so`, and just implementing a file format-compatible BerkeleyDB B-Tree library in some other language.  It's perfectly possible to build a good B-Tree in Java, C#, or probably any other language.  Bindings to BerkeleyDB exist in many languages, and being API-compatible with those is a potentially equal goal.
+To follow this series exactly, it's assumed that you're comfortable with C or something that can interoperate with C very well (C++, Zig, Rust if you don't mind the `unsafe`, etc.).  However, nothing stops you from abandoning the goal of implementing an exact ABI-compatible `libdb.so`, and just implementing a file format-compatible BerkeleyDB B-Tree library in some other language.  It's perfectly possible to build a good B-Tree in Java, C#, or probably any other language.  Bindings to BerkeleyDB exist in many languages, and being API-compatible with those is a potentially equal goal.
 
 == What support should I expect?
 
