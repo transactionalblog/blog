@@ -1,0 +1,73 @@
+= Multi-dimensional Indexing (2012)
+:revdate: 2024-06-01
+:page-order: 97
+:toc: preamble
+:nospace:
+
+== Archival Note
+
+:uri-contest-2012: http://wwwdb.inf.tu-dresden.de/sigmod2012contest
+:uri-contest-2012-archive: https://web.archive.org/web/20120801010411/http://wwwdb.inf.tu-dresden.de/sigmod2012contest
+
+The {uri-contest-2012}[original contest site] is no longer accessible.
+There is an {uri-contest-2012-archive}[Archive.org mirror] available, from which the text on the rest of this page was copied.
+
+The provided code for this contest was not saved, and all I've been able to recover was the header file defining the interface that the shared library must implement.  This header file has been placed into github:transactionalblog/sigmod-contest-2012[]. I've reached out to the organizer of the contest and some finalists to see if they still have the test harness used for the submission evaluation, but haven't had success from the replies so far.
+
+This contest was organized by TU Dresden.
+The contest itself was written by Thomas Kissinger (the winner of the 2011 contest) and Lukas M. Maas.
+The winner of this contest was Amin Allam from KAUST.
+
+'''
+
+== Task Overview
+
+The task for this year's contest is the implementation of a multidimensional high-throughput in-memory index structure that supports common database operations such as point and range queries as well as data manipulation. Application scenarios for such multidimensional indexes are, for example, multimedia indexing, CAD or geospatial data.
+
+The index needs to support transactions and will be queried in parallel by many threads, each one of them issuing one transaction at a time followed by the next one. The index has to fit entirely into the available main-memory and does not require any crash recovery.
+
+We provide a basic interface for index creation, insert, update, delete, point and range queries. As point queries are special range queries, both cases will be handled by one function (optimizations to be handled inside each implementation). All data will be given in the form of a record represented by a multidimensional key and some raw binary data (payload). The workload includes exact- (all index attributes specified) and partial- (subset of index attributes specified) match point queries (conjunctive predicates only), range queries (with ordering), as well as exact-match data manipulations.
+
+The winner will be the submission that completes all of the queries with the smallest average execution time (we will provide a leaderboard that measures the average number of transactions per second) while also passing a set of correctness tests (some of which we will make public).
+
+== Task Details
+
+In this section, we give details about the task requirements. To evaluate your solution, we will run a variety of different benchmarks with different workloads on it. There is a default configuration, which we use for the majority of benchmarks, but in order to get a general solution, our benchmark suite includes tests that take each parameter to its limits.
+
+- *Indexes*: The benchmark will create multiple indexes that coexist beside each other. In general, the benchmark creates 16 indexes, but this number changes from 1 up to 32.
+- *Dimensions*: The index must be able to support up to 32 dimensions. The majority of benchmarks will operate with a dimensionality of 4.
+- *Duplicates*: Duplicate keys are allowed
+- *Attribute Types: Your index needs to support three attribute types*: INT(4), INT(8) and VARCHAR(512)
+- *Number of Tuples*: We will test your solution with few (some thousands) and many (some millions or billions) tuples.
+- *Data/RAM ratio*: The benchmark will store a dimensionality-dependent maximum percentage of the amount of available RAM at the same time in the index.
+- *Update Ratio*: The default update ratio is 20%, but we change this in a range from 0% to 40%
+- *Data/Query Distribution: The workload uses only two types of distributions*: The normal distribution as default and the Zipf distribution. We also use correlated and independent (default) data.
+- *Transactions*: The index has to support transactions with isolation level read committed. This means that non-repeatable reads and phantoms are allowed, but dirty reads are not.
+Each transaction of the benchmark works on a single index. The average number of operations that are performed in such a transaction depends on its type, where each operation is exactly one function call (e.g., iterating over 10 keys requires 11 operations).
++
+There are three possible transaction types:
+  - Range queries only (200 operations per transaction)
+  - Point queries only (20 operations per transaction)
+  - Manipulation queries only (5 operations per transaction)
++
+*Note*: The information above just describes the transactions used by our benchmark. Your implementation has to support transactions that contain both reading and modifying operations.
+- *Ordering*: The output of range and partial-match point queries has to be order preserving (lexicographical byte order for VARCHARs). Assume a partial-match query (a, b = 3, c). The order must be equal to "... ORDER BY a ASC, c ASC" for all keys with b equal to 3.
+- *Concurrency*: The indexes will be queried by many threads in parallel. Most benchmarks use the number of available hardware threads on the underlying platform, but the number of threads varies from one thread up to twice the number of hardware threads. 
+
+[options="header",cols="^2,^1,^1,^1"]
+|===
+| Parameter       | Minimum        | Default | Maximum      
+| # of indexes    | 1              | 16      | 32           
+| Dimensions      | 1              | 4       | 32           
+| # of tuples     | 1              | -       | some billions
+| Size of payload | 1 Byte         | 8 Byte  | 4096 Byte    
+| Data to RAM     | -              | 10%     | 10%          
+| Update Ratio    | 0%             | 20%     | 40%          
+| # of threads    | 1              | #HWT    | 2 * #HWT     
+| Isolation level 3+| read committed
+| Duplicate keys  3+| yes           
+|===
+
+== Benchmark
+
+We provide a configurable benchmark that produces workloads, which consist of three transaction types as stated in the task description. Contestants are able to use this benchmark for their private evaluation. However, we use the same benchmark driver for the leaderboard and the final evaluation. The leaderboard driver will use the given default values, while the final evaluation additionally uses some other common workloads and workloads that take each individual parameter to its limit.
