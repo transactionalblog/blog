@@ -1,0 +1,41 @@
+= Streaming Full Text Search (2013)
+:revdate: 2024-06-02
+:page-order: 96
+:toc: preamble
+:nospace:
+
+== Archival Note
+
+:uri-contest-2013: https://sigmod.kaust.edu.sa/task-details.html
+:uri-contest-2013-archive: https://web.archive.org/web/20130630040857/https://sigmod.kaust.edu.sa/task-details.php
+:uri-contest-original-code: https://github.com/transactionalblog/sigmod-contest-2013/tree/29efde4998078255c424d02be0b5f2c2c49d202b
+:uri-contest-2013-benchmark: https://sigmod.kaust.edu.sa/leaderboard.html
+:uri-contest-2013-leaderboard: https://sigmod.kaust.edu.sa/leaderboard.html
+
+The {uri-contest-2013}[original contest site] is still available!
+If it's unavailable in the future, it can be found on an {uri-contest-2013-archive}[Archive.org mirror] instead.
+
+The provided code for this contest is available at github:transactionalblog/sigmod-contest-2013[].  The exact provided code is preserved as {uri-contest-original-code}[commit 29efde49].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.
+
+This contest was organized by KAUST's InfoCloud group, and was written by Amin Allam, Fuad Jamour, and Panos Kalnis.
+The winner of this contest was Jinyu Yao from Peking University.
+
+The entire submission system for this contest was uploaded to GitHub by it author github:fjamour/sigmod2013contest[].  The {uri-contest-2013-benchmark}[exact test harness and final dataset] used in evaluation was published.  Even the source and poster for each finalist is available on {uri-contest-2013-leaderboard}[their leaderboard].  KAUST folk did a fantastic job on publishing all of their work!
+
+'''
+
+== Detailed Description
+
+:uri-contest-doxygen: https://transactionalblog.github.io/sigmod-contest-2013/core_8h.html
+
+A contestant must implement 4 major functions: `StartQuery()`, `EndQuery()`, `MatchDocument()`, and `GetNextAvailRes()`. The detailed parameters and specifications of these functions are described {uri-contest-doxygen}[here].
+
+These functions will be called by the testing framework. `StartQuery()` adds a query to the set of active queries, while `EndQuery()` removes it from that set. Each query is associated with the required matching type (exact, edit distance, or Hamming distance), and matching distance (for non exact matching).
+
+`MatchDocument()` matches a document with the current set of active queries, and saves the result somewhere in the main memory, until it is requested by `GetNextAvailRes()`. That is, the number of calls to `GetNextAvailRes()` will be equal to the number of calls to `MatchDocument()`. Instead of letting `MatchDocument()` return the results directly, `GetNextAvailRes()` is introduced to allow the contestant to process several calls to `MatchDocument()` at the same time, using pthreads (which is recommended since the testing machine has 12 cores). However, using parallelism is not a requirement.
+
+To successfully deliver results of a document, `GetNextAvailRes()` must return the document ID, along with all query IDs matching the document, sorted by query ID. Results of each document must be delivered exactly once. A call to `GetNextAvailRes()` must deliver results of any undelivered document, unless there are no such results.
+
+The total size of active queries and temporary results will be at most 25% of the available main memory. The total number of calls to `StartQuery()` will be at least twice as the total number of calls to `MatchDocument()`. Since we are trying to model real queries, many queries will exhibit significant overlap.
+
+The task API header file, a basic implementation of the task interface, the test driver along with an example workload, and a Makefile are available in the repo github:transactionalblog/sigmod-contest-2013[]. The README file inside the tarball explains how to compile and run the code.
