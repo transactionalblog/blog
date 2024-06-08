@@ -3,7 +3,6 @@
 :page-order: 95
 :stem: latexmath
 :page-features: stem, stem-inline
-:toc: preamble
 :nospace:
 
 == Archival Note

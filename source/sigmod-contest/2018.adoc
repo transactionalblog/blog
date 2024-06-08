@@ -1,7 +1,6 @@
 = Join Processing (2018)
 :revdate: 2024-06-05
 :page-order: 91
-:toc: preamble
 :nospace:
 
 == Archival Note

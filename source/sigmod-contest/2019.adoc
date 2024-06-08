@@ -1,7 +1,6 @@
 = Sorting (2019)
 :revdate: 2024-06-05
 :page-order: 90
-:toc: preamble
 :nospace:
 
 == Archival Note

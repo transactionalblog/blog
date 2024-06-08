@@ -1,7 +1,6 @@
 = Main Memory Transactional Index (2009)
 :revdate: 2024-04-28
 :page-order: 100
-:toc: preamble
 
 == Archival Note
 

@@ -1,7 +1,6 @@
 = Streaming Full Text Search (2013)
 :revdate: 2024-06-02
 :page-order: 96
-:toc: preamble
 :nospace:
 
 == Archival Note

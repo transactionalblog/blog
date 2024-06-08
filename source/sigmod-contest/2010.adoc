@@ -1,7 +1,6 @@
 = Distributed Query Engine (2010)
 :revdate: 2024-05-24
 :page-order: 99
-:toc: preamble
 
 == Archival Note
 
