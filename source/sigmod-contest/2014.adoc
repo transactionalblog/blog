@@ -1,0 +1,87 @@
+= Social Network Graph Processing (2014)
+:revdate: 2024-06-03
+:page-order: 95
+:stem: latexmath
+:page-features: stem, stem-inline
+:toc: preamble
+:nospace:
+
+== Archival Note
+
+:uri-contest-2014: http://www.cs.albany.edu/~sigmod14contest/task.html
+:uri-contest-2014-archive: https://web.archive.org/web/20140301203250/http://www.cs.albany.edu/~sigmod14contest/task.html
+:uri-contest-2014-analysis: https://www.arxiv.org/abs/2010.12243
+:uri-contest-2014-graphblas: https://szarnyasg.github.io/papers/hpec2020-sigmod14-msbfs-camera-ready.pdf
+
+The {uri-contest-2014}[original contest site] is no longer accessible.
+There is an {uri-contest-2014-archive}[Archive.org mirror] available, from which the text on the rest of this page was copied.
+
+There was no provided starting code for this contest.  The provided data sets and example queries can be found in github:transactionalblog/sigmod-contest-2014[].  Links in the copied text below have been changed to point to the GitHub repo.
+
+This contest was organized by the G* Research Group of University at Albany.
+The winner of this contest was Moritz Kaufmann, Manuel Then, Tobias Mühlbauer, and Andrey Gubichev from the Technical University of Munich.
+The organizers authored {uri-contest-2014-analysis}[a report] analyzing the contest and submissions.
+One of the submissions is available as github:ppwwyyxx/sigmod14contest[].
+A later paper used this programming contest as the context within which to evaluate a {uri-contest-2014-graphblas}[GraphBLAS-based solution].
+
+'''
+
+== Task overview
+
+:uri-queries-1: https://github.com/transactionalblog/sigmod-contest-2014/blob/main/samples/1k-sample-queries1.txt
+:uri-answers-1: https://github.com/transactionalblog/sigmod-contest-2014/blob/main/samples/1k-sample-answers1.txt
+:uri-queries-2: https://github.com/transactionalblog/sigmod-contest-2014/blob/main/samples/1k-sample-queries2.txt
+:uri-answers-2: https://github.com/transactionalblog/sigmod-contest-2014/blob/main/samples/1k-sample-answers2.txt
+:uri-queries-3: https://github.com/transactionalblog/sigmod-contest-2014/blob/main/samples/1k-sample-queries3.txt
+:uri-answers-3: https://github.com/transactionalblog/sigmod-contest-2014/blob/main/samples/1k-sample-answers3.txt
+:uri-queries-4: https://github.com/transactionalblog/sigmod-contest-2014/blob/main/samples/1k-sample-queries4.txt
+:uri-answers-4: https://github.com/transactionalblog/sigmod-contest-2014/blob/main/samples/1k-sample-answers4.txt
+
+The goal is to execute a set of queries as quickly as possible. There are four types of queries. For convenience, we have broken the sample query workload (below) into individual text files, one for each of the four query types.
+
+There is a one-to-one mapping between queries and answers in the provided samples. The answers file contains comments after the % character. These are for your own debugging purposes. Submissions must not contain such comments.
+
+=== Query Type 1 (Shortest Distance Over Frequent Communication Paths)
+
+Given two integer person ids $p1$ and $p2$, and another integer $x$, find the minimum number of hops between $p1$ and $p2$ in the graph induced by persons who
+
+1. have made more than $x$ comments in reply to each others' comments (see comment_hasCreator_person and comment_replyOf_comment), and
+2. know each other (see person_knows_person, which presents undirected friendships between persons; a friendship relationship between persons $x$ and $y$ is represented by pairs $x|y$ and $y|x$).
+
+[horizontal]
+API::	`query1(p1, p2, x)`
+Output:: 	One integer (hop count) per line.
+Samples:: 	{uri-queries-1}[1k-sample-queries1.txt] and {uri-answers-1}[1k-sample-answers1.txt]
+
+=== Query Type 2 (Interests with Large Communities)
+
+Given an integer $k$ and a birthday $d$, find the $k$ interest tags with the largest range, where the range of an interest tag is defined as the size of the largest connected component in the graph induced by persons who have that interest (see tag, person_hasInterest_tag), were born on $d$ or later, and know each other (see person_knows_person, which presents undirected friendships between persons; a friendship relationship between persons $x$ and $y$ is represented by pairs $x|y$ and $y|x$).
+
+[horizontal]
+API::	`query2(k, d)`
+Output:: 	Exactly $k$ strings (separated by a space) per line. These $k$ strings represent interest tag names, ordered by range from largest to smallest, with ties broken by lexicographical ordering.
+Samples:: 	{uri-queries-2}[1k-sample-queries2.txt] and {uri-answers-2}[1k-sample-answers2.txt]
+
+=== Query Type 3 (Socialization Suggestion)
+
+Given an integer $k$, an integer maximum hop count $h$, and a string place name $p$, find the top-$k$ similar pairs of persons based on the number of common interest tags (see person_hasInterest_tag). For each of the $k$ pairs mentioned above, the two persons must be located in $p$ (see person_isLocatedIn_place, place, and place_isPartOf_place) or study or work at organizations in $p$ (see person_studyAt_organisation, person_workAt_organisation, organisation_isLocatedIn_place, place, and place_isPartOf_place). Furthermore, these two persons must be no more than $h$ hops away from each other in the graph induced by persons and person_knows_person.
+
+[horizontal]
+API::	`query3(k, h, p)`
+Output:: 	Exactly $k$ pairs of person ids per line. These pairs are separated by a space and person ids are separated by the pipe character ( $|$ ). For any person id $p$, $p | p$ must be excluded. For any pairs $p1 | p2$ and $p2 | p1$, the second pair in lexicographical order must be excluded. These $k$ pairs must be ordered by similarity from highest to lowest, with ties broken by lexicographical ordering.
+Samples:: 	{uri-queries-3}[1k-sample-queries3.txt] and {uri-answers-3}[1k-sample-answers3.txt]
+
+=== Query Type 4 (Most Central People)
+
+Given an integer $k$ and a string tag name $t$, find the $k$ persons who have the highest closeness centrality values in the graph induced by persons who are members of forums that have tag name $t$ (see tag, forum_hasTag_tag, and forum_hasMember_person), and know each other (see person_knows_person, which presents undirected friendships between persons; a friendship relationship between persons $x$ and $y$ is represented by pairs $x|y$ and $y|x$).  Here, the closeness centrality of a person $p$ is
+
+++++
+$$\frac{(r(p)-1) * (r(p)-1)}{(n-1) * s(p)}$$
+++++
+
+where $r(p)$ is the number of vertices reachable from $p$ (inclusive), $s(p)$ is the sum of geodesic distances to all other reachable persons from $p$, and $n$ is the number of vertices in the induced graph. When either multiplicand of the divisor is 0, the centrality is 0.
+
+[horizontal]
+API::	`query4(k, t)`
+Output:: 	Exactly $k$ person ids (separated by a space) per line. These person ids are ordered by centrality from highest to lowest, with ties broken by person id (in ascending order).
+Samples:: 	{uri-queries-4}[1k-sample-queries4.txt] and {uri-answers-4}[1k-sample-answers4.txt]
