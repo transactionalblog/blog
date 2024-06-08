@@ -1,0 +1,244 @@
+= Shortest Path (2016)
+:revdate: 2024-06-03
+:page-order: 93
+:page-features: alpine
+:toc: preamble
+:nospace:
+
+== Archival Note
+
+:uri-contest-2016: https://dsg.uwaterloo.ca/sigmod16contest/task.html
+:uri-contest-2016-archive: https://web.archive.org/web/20231214131446/https://dsg.uwaterloo.ca/sigmod16contest/task.html
+:uri-contest-original-code: https://github.com/transactionalblog/sigmod-contest-2016/commit/0c2aceb37c0c20209ce3870a82777405b047a168
+:uri-contest-current-code: https://github.com/transactionalblog/sigmod-contest-2016/
+:uri-contest-2016-leaderboard: https://dsg.uwaterloo.ca/sigmod16contest/leaders.html
+
+The {uri-contest-2016}[original contest site] is still available!
+If it's unavailable in the future, it can be found on an {uri-contest-2016-archive}[Archive.org mirror] instead.
+
+The provided code for this contest is available at github:transactionalblog/sigmod-contest-2016[].  The exact provided code is preserved as {uri-contest-original-code}[commit 0c2aceb3].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.
+
+This contest was organized by University of Waterloo's Database Systems group.
+The winner of this contest was Takuto Ikuta, Takanori Hayashi, Yosuke Yano, and Yoichi Iwata from University of Tokyo.
+The {uri-contest-2016-leaderboard}[leaderboard] has the posters and submission from the five finalists. 
+
+'''
+
+== Task Details
+
+In https://en.wikipedia.org/wiki/Graph_theory[graph theory], the https://en.wikipedia.org/wiki/Shortest_path_problem[shortest path problem] is the problem of finding a path between two vertices (or nodes) in a graph such that the sum of the weights of its constituent edges is minimized. This is a fundamental and well-studied combinatorial optimization problem with many practical uses: from GPS navigation to routing schemes in computer networks; search engines apply solutions to this problem on website interconnectivity graphs and social networks apply them on graphs of peoples' relationships.
+
+In this contest, the task is to answer shortest path queries on a changing graph, as quickly as possible. We will provide an initial graph which you may process and index in any way you deem necessary. Once this is done, we will begin issuing a workload consisting of a series of sequential operation batches. Each operation is either a graph modification (insertion or removal) or a query about the shortest path between two nodes in the graph. Your program is expected to correctly answer all queries as if all operations had been executed in the order they were given.
+
+The graphs are directed and unweighted. Input to your program will be provided via standard input, and the output must appear on the standard output.
+
+== Testing Protocol
+
+Our test harness will first feed the initial graph to your program's standard input. The graph is represented as a list of edges, each of which consists of a pair of node ids (the edge starting node, followed by the edge destination node) represented as non-negative integer numbers. Your program will receive multiple lines (each representing one edge) containing exactly 2 integer numbers in decimal ASCII representation separated by a single space. The initial graph ends with a line containing the character 'S'.
+
+--
+image::testing.svg[]
+--
+
+----
+1 2
+2 3
+3 1
+4 1
+2 4
+S
+----
+
+In the example above, the input to the left describes the graph presented at the right. Node IDs may appear in the input in any order, and there may be "gaps". That is, nodes in an N-node graph may have node IDs larger than N-1. The largest possible Node ID is 2^32^-1. There may be at most one edge between any two nodes. If the same edge appears in the input more than once, only a single edge should be included in the graph.
+
+After sending the initial graph input, our test harness will monitor your program's standard output for a line containing the character 'R' (case insensitive, followed by the new line character '\n'). Your program uses this line to signal that it is done ingesting the original graph, has performed any processing and/or indexing on it and is now ready to receive the workload.
+
+The test harness delivers the workload in batches. Each batch consists of a sequence of operations provided one per line followed by a line containing the single character 'F' that signals the end of the batch.
+
+Each operation is represented by one character ('Q', 'A' or 'D') that defines the operation type, followed by a space and two positive integer numbers in decimal ASCII representation, also separated by a space. The two integer numbers represent node IDs.
+
+The three operation types are as follows:
+
+- *'Q'/query*: this operation needs to be answered with the distance of the shortest (directed) path from the first node to the second node in the current graph. The answer should appear as output in the form of a single line containing the decimal ASCII representation of the integer distance between the two nodes, i.e., the number of edges on a shortest directed path between them. If there is no path between the nodes or if either of the nodes does not exist in the graph, the answer should be -1. The distance between any node and itself is always 0.
+- *'A'/add*: This operation requires you to modify your current graph by adding another edge from the first node in the operation to the second. As was the case during the input of the original graph input, if the edge already exists, the graph remains unchanged. If one (or both) of the specified endpoints of the new edge does not exist in the graph, it should be added. This operation should not produce any output.
+- *'D'/delete*: This operation requires you to modify your current graph by removing the edge from the first node in the operation to the second. If the specified edge does not exist in the graph, the graph should remain unchanged. This operation should not produce any output.
+
+After the end of every batch, our test harness will wait for output from your program before providing the next batch. You need to provide as many lines of output as there are query ('Q') operations in the batch - each line containing the distance of the shortest path as described above. Your program is free to process operations in a batch concurrently. However, the query results in the output must reflect the order of the queries within the batch.
+
+After the last batch, the standard input stream of your program will be closed by our test harness. Here are some example batches corresponding to the initial example graph above:
+
+=== Batch 1
+
+--
+image::batch1.svg[]
+--
+
+----
+Q 1 3
+A 4 5
+Q 1 5
+Q 5 1
+F
+----
+
+Output:
+
+----
+2
+3
+-1
+----
+
+=== Batch 2
+
+--
+image::batch2.svg[]
+--
+
+----
+A 5 3
+Q 1 3
+D 2 3
+Q 1 3
+F
+----
+
+Output:
+
+----
+2
+4
+----
+
+
+== Try-It-Yourself Example
+
+++++
+<script type="text/javascript">
+
+function Graph() {
+  this.nodes = {};
+}
+  
+Graph.prototype.addEdge = function(start, finish) {
+  this.nodes[start] = this.nodes[start] || [];
+  this.nodes[finish] = this.nodes[finish] || [];
+  if (this.nodes[start].indexOf(finish) < 0) this.nodes[start].push(finish);
+};
+
+Graph.prototype.removeEdge = function(start, finish) {
+  var node = this.nodes[start] || [];
+  var index = node.indexOf(finish);
+  if (index >= 0) node.splice(index, 1);
+};
+
+Graph.prototype.shortestPath = function(start, finish) {
+  var Q = [];  // unoptimized priority queue
+  var dist = {};
+  for (v in this.nodes) {
+    if (v == start) Q.unshift([v, dist[v] = 0]);
+    else Q.push([v, dist[v] = Infinity]);
+  }
+  while(Q.length > 0) {
+    var u = Q.shift()[0];
+    if (u == finish) return isFinite(dist[u]) ? dist[u] : -1;
+    this.nodes[u].forEach(function(v) {
+      if (dist[u] + 1 < dist[v]) {
+        dist[v] = dist[u] + 1;
+        Q = Q.map(function(x) {
+          return x[0] == v ? [v, dist[u] + 1] : x;
+        }).sort(function(x, y) {
+          return x[1] - y[1];
+        });
+      }
+    });
+  }
+  return isFinite(dist[finish]) ? dist[finish] : -1;
+};
+
+function tyi_example_solve(inputText) {
+  var nodeId = function(text) {
+    if (!/^[1-9][0-9]*$/.test(text)) return NaN;
+    var result = parseInt(text);
+    return isFinite(result) && result > 0 ? result : NaN;
+  }
+  var graphIn = [];
+  var operations = [];
+  var output = [];
+  var initGraphStage = true;
+  inputText.split('\n').forEach(function(line, lineNum, lines) {
+    if (initGraphStage) {
+      if (line == 'S') initGraphStage = false;
+      else {
+        var nodes = line.split(' ');
+        if (nodes.length != 2 || isNaN(nodes[0] = nodeId(nodes[0])) || isNaN(nodes[1] = nodeId(nodes[1]))) output.push('ERROR @ line ' + (lineNum + 1) + ' ("' + line + '") - expected 2 node ids or S');
+        else graphIn.push(nodes);
+      }
+    } else {
+      if (line == 'F') return;  // ignore
+      var operation = line.split(' ');
+      if (operation.length != 3 || ['Q', 'A', 'D'].indexOf(operation[0].toUpperCase()) < 0 || isNaN(operation[1] = nodeId(operation[1])) || isNaN(operation[2] = nodeId(operation[2]))) output.push('ERROR @ line ' + (lineNum + 1) + ' ("' + line + '") - expected Q/A/D followed by 2 node ids or F');
+      else operations.push(operation);
+    }
+    if (lineNum == lines.length - 1 && line != 'F') output.push('ERROR - input must end with the batch end character: F');
+  });
+  if (output.length == 0) {
+    output.push('R');
+    var graph = new Graph();
+    graphIn.forEach(function(gin) { graph.addEdge(gin[0], gin[1]); });
+    operations.forEach(function(operation) {
+      switch(operation[0].toUpperCase()) {
+        case 'Q':
+          output.push(graph.shortestPath(operation[1], operation[2]));
+          break;
+        case 'A':
+          graph.addEdge(operation[1], operation[2]);
+          break;
+        case 'D':
+          graph.removeEdge(operation[1], operation[2]);
+          break;
+      }
+    });
+  }
+  return output.join('\n');
+}
+
+initial_input_data = `1 2
+2 3
+3 1
+4 1
+2 4
+S
+Q 1 3
+A 4 5
+Q 1 5
+Q 5 1
+F
+A 5 3
+Q 1 3
+D 2 3
+Q 1 3
+F`;
+
+</script>
+
+
+<div x-data="{ testdata: initial_input_data }">
+<table>
+  <tr><th>Input</th><th>Output</th></tr>
+  <tr>
+    <td>
+      <textarea x-model.debounce="testdata" rows=16 cols=10 x-bind:placeholder="testdata">
+      </textarea>
+    </td>
+    <td>
+      <pre><code x-text="tyi_example_solve(testdata)"></code></pre>
+    </td>
+  </tr>
+</table>
+</div>
+++++
+ 
+== Reference Solution
+
+We have created a simple {uri-contest-current-code}[reference solution], which you are welcome to download and modify. It is implemented in Python, using the networkx module.

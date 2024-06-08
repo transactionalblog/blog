@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="graph pull-right" height="110" width="150">
+<style>
+  path { fill: black; }
+  circle { fill: black; }
+  text { fill: white; }
+  @media (prefers-color-scheme: dark) {
+    path { fill: white; }
+    circle { fill: white; }
+    text { fill: black; }
+  }
+</style>
+<defs>
+<marker id="end-arrow" markerheight="3" markerwidth="3" orient="auto" refx="6" viewbox="0 -5 10 10">
+<path d="M0,-5L10,0L0,5" fill="#000"></path>
+</marker>
+</defs>
+<g>
+<path class="link" d="M25,25L110,25" marker-end="url(#end-arrow)"></path>
+<path class="link" d="M125,25L125,70" marker-end="url(#end-arrow)" stroke-dasharray="1, 7" stroke-linecap="round"></path>
+<path class="link" d="M125,85L35,35" marker-end="url(#end-arrow)"></path>
+<path class="link" d="M25,85L25,40" marker-end="url(#end-arrow)"></path>
+<path class="link" d="M125,25L35,75" marker-end="url(#end-arrow)"></path>
+<path class="link" d="M25,85L60,85" marker-end="url(#end-arrow)"></path>
+<path class="link" d="M75,85L110,85" marker-end="url(#end-arrow)"></path>
+</g>
+<g>
+<g transform="translate(25,25)">
+<circle class="node" r="12"></circle>
+<text class="id" x="-5" y="4">1</text>
+</g>
+<g transform="translate(125,25)">
+<circle class="node reflexive" r="12"></circle>
+<text class="id" x="-5" y="4">2</text>
+</g>
+<g transform="translate(125,85)">
+<circle class="node" r="12"></circle>
+<text class="id" x="-5" y="4">3</text>
+</g>
+<g transform="translate(25,85)">
+<circle class="node" r="12"></circle>
+<text class="id" x="-5" y="4">4</text>
+</g>
+<g transform="translate(75,85)">
+<circle class="node" r="12"></circle>
+<text class="id" x="-5" y="4">5</text>
+</g>
+</g>
+</svg>
