@@ -45,9 +45,13 @@ In this section, we give details about the task requirements. To evaluate your s
 Each transaction of the benchmark works on a single index. The average number of operations that are performed in such a transaction depends on its type, where each operation is exactly one function call (e.g., iterating over 10 keys requires 11 operations).
 +
 There are three possible transaction types:
-  - Range queries only (200 operations per transaction)
-  - Point queries only (20 operations per transaction)
-  - Manipulation queries only (5 operations per transaction)
++
+[.nomargin]
+--
+** Range queries only (200 operations per transaction)
+** Point queries only (20 operations per transaction)
+** Manipulation queries only (5 operations per transaction)
+--
 +
 *Note*: The information above just describes the transactions used by our benchmark. Your implementation has to support transactions that contain both reading and modifying operations.
 - *Ordering*: The output of range and partial-match point queries has to be order preserving (lexicographical byte order for VARCHARs). Assume a partial-match query (a, b = 3, c). The order must be equal to "... ORDER BY a ASC, c ASC" for all keys with b equal to 3.
