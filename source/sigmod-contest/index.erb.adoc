@@ -25,4 +25,6 @@ Unfortunately, the programming contest sites have been dropping off the internet
 <%= partial("partials/index_section", :locals => {}) %>
 ++++
 
-The code challenges are all issued with an MIT (or equivalently permissive) license.  The task description is... probably copyrighted?  (I don't make any money off this site. ACM, please don't sue me?)  Reach out to <domain of this site @ google mail provider> if you'd like to request a challenge be taken down.
+If you're reading this and are a former contestant, and you happen to have starting or test harness code which is missing in the linked GitHub repos, please reach out or send a PR.  If you attempt a challenge and have some improvements to the starting framework, test harness, or test data to provide, feel free to send a PR as well.
+
+The code challenges are all issued with an MIT (or equivalently permissive) license.  (I don't make any money off this site. ACM, please don't sue me?)  Reach out to <domain of this site @ google mail provider> if you'd like to request a challenge be taken down.
