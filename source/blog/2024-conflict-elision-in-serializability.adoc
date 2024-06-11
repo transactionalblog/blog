@@ -1,0 +1,101 @@
+= Conflict Elision in Serializability
+:revdate: 2024-06-10
+:page-hidden: true
+:stem: latexmath
+:page-features: stem, stem-inline
+:toc: preamble
+:nospace:
+
+== Write-After-Write Conflicts
+
+You *do* need to check write-after-write conflicts if:
+
+- Your writes are performed across a range of versions OR it is a single-version database.
+- You are implementing SQL isolation levels, which mandate write-after-write conflict checking.
+
+You *do not* need to check write-after-write conflicts if:
+
+- Your writes all appear atomically in the same version.  (Highly likely with MVCC.)
+- The "writes" are commutative operations (e.g. increment), or you implement escrow transactions.
+
+The informal argument here is reasonably simple: given two transactions $T_1$ and $T_2$, which each perform a write to $X$ and a write to $Y$, the only way for the result to not be serializable is transaction atomicity is broken.  We can only break atomicity by allowing writes from the two transactions to be interleaved:
+
+Not Serializable: $T_1.W(X) T_2.W(X) T_2.W(Y) T_1.W(Y)$
+Ending state: $T_2$'s $X$.  $T_1$'s $Y$.
+
+Serializable: $T_1.W(X) T_1.W(Y) T_2.W(X) T_2.W(Y)$
+Ending state: $T_2$'s $X$.  $T_2$'s $Y$.
+
+When all writes appear atomically in the same version, it's impossible to have interleaving.  If one of $T_1$'s writes happens before one of $T_2$'s writes, then _all_ writes from $T_1$ must happen before those in $T_2$.
+
+== Read-After-Write Conflicts
+
+You *do* need to check read-after-write conflicts if:
+
+- Reads are performed across a range of versions OR it is a single-version database.
+- At commit, reads can be serialized at an earlier version than when they were performed.
+- At commit, writes can be serialized at a later version than when they were performed.
+
+Read-after-write conflicts are all about writes moving to the right or reads moving to the left in our version diagram.
+
+Of the three, these are the most commonly elided conflicts, but they're still possible.  SQL constraint checking might need to do reads, writes, reads.  The latter reads could move backwards.  The former reads could move forwards.
+
+== Write-After-Read Conflics
+
+You *do* need to check write-after-read conflicts if:
+
+- Your reads are performed across a range of versions OR it is a single-version database.
+- At commit, reads can be serialized at a later version than when they were performed.
+- At commit, writes can be serialized at an earlier version than when they were performed.
+
+It's _very_ common for reads to be serialized later than when they were performed.  These
+
+
+== Conflict Serializability
+
+Serializability is
+Database classes teach us serializability as conflict serializability.  There are. Three types of conflicts that are examined They are plugged intoNice.  
+
+Conflict serializability
+
+ - Read-After-Write (RAW) conflicts: T2 reads a value written by T1.  T2 must commit after T1.
+ - Write-After-Write (WAW) conflicts: T2 overwrites a value written by T1.  T2 must commit after T1.
+ - Write-After-Read (WAR) conflicts: T2 overwrites a value that was read by T1.  T2 must commit after T1.
+
+This post is about when we can not record or check certain types of these conflicts.  Combining them gives us a lattice, and for each combination, we'll consider a hypothetical system for which that combination of conflicts is the correct and minimal set of conflicts which need to be validated.
+
+[graphviz]
+----
+graph G {
+    rankdir="BT";
+    bot [label="{} (1)"];
+    A [label="{RAW} (2)"];
+    B [label="{WAW} (3)"];
+    C [label="{WAR} (4)"];
+    AB [label="{RAW,WAW} (5)"];
+    AC [label="{RAW,WAR} (6)"];
+    BC [label="{WAW,WAR} (7)"];
+    ABC [label="{RAW,WAW,WAR} (8)"];
+    bot -- {A,B,C};
+    A -- {AB, AC};
+    B -- {AB, BC};
+    C -- {AC, BC};
+    {AB, AC, BC} -- ABC;
+}
+----
+
+== Elide Everything
+
+To reiterate, serializability is defined as a history of operations which is equivalent to executing each transaction in some sequential order.  If our system executes transactions one at a time, sequentially, there's no need for _any_ conflict checking to be able to say that this system is serializable.
+
+
+////
+Conflict serializability
+ - Read-After-Write conflicts: T2 reads a value written by T1.  T2 must commit after T1.
+ - Write-After-Write conflicts: T2 overwrites a value written by T1.  T2 must commit after T1.
+ - Write-After-Read conflicts: T2 overwrites a value that was read by T1.  T2 must commit after T1.
+
+////
+
+
+// @ebtolbakov
