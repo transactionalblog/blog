@@ -244,6 +244,17 @@
     publisher = {USENIX Association},
     month = feb
 }
+@INPROCEEDINGS{9820714,
+  author={Jia, Yulei and Xu, Guangping and Sung, Chi Wan and Mostafa, Salwa and Wu, Yulei},
+  booktitle={2022 IEEE International Parallel and Distributed Processing Symposium (IPDPS)}, 
+  title={HRaft: Adaptive Erasure Coded Data Maintenance for Consensus in Distributed Networks}, 
+  year={2022},
+  volume={},
+  number={},
+  pages={1316-1326},
+  keywords={Fault tolerance;Costs;System performance;Fault tolerant systems;Distributed databases;Switches;Throughput;Erasure coding;Consensus protocol;Raft;Paxos;Fault tolerance;Network storage},
+  doi={10.1109/IPDPS53621.2022.00130}
+}
 @inproceedings{10.1145/3427796.3427815,
     author = {Howard, Heidi and Charapko, Aleksey and Mortier, Richard},
     title = {Fast Flexible Paxos: Relaxing Quorum Intersection for Fast Paxos},
@@ -436,4 +447,27 @@
     keywords = {asynchronous message passing model, consensus, erasure code, paxos, state machine replication},
     location = {Vancouver, BC, Canada},
     series = {HPDC '14}
+}
+@inproceedings{matte2021scalable,
+    title={Scalable but wasteful: Current state of replication in the cloud},
+    author={Matte, Venkata Swaroop and Charapko, Aleksey and Aghayev, Abutalib},
+    booktitle={Proceedings of the 13th ACM Workshop on Hot Topics in Storage and File Systems},
+    pages={42--49},
+    year={2021}
+}
+@inproceedings{10.1145/2517349.2517350,
+    author = {Moraru, Iulian and Andersen, David G. and Kaminsky, Michael},
+    title = {There is more consensus in Egalitarian parliaments},
+    year = {2013},
+    isbn = {9781450323888},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    url = {https://doi.org/10.1145/2517349.2517350},
+    doi = {10.1145/2517349.2517350},
+    abstract = {This paper describes the design and implementation of Egalitarian Paxos (EPaxos), a new distributed consensus algorithm based on Paxos. EPaxos achieves three goals: (1) optimal commit latency in the wide-area when tolerating one and two failures, under realistic conditions; (2) uniform load balancing across all replicas (thus achieving high throughput); and (3) graceful performance degradation when replicas are slow or crash.Egalitarian Paxos is to our knowledge the first protocol to achieve the previously stated goals efficiently---that is, requiring only a simple majority of replicas to be non-faulty, using a number of messages linear in the number of replicas to choose a command, and committing commands after just one communication round (one round trip) in the common case or after at most two rounds in any case. We prove Egalitarian Paxos's properties theoretically and demonstrate its advantages empirically through an implementation running on Amazon EC2.},
+    booktitle = {Proceedings of the Twenty-Fourth ACM Symposium on Operating Systems Principles},
+    pages = {358–372},
+    numpages = {15},
+    location = {Farminton, Pennsylvania},
+    series = {SOSP '13}
 }
