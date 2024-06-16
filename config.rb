@@ -73,7 +73,7 @@ helpers do
   end
 
   def add_http_prefix(path)
-    join_paths( config.http_prefix, path )
+    '/' + join_paths( config.http_prefix, path )
   end
 
   def html_to_text(html)
