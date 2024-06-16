@@ -91,9 +91,9 @@ up_title = if current_page.data.category != 'blog' then category_name[current_pa
     <% end %>
     <div>
     <% if current_page.data.nofooter %>
-    <a href="/feed.xml">
+    <a href=<%= add_http_prefix + "/feed.xml"%>>
       <svg height="16" width="16" style="float: right">
-        <use xlink:href="/images/rss.svg#rss"></use>
+        <use xlink:href=<%= add_http_prefix "/images/rss.svg#rss"%>></use>
       </svg>
     </a>
     <% end %>

@@ -72,6 +72,10 @@ helpers do
     paths.map { |path| path.delete_prefix('/').chomp('/') }.reject(&:empty?).join('/')
   end
 
+  def add_http_prefix(path)
+    join_paths( config.http_prefix, path )
+  end
+
   def html_to_text(html)
     Nokogiri::HTML(html).text
   end
