@@ -7,6 +7,7 @@
     <meta name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title><%= current_page.data.title || category || "Index" %></title>
+    <link rel="icon" type="image/x-icon" href="<%= add_http_prefix "/favicon.ico"%>"/>
     <%= stylesheet_link_tag "bamboo/main.css" %>
     <%= stylesheet_link_tag (current_page.data.style || "index") %>
     <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/feed.xml" />
