@@ -14,7 +14,7 @@ require_relative 'asciidoc_extensions/postprocessors'
 activate :asciidoc, backend: 'xhtml5', safe: :unsafe, template_dirs: 'asciidoc_templates', attributes: ['source-highlighter=rouge', 'toc-title=']
 set :skip_build_clean, proc {|f| f.start_with? 'build/images/'}
 
-activate :asset_hash
+activate :asset_hash, :ignore => %r{^images/rss.svg}
 
 class ImageDirPerAsciidoc < Middleman::Extension
   def initialize(app, options_hash={}, &block)
