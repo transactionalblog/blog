@@ -11,10 +11,12 @@ require 'asciidoctor-diagram'
 require_relative 'asciidoc_extensions/inline_macros'
 require_relative 'asciidoc_extensions/ophistory_diagram'
 require_relative 'asciidoc_extensions/postprocessors'
+require_relative 'asciidoc_extensions/reading_time'
 activate :asciidoc, backend: 'xhtml5', safe: :unsafe, template_dirs: 'asciidoc_templates', attributes: ['source-highlighter=rouge', 'toc-title=']
 set :skip_build_clean, proc {|f| f.start_with? 'build/images/'}
 
 activate :asset_hash, :ignore => [%r{^images/rss.svg}, %r{^stylesheets/bamboo/.*.css}]
+activate :reading_time
 
 class ImageDirPerAsciidoc < Middleman::Extension
   def initialize(app, options_hash={}, &block)
