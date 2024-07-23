@@ -31,7 +31,7 @@ function positionAsideElements(mq) {
     });
 }
 
-document.addEventListener("DOMContentLoaded", function() {
+document.addEventListener("load", function() {
   positionAsideElements({matches: true});
 });
 window.matchMedia("(min-width: 920px)").addEventListener('change', positionAsideElements)
