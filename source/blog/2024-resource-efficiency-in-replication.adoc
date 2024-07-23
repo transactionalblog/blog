@@ -465,7 +465,10 @@ My only ask is that before choosing Raft by default to solve your next replicati
 
 == References
 
+[.bibliography]
+--
 bibliography::[]
+--
 
 ////
 * [[[Raft]]] https://scholar.google.com/scholar?cluster=12646889551697084617[Diego Ongaro and John Ousterhout. 2014. In search of an understandable consensus algorithm. In Proceedings of the 2014 USENIX Conference on USENIX Annual Technical Conference (USENIX ATC'14), USENIX Association, Philadelphia, PA, 305-320.]
