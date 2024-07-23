@@ -31,7 +31,14 @@ function positionAsideElements(mq) {
     });
 }
 
-document.addEventListener("load", function() {
+// Run it twice because some content (particularly charts) can take
+// a while to load, but can affect layout.  So the first run quickly
+// gets items in about the right place, and the second one fixes up
+// any minor issues once all content is fully loaded.
+window.addEventListener("DOMContentLoaded", function() {
+  positionAsideElements({matches: true});
+});
+window.addEventListener("load", function() {
   positionAsideElements({matches: true});
 });
 window.matchMedia("(min-width: 920px)").addEventListener('change', positionAsideElements)
