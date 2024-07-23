@@ -162,6 +162,10 @@ module AsciidoctorBibtex
         result << cptext.first
       end
 
+      if @biblio[key].has_field? 'note'
+        result << " #{@biblio[key].note}."
+      end
+
       if @biblio[key].has_field? 'scholarcluster'
         result << " https://scholar.google.com/scholar?cluster=#{@biblio[key].scholarcluster}[[scholar\\]]"
       end

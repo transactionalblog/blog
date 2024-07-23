@@ -7,13 +7,17 @@
 :bibtex-file: 2024-resource-efficiency-in-replication.bib
 :nospace:
 
+[.aside]#With thanks to AJ Werner for pointers to Cockroach's optimizations, Reuben Bond for links to good Virtual Synchrony overview papers, and Phil Eaton for early reads and feedback.#
+
+[#chosen_preamble]
+--
 Consistent replication algorithms can be placed on a sliding scale in terms of how they handle a replica failures.  Across the three common points on this spectrum, the resource and cost efficiency, availability, and latency are compared.  This all builds to the argument that Raft's strength is its consistent mediocrity across all metrics.
+--
 
 == Failure Masking vs Failure Detection
 
-When designing a distributed database, one needs to choose a replication algorithm to replicate data across partitions while maintaining consistency.  Data replication algorithms fall into two categories: those designed to quietly tolerate failing nodes (failure masking), and those necessitating explicit reconfiguration around identified failures (failure detection).  This post mounts the argument that these are just two opposite points on a spectrum of design possibilities in-between.  We'll be taking a look at three points
-sidenote:ref[][.aside]#sidenote:def[] Don't forget about the idea that there's more valid points along the spectrum than just these three!#
-in particular: quorum-based leaderless replication for failure masking algorithms, reconfigurable primary-backup for failure detection algorithms, and leaderful consensus as the most well-known set of replication algorithms which blend the two.
+When designing a distributed database, one needs to choose a replication algorithm to replicate data across partitions while maintaining consistency.  Data replication algorithms fall into two categories: those designed to quietly tolerate failing nodes (failure masking), and those necessitating explicit reconfiguration around identified failures (failure detection).  This post mounts the argument that these are just two opposite points on a spectrum of design possibilities in-between.  We'll be taking a look at three points{nospace}sidenote:ref[] in particular: quorum-based leaderless replication for failure masking algorithms, reconfigurable primary-backup for failure detection algorithms, and leaderful consensus as the most well-known set of replication algorithms which blend the two.
+[.aside]#sidenote:def[] Don't forget about the idea that there's more valid points along the spectrum than just these three!#
 
 [pikchr,align="center"]
 ----
@@ -77,7 +81,7 @@ This table was assembled by
 | FoundationDB | Primary-Backup |
 | Apache Kudu | Leaderful |
 
-| Google Spanner | Leaderful a| Per cite:[Spanner].
+| Google Spanner | Leaderful a| Per https://cloud.google.com/spanner/docs/replication[docs].
 | Azure CosmosDB | Leaderful |
 | Alibaba PolarDB | Leaderful | Per https://www.alibabacloud.com/help/en/polardb/polardb-for-postgresql/architecture-2[docs].
 | Amazon DynamoDB | Leaderful | Per https://www.usenix.org/system/files/atc22-elhemali.pdf[paper].
@@ -211,7 +215,7 @@ An implementation of majority quorums typically uses some form of a Last Writer 
 | 2RTT
 |===
 
-This table presents that the difference between majority quorums/ABD and Paxos is one of read and write latency, but again, don't forget that there's a very significant difference in data consistency between the two replication algorithms.  Erasure Encoded Paxos outwardly appears optimal, but isn't an algorithm that exists neither in academia nor in industry.
+This table presents that the difference between majority quorums/ABD and Paxos is one of read and write latency, but again, don't forget that there's a very significant difference in data consistency between the two replication algorithms.  The write phase of majority quorums or ABD will always succeed if the replica replies, but Paxos's write request will only succeed if it's the highest ballot, meaning that Paxos's 2RTT writes may need to be repeated multiple times when there's contention.  Erasure Encoded Paxos outwardly appears optimal, but isn't an algorithm that exists neither in academia nor in industry.
 
 == Failure Detection: Reconfigurable Primary-Backup
 
@@ -290,10 +294,13 @@ Lastly, it's important to note that there's a notable complexity of handling gra
 
 == Hybrid: Raft / Multi-Paxos
 
-:uri-cockroach-follower-reads: https://www.cockroachlabs.com/blog/follower-reads-stale-data/
+:uri-cockroach-stale-reads: https://www.cockroachlabs.com/blog/follower-reads-stale-data/
+:uri-cockroach-follower-reads: https://github.com/cockroachdb/cockroach/issues/72593
+:uri-cockroach-global-table: https://www.cockroachlabs.com/blog/global-tables-in-cockroachdb/
 :uri-edb-pgdist-witness: https://www.enterprisedb.com/docs/pgd/latest/node_management/witness_nodes/
 :uri-spanner-witness: https://cloud.google.com/spanner/docs/replication#witness
 :uri-tikv-follower-reads: https://tikv.org/blog/double-system-read-throughput/
+:uri-spanner-follower-reads: https://cloud.google.com/spanner/docs/replication#read-only
 :uri-ydb-erasure-encode: https://ydb.tech/docs/en/concepts/cluster/distributed_storage
 
 //:uri-tigerbeetle-fpaxos: https://docs.tigerbeetle.com/deploy/hardware/
@@ -321,13 +328,13 @@ Only {uri-edb-pgdist-witness}[EnterpriseDB Postgres Distributed] and {uri-spanne
 cite:[ErasureEncodedRaft] again allows storing the equivalent of 3 copies spread across 5 replicas, thus achieving 33% storage efficiency a different way.
 The other possible direction for storage efficiency improvement is cite:[ErasureEncodedRaft].  Erasure encoding is popular in distributed filesystems and blob storage systems, but incredibly rare in distributed databases; I am only aware of {uri-ydb-erasure-encode}[YDB] using it.  Thus, as 99% of the Raft implementations one might ever encounter have a storage efficiency of 1/5th, that is the value that will be used for storage efficiency for the rest of the analysis.
 
-Read throughput can be improved by implementing cite:[LinearizableQuorumReads] for 2/5ths read throughput, cite:[PaxosQuorumLeases] for 3/5ths read throughput, or cite:[FollowerReads] for 5/5ths read throughput at the cost of increased latency.  We'll disregard the latency implications, and keep 5/5ths as Raft's read throughput, which is realistic given that it's been implemented in production systems such as {uri-cockroach-follower-reads}[Cockroach] and {uri-tikv-follower-reads}[TiKV].
+Read throughput can be improved by implementing cite:[LinearizableQuorumReads] for 2/5ths read throughput, cite:[PaxosQuorumLeases]{nospace}sidenote:ref[] for 3/5ths read throughput, or cite:[ConsistentFollowerReads]{nospace}sidenote:ref[] for 5/5ths read throughput at the cost of increased latency.  Each has their own set of tradeoffs, but we'll use 5/5ths as Raft's optimal read throughput, which is realistic given that it's been implemented in production systems such as {uri-spanner-follower-reads}[Spanner] and {uri-tikv-follower-reads}[TiKV].
+[.aside]#sidenote:def[] cite:[PaxosQuorumLeases] is an example of a replication algorithm that's a hybrid of Failure Masking and Failure Detection, but strikes a trade-off more towards Failure Detection than where Raft sits.#
+[.aside]#sidenote:def[] "Follower reads" can be colloquially used to mean any form of reading from followers.  Cockroach in particular uses a number of tricks around timestamps to allow replicas to locally serve data.  What they call {uri-cockroach-stale-reads}[follower reads] allows replicas to serve reads for older versions.  Global tables support local, consistent reads by {uri-cockroach-global-table}[writing in the future].  My focus is specifically on linearizable reads which don't overly compromise writes, and {uri-cockroach-follower-reads}[that specific cockroach feature] isn't yet implemented.  But I highlight all of this to show that there's ways to deliver increased read throughput when bending other constraints or leaning on the semantics of other components (e.g. hybrid clocks).#
 
-In classic Raft, all proposals go to the leader, and then the leader broadcasts the proposals to all followers.  This means Raft is first constraining to utilizing only stem:[1/(2f+1)] or 1/5th of the available incoming bandwidth.  Then the bottleneck becomes the leader's outgoing bandwidth, further reduction of stem:[1/2f], so 1/4th.  This means a write bandwidth efficiency of stem:[1/(4f^2 + 2f)] or 1/20th.
+In classic Raft, all proposals go to the leader, and then the leader broadcasts the proposals to all followers.  This means Raft is first constraining to utilizing only stem:[1/(2f+1)] or 1/5th of the available incoming bandwidth.  Then the bottleneck becomes the leader's outgoing bandwidth, further reduction of stem:[1/2f], so 1/4th.  This means a write bandwidth efficiency of stem:[1/(4f^2 + 2f)] or 1/20th.  There have been ways discussed to scale the write bandwidth.  cite:[PullBasedConsensus] presents an argument that a fixed topology is not needed, replicas can fetch from other replicas, and thus even a linear chain replicas could work.  cite:[ScalingReplication] shows another view that the work of broadcasting to all replicas can be delegated to other replicas.  cite:[CommutativeRaft] presents a different approach, in which clients are allowed to directly send to all replicas, and the leader only arbitrates ordering when there's conflicts.  Of these, only pull-based consensus is implemented in industry, but I'm not aware that even MongoDB itself runs in a linear chain configuration.  (It's mostly about saving WAN costs.)  Thus, 1/4th is the value that will be used for write bandwidth efficiency for the rest of the analysis.
 
-There have been ways discussed to scale the write bandwidth.  cite:[PullBasedConsensus] presents an argument that a fixed topology is not needed, replicas can fetch from other replicas, and thus even a linear chain replicas could work.  cite:[ScalingReplication] shows another view that the work of broadcasting to all replicas can be delegated to other replicas.  cite:[CommutativeRaft] presents a different approach, in which clients are allowed to directly send to all replicas, and the leader only arbitrates ordering when there's conflicts.  Of these, only pull-based consensus is implemented in industry, but I'm not aware that even MongoDB itself runs in a linear chain configuration.  (It's mostly about saving WAN costs.)  Thus, 1/4th is the value that will be used for write bandwidth efficiency for the rest of the analysis.
-
-A more resource efficient Raft implementation could combine cite:[FollowerReads] (enabling all replicas to provide full read throughput), cite:[PullBasedConsensus] (to set up a chain-organized replication stream), and cite:[WitnessReplicas] (to store only 3 full copies of data).  However, our maximal resource efficiency comes from adopting cite:[ErasureEncodedRaft] instead of cite:[WitnessReplicas] for the storage savings.  
+A more resource efficient Raft implementation could combine cite:[ConsistentFollowerReads] (enabling all replicas to provide full read throughput), cite:[PullBasedConsensus] (to set up a chain-organized replication stream), and cite:[WitnessReplicas] (to store only 3 full copies of data).  However, our maximal resource efficiency comes from adopting cite:[ErasureEncodedRaft] instead of cite:[WitnessReplicas] for the storage savings.  
 
 In summary, our resource efficiency for stem:[f=2] for a minimal Raft implementation, Raft with the set of improvements that one will commonly encounter in industry, and our theoretical and maximally resource efficient Raft is:
 
