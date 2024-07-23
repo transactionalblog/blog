@@ -47,8 +47,10 @@ activate :blog do |blog|
   blog.default_extension = ".adoc"
   blog.summary_length = nil
   blog.summary_generator = Proc.new { |article, rendered, length, ellipsis|
-    f = Nokogiri::HTML5(rendered).at('body > #preamble > p:first-of-type')
-    if f
+    noko = Nokogiri::HTML5(rendered)
+    if f = noko.at('#chosen_preamble')
+      '<div>' + f.search('p').children.map(&:to_xml).join() + '</div>'
+    elsif f = noko.at('#preamble > p:first-of-type')
       '<div>' + f.children.map(&:to_xml).join() + '</div>'
     else
       ''
