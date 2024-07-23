@@ -24,8 +24,19 @@ function positionAsideElements(mq) {
             const previousAside = asideElements[index - 1];
             const previousAsideBottom = previousAside.getBoundingClientRect().bottom;
             const myTop = aside.getBoundingClientRect().top;
-            if (previousAsideBottom > myTop) {
+            let desiredTop = myTop;
+
+            const match = aside.textContent.match(/\[(\d+)\]:/);
+            if (match) {
+                const anchor = document.querySelector('#_sidenote_' + match[1]);
+                const anchorTop = anchor.getBoundingClientRect().top;
+                desiredTop = Math.min(myTop, anchorTop);
+            }
+
+            if (previousAsideBottom > desiredTop) {
                 aside.style.top = previousAsideBottom - baseline + 'px';
+            } else if (myTop != desiredTop) {
+                aside.style.top = desiredTop - baseline + 'px';
             }
         }
     });

@@ -62,17 +62,18 @@ class SidenoteMacro < Extensions::InlineMacroProcessor
   def process parent, target, attrs
     if target == 'ref' then
       sidenum = parent.document.counter '_side_ref'
-      text = "[#{sidenum}]"
+      text = "^[#{sidenum}]^"
       type = :superscript
+      anchor = "[[_sidenote_#{sidenum}]]"
+      text = anchor + text
     elsif target == 'def' then
       sidenum = parent.document.counter '_side_def'
       text = "[#{sidenum}]:"
-      type = :unquoted
     else
       raise "unknown target #{target}"
     end
 
-    create_inline parent, :quoted, text, type: type
+    create_inline_pass parent, text, attributes: {'subs' => :normal}
   end
 end
 
