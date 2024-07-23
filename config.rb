@@ -8,6 +8,7 @@ activate :autoprefixer do |prefix|
 end
 
 require 'asciidoctor-diagram'
+require_relative 'asciidoc_extensions/asciidoctor-bibtex'
 require_relative 'asciidoc_extensions/inline_macros'
 require_relative 'asciidoc_extensions/ophistory_diagram'
 require_relative 'asciidoc_extensions/postprocessors'
