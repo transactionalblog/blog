@@ -8,6 +8,7 @@
     pages = {51-58},
     keywords = {Public key;Voting;Identity-based encryption;Publishing;Reactive power;Application software;Software systems;Buildings;Large-scale systems;Online services},
     _doi = {10.1109/RELDIS.1998.740474},
+    refname = {Read Repair},
     scholarcluster = {9927566946845895796},
 }
 @inproceedings{Raft,
@@ -35,9 +36,10 @@
     address = {Stanford, CA, USA},
     abstract = {Distributed consensus is fundamental to building fault-tolerant systems. It allows a collection of machines to work as a coherent group that can survive the failures of some of its members. Unfortunately, the most common consensus algorithm, , is widely regarded as difficult to understand and implement correctly. This dissertation presents a new consensus algorithm called Raft, which was designed for understandability. Raft first elects a server as leader, then concentrates all decision-making onto the leader. These two basic steps are relatively independent and form a better structure than Paxos, whose components are hard to separate. Raft elects a leader using voting and randomized timeouts. The election guarantees that the leader already stores all the information it needs, so data only flows outwards from the leader to other servers. Compared to other leader-based algorithms, this reduces mechanism and simplifies the behavior. Once a leader is elected, it manages a replicated log. Raft leverages a simple invariant on how logs grow to reduce the algorithm's state space and accomplish this task with minimal mechanism. Raft is also more suitable than previous algorithms for real-world implementations. It performs well enough for practical deployments, and it addresses all aspects of building a complete system, including how to manage client interactions, how to change the cluster membership, and how to compact the log when it grows too large. To change the cluster membership, Raft allows adding or removing one server at a time (complex changes can be composed from these basic steps), and the cluster continues servicing requests throughout the change. We believe that Raft is superior to Paxos and other consensus algorithms, both for educational purposes and as a foundation for implementation. Results from a user study demonstrate that Raft is easier for students to learn than Paxos. The algorithm has been formally specified and proven, its leader election algorithm works well in a variety of environments, and its performance is equivalent to Multi-Paxos. Many implementations of Raft are now available, and several companies are deploying Raft.},
     note = {Section 6.4},
+    refname = {Consistent Follower Reads},
     scholarcluster = {12811710649127524514},
 }
-@article{MultiPaxos,
+@article{PaxosMadeModeratelyComplex,
     author = {Van Renesse, Robbert and Altinbuken, Deniz},
     title = {Paxos Made Moderately Complex},
     year = {2015},
@@ -55,6 +57,7 @@
     articleno = {42},
     numpages = {36},
     keywords = {consensus, voting, Replicated state machines},
+    refname = {Paxos Made Moderately Complex},
     scholarcluster = {12811710649127524514},
 }
 @inproceedings{ZAB,
@@ -72,7 +75,6 @@
     numpages = {12},
     series = {DSN '11},
     citekeys = {Zab,ZAB},
-    refname = {ZAB},
     scholarcluster = {13624279146503836178},
 }
 @inproceedings{CockroachDB,
@@ -91,7 +93,6 @@
     location = {Portland, OR, USA},
     series = {SIGMOD '20},
     citekeys = {CockroachDB},
-    refname = {CockroachDB},
     scholarcluster = {13649983341597312439},
 }
 @article{TiDB,
@@ -127,6 +128,7 @@
     author = {Tushar Deepak Chandra and Robert Griesemer and Joshua Redstone},year	= {2007},
     _url = {http://dx.doi.org/10.1145/1281100.1281103},
     booktitle = {Proceedings of the 26th Annual ACM Symposium on Principles of Distributed Computing},
+    refname = {Paxos Made Live},
     scholarcluster = {17465339664204453932},
 }
 @inproceedings{Spanner,
@@ -136,16 +138,17 @@
     scholarcluster = {3523173873845838643},
 }
 @InProceedings{WitnessReplicas,
-    author="Paris, Jehan-Francois",
-    editor="Abiteboul, Serge and Kanellakis, Paris C.",
-    title="Efficient voting protocols with witnesses",
-    booktitle="ICDT '90",
-    year="1990",
-    publisher="Springer Berlin Heidelberg",
-    address="Berlin, Heidelberg",
-    pages="305--317",
-    abstract="Witnesses are small entities recording the state of a replicated object. They are especially useful in voting protocols as these protocols require 2n + 1 replicas to guarantee continuous access to the data in the presence of n site failures but allow some of these replicas to be replaced by a witness.",
-    isbn="978-3-540-46682-6",
+    author = {Paris, Jehan-Francois},
+    editor = {Abiteboul, Serge and Kanellakis, Paris C.},
+    title = {Efficient voting protocols with witnesses},
+    booktitle = {ICDT '90},
+    year = {1990},
+    publisher = {Springer Berlin Heidelberg},
+    address = {Berlin, Heidelberg},
+    pages = {305--317},
+    abstract = {Witnesses are small entities recording the state of a replicated object. They are especially useful in voting protocols as these protocols require 2n + 1 replicas to guarantee continuous access to the data in the presence of n site failures but allow some of these replicas to be replaced by a witness.},
+    isbn = {978-3-540-46682-6},
+    refname = {Witness Replicas},
     scholarcluster = {1415144878608869709},
 }
 @article{ABD,
@@ -229,6 +232,7 @@
     numpages = {16},
     location = {Austin, Texas, USA},
     series = {SOSP '87},
+    refname = {Virtual Synchrony},
     scholarcluster = {2271986924920893419},
 }
 @techreport{ViewstampedReplication,
@@ -238,6 +242,7 @@
     number = {MIT-CSAIL-TR-2012-021},
     month = jul,
     year = {2012},
+    refname = {Viewstamped Replication},
     scholarcluster = {13000400770252658813},
 }
 @inproceedings {ErasureEncodedRaft,
@@ -251,6 +256,7 @@
     _url = {https://www.usenix.org/conference/fast20/presentation/wang-zizhong},
     publisher = {USENIX Association},
     month = feb,
+    refname = {Erasure Coded Raft},
     scholarcluster = {10123939731603884260},
 }
 @INPROCEEDINGS{ErasureEncodedHRaft,
@@ -263,6 +269,7 @@
     pages = {1316-1326},
     keywords = {Fault tolerance;Costs;System performance;Fault tolerant systems;Distributed databases;Switches;Throughput;Erasure coding;Consensus protocol;Raft;Paxos;Fault tolerance;Network storage},
     _doi = {10.1109/IPDPS53621.2022.00130},
+    refname = {Erasure Coded HRaft},
     scholarcluster = {15724086733201598850},
 }
 @inproceedings{FlexiblePaxos,
@@ -281,6 +288,7 @@
     keywords = {Distributed computing, Distributed consensus, Paxos},
     location = {Nara, Japan},
     series = {ICDCN '21},
+    refname = {Flexible Paxos},
     scholarcluster = {6509870440808150538},
 }
 @inproceedings {LinearizableQuorumReads,
@@ -292,6 +300,7 @@
     _url = {https://www.usenix.org/conference/hotstorage19/presentation/charapko},
     publisher = {USENIX Association},
     month = jul,
+    refname = {Linearizable Quorum Reads},
     scholarcluster = {10098760952745259234},
 }
 @inproceedings{PaxosQuorumLeases,
@@ -309,6 +318,7 @@
     numpages = {13},
     location = {Seattle, WA, USA},
     series = {SOCC '14},
+    refname = {Paxos Quorum Leases},
     scholarcluster = {2618624974148224118},
 }
 @inproceedings {PullBasedConsensus,
@@ -321,6 +331,7 @@
     _url = {https://www.usenix.org/conference/nsdi21/presentation/zhou},
     publisher = {USENIX Association},
     month = apr,
+    refname = {Pull-Based Consensus},
     scholarcluster = {3477252701158690968},
 }
 @inproceedings{ScalingReplication,
@@ -334,11 +345,12 @@
     _doi = {10.1145/3448016.3452834},
     abstract = {Strongly consistent replication helps keep application logic simple and provides significant benefits for correctness and manageability. Unfortunately, the adoption of strongly-consistent replication protocols has been curbed due to their limited scalability and performance. To alleviate the leader bottleneck in strongly-consistent replication protocols, we introduce Pig, an in-protocol communication aggregation and piggybacking technique. Pig employs randomly selected nodes from follower subgroups to relay the leader's message to the rest of the followers in the subgroup, and to perform in-network aggregation of acknowledgments back from these followers. By randomly alternating the relay nodes across replication operations, Pig shields the relay nodes as well as the leader from becoming hotspots and improves throughput scalability. We showcase Pig in the context of classical Paxos protocols employed for strongly consistent replication by many cloud computing services and databases. We implement and evaluate PigPaxos, in comparison to Paxos and EPaxos protocols under various workloads over clusters of size 5 to 25 nodes. We show that the aggregation at the relay has little latency overhead, and PigPaxos can provide more than 3 folds improved throughput over Paxos and EPaxos with little latency deterioration. We support our experimental observations with the analytical modeling of the bottlenecks and show that the communication bottlenecks are minimized when employing only one randomly rotating relay node.},
     booktitle = {Proceedings of the 2021 International Conference on Management of Data},
-    pages = {235–247},
+    pages = {235-247},
     numpages = {13},
     keywords = {distributed consensus, linearizability, paxos, replication},
     location = {Virtual Event, China},
     series = {SIGMOD '21},
+    refname = {Scaling Replication},
     scholarcluster = {1909096821088376701},
 }
 @inproceedings {CommutativeRaft,
@@ -352,6 +364,7 @@
     _url = {https://www.usenix.org/conference/nsdi19/presentation/park},
     publisher = {USENIX Association},
     month = feb,
+    refname = {Commutative Raft},
     scholarcluster = {3451458773692631815},
 }
 @techreport{VerticalPaxosII,
@@ -365,6 +378,7 @@
     publisher = {Microsoft},
     _url = {https://www.microsoft.com/en-us/research/publication/vertical-paxos-and-primary-backup-replication/},
     number = {MSR-TR-2009-63},
+    refname = {Vertical Paxos II},
     scholarcluster = {12255443511267289537},
 }
 @inproceedings {CRAQ,
@@ -470,6 +484,7 @@
     keywords = {asynchronous message passing model, consensus, erasure code, paxos, state machine replication},
     location = {Vancouver, BC, Canada},
     series = {HPDC '14},
+    refname = {RS-Paxos},
     scholarcluster = {16520033292975033789},
 }
 @inproceedings{GrayFailureAchillesHeel,
@@ -487,6 +502,7 @@
     numpages = {6},
     location = {Whistler, BC, Canada},
     series = {HotOS '17},
+    refname = {Gray Failure Achilles Heel},
     scholarcluster = {4369373863260707505},
 }
 @inproceedings{ScalableButWasteful,
@@ -495,6 +511,7 @@
     booktitle = {Proceedings of the 13th ACM Workshop on Hot Topics in Storage and File Systems},
     pages = {42--49},
     year = {2021},
+    refname = {Scalable But Wasteful},
     scholarcluster = {16327886782851538912},
 }
 @inproceedings{EPaxos,
@@ -574,6 +591,7 @@
     _url = {https://www.usenix.org/conference/fast24/presentation/zhang-weidong},
     publisher = {USENIX Association},
     month = feb,
+    refname = {Alibaba EFS},
     scholarcluster = {8248321054680879292},
 }
 @article{PolarFS,
@@ -603,6 +621,7 @@
     _url = {https://www.usenix.org/conference/hotcloud13/workshop-program/presentations/do},
     publisher = {USENIX Association},
     month = jun,
+    refname = {Limping Hardware Tolerant Clouds},
     scholarcluster = {9138890906893078068},
 }
 @misc{CASPaxos,
@@ -615,4 +634,29 @@
     _url = {https://arxiv.org/abs/1802.07000}, 
     scholarcluster = {1991685638971222231},
     arxiv = {1802.07000},
+}
+@misc{MultiPaxosMadeComplete,
+    title = {MultiPaxos Made Complete}, 
+    author = {Zhiying Liang and Vahab Jabrayilov and Aleksey Charapko and Abutalib Aghayev},
+    year = {2024},
+    eprint = {2405.11183},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.DC},
+    _url = {https://arxiv.org/abs/2405.11183}, 
+    refname = {MultiPaxos Made Complete},
+    scholarcluster = {9564126909260879908},
+    arxiv = {2405.11183},
+}
+@InProceedings{MultiPaxos,
+    author = {De Prisco, Roberto and Lampson, Butler and Lynch, Nancy},
+    editor = {Mavronicolas, Marios and Tsigas, Philippas},
+    title = {Revisiting the Paxos algorithm},
+    booktitle = {Distributed Algorithms},
+    year = {1997},
+    publisher = {Springer Berlin Heidelberg},
+    address = {Berlin, Heidelberg},
+    pages = {111--125},
+    abstract = {This paper develops a new I/O automaton model called the Clock General Timed Automaton (Clock GTA) model. The Clock GTA is based on the General Timed Automaton (GTA) of Lynch and Vaandrager. The Clock GTA provides a systematic way of describing timing-based systems in which there is a notion of ``normal'' timing behavior, but that do not necessarily always exhibit this ``normal'' behavior. It can be used for practical time performance analysis based on the stabilization of the physical system.},
+    isbn = {978-3-540-69600-1},
+    scholarcluster = {5465885118770091369},
 }

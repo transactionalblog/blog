@@ -153,6 +153,8 @@ module AsciidoctorBibtex
       result << "[[#{key}]]" if @links
       if StyleUtils.is_numeric? @style
         result << "#{@bibtex_ob}#{index}#{@bibtex_cb} "
+      elsif @biblio[key].has_field? 'refname'
+        result << "#{@bibtex_ob}#{@biblio[key].refname.to_s}#{@bibtex_cb} "
       else
         result << "#{@bibtex_ob}#{key}#{@bibtex_cb} "
       end
@@ -267,9 +269,13 @@ module AsciidoctorBibtex
         # We generate the citation without locator using citeproc, then strip
         # the surrounding braces, finally add the locator and add braces for
         # `citenp`.
-        cite_text = @citeproc.render :citation, id: cite.key
-        cite_text = cite_text.sub('(', '')
-        cite_text = cite_text.sub(')', '')
+        if @biblio[cite.key].has_field? 'refname'
+          cite_text = "[#{@biblio[cite.key].refname.to_s}]"
+        else
+          cite_text = @citeproc.render :citation, id: cite.key
+          cite_text = cite_text.sub('(', '')
+          cite_text = cite_text.sub(')', '')
+        end
         cite_text += format_locator(cite)
         #year = @biblio[cite.key].year
         #if !year.nil? && macro.type == 'citenp'

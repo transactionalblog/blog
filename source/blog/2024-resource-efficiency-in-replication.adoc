@@ -306,7 +306,8 @@ Lastly, it's important to note that there's a notable complexity of handling gra
 //:uri-tigerbeetle-fpaxos: https://docs.tigerbeetle.com/deploy/hardware/
 //Applying cite:[FlexiblePaxos] allows one to run with 4 replicas and require 3 to be alive for an election and still replicate across 2, which as far as I know only {uri-tigerbeetle-fpaxos}[TigerBeetle] implements.  
 
-Leaderful consensus what is generally brought to mind when one mentions "consensus".  It is best known as cite:[Raft], cite:[MultiPaxos] or cite:[ZAB], and exemplified by distributed databases such as cite:[CockroachDB], cite:[TiDB] and cite:[Spanner], or configuration management systems such as cite:[PaxosMadeLive] and cite:[Zookeeper].  (Among _many_ other high-quality, production systems.)
+Leaderful consensus what is generally brought to mind when one mentions "consensus".  It is best known as cite:[Raft], cite:[MultiPaxos]{nospace}sidenote:ref[] or cite:[ZAB], and exemplified by distributed databases such as cite:[CockroachDB], cite:[TiDB] and cite:[Spanner], or configuration management systems such as cite:[PaxosMadeLive] and cite:[Zookeeper].  (Among _many_ other high-quality, production systems.)
+[.aside]#sidenote:def[] Though for learning about Multi-Paxos, I'd significantly recommend reading cite:[PaxosMadeModeratelyComplex] and cite:[MultiPaxosMadeComplete] instead.#
 
 In the simplest Raft implementation, all operations sent to the leader, and the leader broadcasts the replication stream to its followers.  Tolerating stem:[f=2] failures requires stem:[2f+1 = 5] nodes.  All nodes store and write the same data to disk.  At most two of the replicas are permitted to be unavailable.  Across any and all flavors of Raft and Multi-Paxos, the presence of a leader is fundamental, and gives a 1 in 5 chance of transient unavailability if a node fails.
 
@@ -328,7 +329,7 @@ Only {uri-edb-pgdist-witness}[EnterpriseDB Postgres Distributed] and {uri-spanne
 cite:[ErasureEncodedRaft] again allows storing the equivalent of 3 copies spread across 5 replicas, thus achieving 33% storage efficiency a different way.
 The other possible direction for storage efficiency improvement is cite:[ErasureEncodedRaft].  Erasure encoding is popular in distributed filesystems and blob storage systems, but incredibly rare in distributed databases; I am only aware of {uri-ydb-erasure-encode}[YDB] using it.  Thus, as 99% of the Raft implementations one might ever encounter have a storage efficiency of 1/5th, that is the value that will be used for storage efficiency for the rest of the analysis.
 
-Read throughput can be improved by implementing cite:[LinearizableQuorumReads] for 2/5ths read throughput, cite:[PaxosQuorumLeases]{nospace}sidenote:ref[] for 3/5ths read throughput, or cite:[ConsistentFollowerReads]{nospace}sidenote:ref[] for 5/5ths read throughput at the cost of increased latency.  Each has their own set of tradeoffs, but we'll use 5/5ths as Raft's optimal read throughput, which is realistic given that it's been implemented in production systems such as {uri-spanner-follower-reads}[Spanner] and {uri-tikv-follower-reads}[TiKV].
+Naive Raft has the leader serve all reads, yielding 1/5th read throughput.  cite:[LinearizableQuorumReads] pitches the idea that one can also perform linearizable reads by reading from a majority quorom of the non-leader replicas, and implementing this brings Raft to 2/5ths read throughput. cite:[PaxosQuorumLeases]{nospace}sidenote:ref[] pitches the idea of electing a leader and two more replicas to which the leader must replicated all commits, thus enabling those required followers to serve reads to clients with no further coordination, which brings Raft to 3/5ths read throughput at the cost of some tail latency on writes and increased risk of unavailability on failure. cite:[ConsistentFollowerReads]{nospace}sidenote:ref[] allows any follower to serve read requests by first checking with the leader for the most recently applied position in the replication log, allowing for 5/5ths read throughput at the cost of read latency increasing to 2RTTs.  Each has their own set of tradeoffs, but we'll use 5/5ths as Raft's optimal read throughput, which is realistic given that it's been implemented in production systems such as {uri-spanner-follower-reads}[Spanner] and {uri-tikv-follower-reads}[TiKV].
 [.aside]#sidenote:def[] cite:[PaxosQuorumLeases] is an example of a replication algorithm that's a hybrid of Failure Masking and Failure Detection, but strikes a trade-off more towards Failure Detection than where Raft sits.#
 [.aside]#sidenote:def[] "Follower reads" can be colloquially used to mean any form of reading from followers.  Cockroach in particular uses a number of tricks around timestamps to allow replicas to locally serve data.  What they call {uri-cockroach-stale-reads}[follower reads] allows replicas to serve reads for older versions.  Global tables support local, consistent reads by {uri-cockroach-global-table}[writing in the future].  My focus is specifically on linearizable reads which don't overly compromise writes, and {uri-cockroach-follower-reads}[that specific cockroach feature] isn't yet implemented.  But I highlight all of this to show that there's ways to deliver increased read throughput when bending other constraints or leaning on the semantics of other components (e.g. hybrid clocks).#
 
@@ -338,47 +339,70 @@ A more resource efficient Raft implementation could combine cite:[ConsistentFoll
 
 In summary, our resource efficiency for stem:[f=2] for a minimal Raft implementation, Raft with the set of improvements that one will commonly encounter in industry, and our theoretical and maximally resource efficient Raft is:
 
-[cols="1,1,1,1,1"]
+Many optimizations strike different points along the pareto curve of latency versus throughput, so I've outlined them all below.  Optimizing Raft only for latency would be only implementing cite:[LinearizableQuorumReads], but I'll also note a "Throughput Optimized" Raft implementation as the effect of combining cite:[ConsistentFollowerReads], cite:[PullBasedConsensus], and cite:[ErasureEncodedRaft].
+
+[cols="1,1,1,1,1,1,1"]
 |===
 |
 | Storage Efficiency
 | Read Bandwidth Efficiency
 | Write Bandwidth Efficiency
 | Chance of Unavailability on Failure
+| Read Latency
+| Write Latency
 
 | Simplest
 | 20%
 | 20%
 | 5%
 | 20%
+| 1RTT
+| 1RTT
 
-| Common Improvements
+a| cite:[LinearizableQuorumReads]
+| 20%
+| *40%*
+| 5%
+| 20%
+| 1RTT
+| 1RTT
+
+a| cite:[PaxosQuorumLeases]
+| 20%
+| 60%
+| 5%
+| *60%*
+| 1RTT
+| 1RTT
+
+a| cite:[ConsistentFollowerReads]
 | 20%
 | 100%
 | 5%
 | 20%
+| *2RTT*
+| 1RTT
 
-| Follower+Pull+Witness
-| 33%
-| 60%
-| 20%
-| 20%
-
-| Follower+Pull+Erasure
+| Throughput Optimized
 | 33%
 | 100%
 | 20%
 | 20%
+| 2RTT
+| 5RTT
 |===
 
-One of the major arguments of this post is that however you feel about reconfigurable primary-backup and failure detection-based distributed system design is _exactly_ how you should feel about the leader in Raft/Multi-Paxos.  Raft is 1/5th Failure Detection + 4/5ths Failure Masking.  Some folk really don't like failure detection and having a reconfiguration step during which the partition is unavailable, and that's okay.  But any failure pattern you might have thought of and felt concerned about while reading the failure detection section applies precisely the same to the leader in Raft.  
+One of the major arguments of this post is that however you feel about reconfigurable primary-backup and failure detection-based distributed system design is _exactly_ how you should feel about the leader in Raft/Multi-Paxos.  Raft is 1/5th Failure Detection + 4/5ths Failure Masking.  The failure detection aspect of Raft is often overlooked, though notably cite:[MultiPaxosMadeComplete] gives the topic a proper treatment.
+
+Some folk really don't like failure detection and having a reconfiguration step during which the partition is unavailable, and that's okay.  But any failure pattern you might have thought of and felt concerned about while reading the failure detection section applies precisely the same to the leader in Raft.  
+
 
 
 == Comparison
 
 Taking the most common selection across each category, we have:
 
-[cols="1,1,1,1,1,1"]
+[cols="1,1,1,1,1,1,1,1"]
 |===
 |
 | Nodes Required for stem:[F=2]
@@ -386,27 +410,35 @@ Taking the most common selection across each category, we have:
 | Read Bandwidth Efficiency
 | Write Bandwidth Efficiency
 | Chance of Unavailability on Failure
+| Read Latency
+| Write Latency
 
-| Leadered
-| 5
-| 20%
-| 100%
-| 6.25%
-| 20%
-
-| Leaderless
+| Leaderless Consensus
 | 5
 | 20%
 | 20%
 | 20%
 | 0%
+| 1RTT
+| 2RTT
 
 | Primary-Backup
 | 3
 | 33%
 | 100%
-| 16.5%
+| 16.7%
 | 100%
+| 1RTT
+| 2RTT
+
+| Leadered Consensus
+| 5
+| 20%
+| 100%
+| 5%
+| 20%
+| 2RTT
+| 1RTT
 |===
 
 This is using "Common Improvements" from the Leadered section, "Paxos" from the Leaderless section, and "Hermes" from the Reconfigurable Primary-Backup section.  (Using Hermes over CRAQ is a bit of an arbitrary selection, but the write latency of Hermes more closely matches that of Raft, and so it's a bit more of an apples-to-apples comparison.)
@@ -454,7 +486,7 @@ Correspondingly, reconfigurable primary-backup is common in block storage produc
 
 And I do understand that there's reasons why we don't see a large number of reconfigurable-primary backup databases.  Requiring an external consensus service to manage replication groups requires first having a consensus solution implemented and production ready.  This could either be using an existing solution like Zookeeper or Etcd, but then those might have existing issues, you're then required to become an expert in running them, and using a separate project as the core of your service adds a significant hassle to testing.  The alternative is to implement your own, and then you're doing all the work of just deploying leaderless Paxos or leaderful Raft, only to turn and do even more work before being able to deploy to production.  And there still isn't a single great reference for how to safely identify and reconfigure around gray failures.
 
-== Raft is Okay
+== Raft is... Okay
 
 :uri-rystsov-simple-consensus: https://web.archive.org/web/20240121170711/http://rystsov.info/2017/02/15/simple-consensus.html
 
