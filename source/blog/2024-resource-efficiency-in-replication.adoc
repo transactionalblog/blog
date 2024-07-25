@@ -16,7 +16,7 @@ Consistent replication algorithms can be placed on a sliding scale in terms of h
 
 == Failure Masking vs Failure Detection
 
-When designing a distributed database, one needs to choose a replication algorithm to replicate data across partitions while maintaining consistency.  Data replication algorithms fall into two categories: those designed to quietly tolerate failing nodes (failure masking), and those necessitating explicit reconfiguration around identified failures (failure detection).  This post mounts the argument that these are just two opposite points on a spectrum of design possibilities in-between.  We'll be taking a look at three points{nospace}sidenote:ref[] in particular: quorum-based leaderless replication for failure masking algorithms, reconfigurable primary-backup for failure detection algorithms, and leaderful consensus as the most well-known set of replication algorithms which blend the two.
+When designing a distributed database, one needs to choose a replication algorithm to replicate data across partitions while maintaining consistency.  Data replication algorithms fall across two categories: those designed to quietly tolerate failing nodes (failure masking), and those necessitating explicit reconfiguration around identified failures (failure detection).  This post mounts the argument that these are just two opposite points on a spectrum of design possibilities in-between.  We'll be taking a look at three points{nospace}sidenote:ref[] in particular: quorum-based leaderless replication for failure masking algorithms, reconfigurable primary-backup for failure detection algorithms, and leaderful consensus as the most well-known set of replication algorithms which blend the two.
 [.aside]#sidenote:def[] Don't forget about the idea that there's more valid points along the spectrum than just these three!#
 
 [pikchr,align="center"]
@@ -121,7 +121,7 @@ chart.render();
 </script>
 ++++
 
-So leadered consensus, such as Raft, is indeed popular, but by no means the only valid choice.  But why the differences?  Why isn't there one correct choice?  What factors drove different databases to choose different solutions to their replication needs?  And less politely phrased, do Raft's merits actually deserve its incredible popularity?
+So leaderful consensus, such as Raft, is indeed popular, but by no means the only valid choice.  But why the differences?  Why isn't there one correct choice?  What factors drove different databases to choose different solutions to their replication needs?  And less politely phrased, do Raft's merits actually deserve its incredible popularity?
 
 Different replication algorithms have different characteristics. This post breaks down each replication algorithm into its resource efficiency, availability characteristics, and latency.  For resource efficiency, we'll be looking at the question: post-replication, how much of the storage capacity and read/write throughput remains?   As the counterpoints to resource efficiency, we'll also be looking at availability (given the loss of a random machine, what's the chance that a user will observe a transient service disruption), and latency (how many RTTs for a read or a write to complete).
 
@@ -134,15 +134,16 @@ And so to preempt any such replie, each section produces the analysis for both t
 
 Lastly, the caveats: this post is one that lives purely in the land of theory.  All implementation efficiency costs are handwaved as negligible, which is blatantly false as evidenced by e.g. Red Panda's claims of being more resource efficient in aggregate than Kafka.  In the "write bandwidth efficiency" above, we're only concerning ourself with the network bandwidth.  Storage efficiency partly captures the disk write bandwidth efficiency, as storing 3 copies of data requires writing 3 copies of data (but realistically, far more considering storage engine write amplification).  It's tremendously more likely that in a real production deployment, the bottleneck for writes will be the disk and not the network.  However, we're discussing the theoretical write throughput tradeoffs only, because write network bandwidth throughput illustrates how replication topology matters for efficiency.
 
-== Failure Masking: Leaderless Paxos / Majority Quorums
+== Failure Masking: Quorums
 
 :uri-murat-is-this-consensus: https://muratbuffalo.blogspot.com/2019/06/is-this-consensus.html
+:uri-riak-quorums: https://docs.riak.com/riak/kv/latest/developing/usage/replication/index.html#a-primer-on-n-r-and-w
 
-The best known leaderless replication algorithms are the Paxos family of protocols.  Replication algorithms do not need to be consensus though, and majority quorums (with cite:[ReadRepair]{nospace}sidenote:ref[]) or cite:[ABD] are also in this category.
-Leaderless replication is used in industry by systems like cite:[Megastore], cite:[PaxosStore], and cite:[Cassandra].
-[.aside]#sidenote:def[] This post accidentally turned into an interesting adventure into finding the correct citation for a number of common concepts. This is the first, and by no means the last, citation where the source paper tangentially introduced a now fundamental concept.#
+Replication algorithms that rely on failure masking for all of their replicas use quorums, so that a majority of replicas may make progress despite a minority of failed replicas of working replicas.  The cite:[Paxos] family of consensus protocols are well known quorum-based replication algorithms.  However, achieving consensus is not required to replicate data consistently, and simple majority quorum{nospace}sidenote:ref[]{nospace}-based algorithms such as cite:[ABD] are in this category.
+Quorum-based replication is used in industry by systems like cite:[Megastore], cite:[PaxosStore], and cite:[Cassandra].
+[.aside]#sidenote:def[] cite:[ReadRepair] is required for majority quorums to be linearizable, and we're exclusively considering replication algorithms which support linearizable operations.#
 
-While leaderless Paxos and majority quorums differ in terms of consistency guarantees{nospace}sidenote:ref[], they're very similar in terms of resource efficiency.  All nodes store a full copy of all the data.  Reads and writes are broadcast to all replicas, and can make forward progress with only a majority of responses.  The need for a majority largely characterizes failure masking replication algorithms, as they require stem:[2f+1] nodes to tolerate stem:[f] failures.
+While leaderless cite:[Paxos] and cite:[ABD] differ in terms of consistency guarantees{nospace}sidenote:ref[], they're very similar in terms of resource efficiency.  All nodes store a full copy of all the data.  Reads and writes are broadcast to all replicas, and can make forward progress with only a majority of responses.  The need for a majority largely characterizes failure masking replication algorithms, as they require stem:[2f+1] nodes to tolerate stem:[f] failures.
 [.aside]#sidenote:def[] See Murat Demirbas's {uri-murat-is-this-consensus}[Is this consensus?] for a refresher on consensus versus not.#
 
 [graphviz]
@@ -158,13 +159,14 @@ digraph G {
 
 For storage efficiency, all replicas store a full copy of the data by default, and thus 1/5th of the total storage capacity is available post-replication.  There are a wide set of storage optimizations, and all have seen little adoption in industry. cite:[WitnessReplicas] permit removing the full copy of the data from a minority (2/5ths) of the replication group, with that minority instead only storing the version number for each replicated value.  However, this comes at the cost that a read cannot always successfully complete if the most up-to-date value is "known" only by witnesses.
 
-Erasure encoding is an attractive possibility for reducing storage costs, as it would allow for encoding the data such that any three copies could reform the original data, and the total storage used across all 5 replicas would be the equivalent of 3 full copies of the data.
-cite:[RSPaxos] examined applying erasure encoding to Paxos log entries, and concludes that space savings can only be obtained if fault tolerance is sacrificed.
-However, I believe the ideas presented in cite:[ErasureEncodedRaft] should apply equally to leaderless consensus as well, and so we'll assume erasure encoding is feasible.sidenote:ref[]
-This brings the storage efficiency for an erasure encoded Paxos to 33%.  
-[.aside]#sidenote:def[] There's a number of issues being handwaved away here.  It's unclear how to apply operations from the log when any one replica only has the erasure encoded values stored.  cite:[ErasureEncodedRaft] falls back to full data replication when a single node stops responding, and this was improved in cite:[ErasureEncodedHRaft].  Erasure encoding in consensus has not received a significant amount of academic attention, and so I'm hopeful that other deficiencies can likely be similarly explored and improved.  This is mostly to show the theoretical maximum in an ideal world and less a claim that it's what _should_ be implemented.#
+Erasure coding is an attractive possibility for reducing storage costs, as it would allow for encoding the data such that any three copies could reform the original data, and the total storage used across all 5 replicas would be the equivalent of 3 full copies of the data.
+cite:[RSPaxos] examined applying erasure coding to Paxos log entries, and concludes that space savings can only be obtained if fault tolerance is sacrificed.
+However, I believe the ideas presented in cite:[ErasureEncodedRaft] should apply equally to leaderless consensus as well, and so we'll assume erasure coding is feasible.sidenote:ref[]
+This brings the storage efficiency for an erasure coded Paxos to 33%.  
+[.aside]#sidenote:def[] There's a number of issues being handwaved away here.  It's unclear how to apply operations from the log when any one replica only has the erasure coded values stored.  cite:[ErasureEncodedRaft] falls back to full data replication when a single node stops responding, and this was improved in cite:[ErasureEncodedHRaft].  Erasure coding in consensus has not received a significant amount of academic attention, and so I'm hopeful that other deficiencies can likely be similarly explored and improved.  This is mostly to show the theoretical maximum in an ideal world and less a claim that it's what _should_ be implemented.#
 
-Majority quorums do a simple broadcast for both reads and writes, which earns a uniform 20% read bandwidth efficiency and 20% write bandwidth efficiency.  Applying the erasure encoding ideas above to the Paxos log entries could bring the write efficiency from 20% to 33%, and reading erasure encoded data also brings the read efficiency from 20% to 33%.
+Majority quorums{nospace}sidenote:ref[] do a simple broadcast for both reads and writes, which earns a uniform 20% read bandwidth efficiency and 20% write bandwidth efficiency.  Applying the erasure coding ideas above to the Paxos log entries could bring the write efficiency from 20% to 33%, and reading erasure coded data also brings the read efficiency from 20% to 33%.
+[.aside]#sidenote:def[] There's many ways of arranging quorums that aren't a simple majority, and all the variations affect the read and write throughput calculations.  It used to be more popular to allow for tuning the read quorum and write quorum sizes, but many of those systems have since died out, {uri-riak-quorums}[such as Riak].  More esoteric quorum setups exist, but they aren't commonly used and thus out of scope for this post. cite:[Quoracle] is a fun read on alternative schemes though.#
 
 A major advantage of leaderless, quorum-based algorithms is the lack of dependence on a leader.  All failures can be masked, with no need of detecting or reconfiguring around the failure.  All leaderless replication algorithms earn a perfect 0% chance of unavailability on random node failure.
 
@@ -206,7 +208,7 @@ An implementation of majority quorums typically uses some form of a Last Writer 
 | 1RTT
 | 2RTT
 
-| Erasure Encoded Paxos
+| Erasure Coded Paxos
 | 33%
 | 33%
 | 33%
@@ -215,33 +217,50 @@ An implementation of majority quorums typically uses some form of a Last Writer 
 | 2RTT
 |===
 
-This table presents that the difference between majority quorums/ABD and Paxos is one of read and write latency, but again, don't forget that there's a very significant difference in data consistency between the two replication algorithms.  The write phase of majority quorums or ABD will always succeed if the replica replies, but Paxos's write request will only succeed if it's the highest ballot, meaning that Paxos's 2RTT writes may need to be repeated multiple times when there's contention.  Erasure Encoded Paxos outwardly appears optimal, but isn't an algorithm that exists neither in academia nor in industry.
+This table presents that the difference between majority quorums/ABD and Paxos is one of read and write latency, but again, don't forget that there's a very significant difference in data consistency between the two replication algorithms.  The write phase of majority quorums or ABD will always succeed if the replica replies, but Paxos's write request will only succeed if it's the highest ballot, meaning that Paxos's 2RTT writes may need to be repeated multiple times when there's contention.  Erasure Coded Paxos outwardly appears optimal, but isn't an algorithm that exists neither in academia nor in industry.
 
 == Failure Detection: Reconfigurable Primary-Backup
 
 :uri-apache-pegasus: https://pegasus.apache.org/
 :uri-hibari: https://github.com/hibari/hibari
 :uri-dan-luu-limplock: https://danluu.com/limplock/
+:uri-ydb-erasure-coding: https://ydb.tech/docs/en/concepts/cluster/distributed_storage
 
-Lastly, there is the lesser known class of failure detection-based replication algorithms.  These are algorithms in which there is a set of nodes in a replication group, and on detected failure, these algorithms execute a _view change_ to reconfigure to a new set of nodes with no failures.  There's a broad examination of such distributed protocols stemming from cite:[VirtualSynchrony], and this perspective of view changes on detected failures is even present in consensus protocols such as cite:[ViewstampedReplication]. However, our dividing line for this analysis is that the failure-detection algorithms use stem:[f+1] nodes to tolerate stem:[f] failures.  If stem:[2f+1] nodes are required, then the algorithm is likely better covered by one of the two failure-masking classes of algorithms discussed above.  Viewstamped Replication itself is very much like Raft and Multi-Paxos, and covered by Leadered Consensus above.
+Replication algorithms which rely on failure detection for all of its replicas have a chosen set of replicas in a replication group which must be live for the algorithm to make progress, and on detected failure, these algorithms execute a _view change_ to reconfigure to a new set of live replicas.  There's a broad examination of such distributed protocols stemming from cite:[VirtualSynchrony], and this perspective of view changes on detected failures is even present in consensus protocols such as cite:[ViewstampedReplication]. However, our dividing line for this analysis is that the failure detection replication algorithms require only stem:[f+1] nodes to tolerate stem:[f] failures.  If stem:[2f+1] nodes are required, then the algorithm is likely better covered by one of the two failure-masking classes of algorithms discussed above.  Viewstamped Replication itself is very much like Raft and Multi-Paxos, and covered by Leadered Consensus above.
 
 As a consequence of only having stem:[f+1] nodes for stem:[f] failures, there is a consistent theme in that all algorithms examined are _not consensus_.  This also means that they cannot solve consensus problems, such as deciding which replicas are responsible for a shard of data, or which node is the primary.  They all rely on an external consensus service to help with those issues.  Think of this as a control plane / data plane split: there's one instance of a consensus service in the control plane orchestrating the small amount of metadata deciding which nodes are in which replication groups responsible for which shards of data, and the horizontally scalable data plane replicates each shard of data within its assigned group.
 
-There's two shapes of algorithms in this class of failure detection replication protocols: those that look like some form of primary-backup replication where a leader fans out requests to one or more backup nodes, or chain replication-like algorithms where each node is responsible for forwarding each piece of replicated data to the next node in the chain.  In academia, evolving Paxos into a reconfigurable primary-backup replication was examined in cite:[VerticalPaxosII]. cite:[PacificA] and cite:[Hermes] are more recent but different views on reconfigurable primary-backup replication. cite:[CRAQ] is the most famous chain replication algorithm, with cite:[HyperDex] being a more recently proposed chain-based system.  In industry, cite:[Kafka] and cite:[FoundationDB] use different variants of reconfigurable primary-backup, {uri-apache-pegasus}[Apache Pegasus] uses PacificA.  Nearly all of the chain replication databases in industry have died out, as {uri-hibari}[hibari] was one of the last but appears abandoned now, and HyperDex almost become a startup.
+There's two shapes of algorithms in this class of failure detection replication protocols: those that look like some form of primary-backup replication where a leader broadcasts requests to one or more backup nodes, or chain replication-like algorithms where each node is responsible for forwarding each piece of replicated data to the next node in the chain.  In academia, evolving Paxos into a reconfigurable primary-backup replication was examined in cite:[VerticalPaxosII]. cite:[PacificA] and cite:[Hermes] are more recent but different views on reconfigurable primary-backup replication. cite:[CRAQ] is the most famous chain replication algorithm, with cite:[HyperDex] being a more recently proposed chain-based system.  In industry, cite:[Kafka] and cite:[FoundationDB] use different variants of reconfigurable primary-backup, {uri-apache-pegasus}[Apache Pegasus] uses PacificA.  Nearly all of the chain replication databases in industry have died out, as {uri-hibari}[hibari] was one of the last but appears abandoned now, and HyperDex almost become a startup.
 
 // TODO: Explicitly disambiguate that this is synchronous primary-backup.
 
 [cols="1,1"]
 |===
-^| Chain ^| Parallel
+^h| Chain ^h| Broadcast
 
 a|
+.Writes
 [graphviz]
 ----
 digraph G {
-  Client -> Replica1 -> Replica2 -> Replica3 -> Client;
+  Client -> Replica1;
+  Replica1 -> Replica2 -> Replica3 -> Client;
 }
 ----
+
+.Reads
+[graphviz]
+----
+digraph G {
+  {rank=same; invis1 [style = invis]; invis2 [style = invis]; Client;}
+  {rank=same; Replica1; Replica2; Replica3;}
+  Client; Replica1; Replica2; Replica3;
+  Client -> Replica3 [dir=both];
+  Replica1->Replica2 [style=invis];
+  Replica2->Replica3 [style=invis];
+}
+----
+
 a|
 [graphviz]
 ----
@@ -251,9 +270,48 @@ digraph G {
   Primary -> Replica2 [dir=both];
 }
 ----
+
+^h| CRAQ  ^h| Hermes
+
+a|
+.Writes
+[graphviz]
+----
+digraph G {
+  {rank=same; Client;}
+  {rank=same; Replica1; Replica2; Replica3;}
+  Client -> Replica1 -> Replica2 -> Replica3 -> Client;
+}
+----
+
+.Reads
+[graphviz]
+----
+digraph G {
+  {rank=same; Client;}
+  {rank=same; Replica1; Replica2; Replica3;}
+  Client -> Replica1 [dir=both];
+  Client -> Replica2 [dir=both];
+  Client -> Replica3 [dir=both];
+}
+----
+
+a|
+[graphviz]
+----
+digraph G {
+  Client -> Replica1 [dir=both];
+  Client -> Replica2 [dir=both];
+  Client -> Replica3 [dir=both];
+  Replica1 -> Replica2 [dir=both];
+  Replica2 -> Replica3 [dir=both];
+  Replica1 -> Replica3 [dir=both];
+}
+----
+
 |===
 
-Unlike the quorum systems, there's no opportunity for erasure encoding.  When the number of replicas is stem:[F+1], we expect that a single alive replica can serve reads for all of its data.  Erasure encoding would require multiple pieces, and thus multiple nodes to be available.  Thus, the full cost of 3-way replication is consistently paid, yielding a uniform 33% storage efficiency.
+In almost all membership-based replication algorithms, all three replicas store a full copy of the data, yielding 33% storage efficiency.  Unlike the quorum systems, there's no inherent opportunity for erasure coding.  When the number of replicas is stem:[F+1], we expect that a single alive replica can serve reads for all of its data.  Applying erasure coding requires increasing the set of replicas (while the erasure coding maintains the same aggregate storage efficiency), and then choosing the number of parity blocks to equal the number of failures one wishes to be able to recover from.  This effectively applies quorums for failure masking, though at the level of erasure coding rather than at the level of the replication algorithm.  Such a design is common in blob storage systems, but not in distributed databases, except for {uri-ydi-erasure-coding}[YDB].
 
 With naive chain replication, only the tail of the chain is allowed to answer read requests, which would give it a read bandwidth efficiency of 33%.  cite:[CRAQ] permits any node to answer reads, and thus it gets 100% read bandwidth efficiency.  cite:[Hermes] permits any replica to serve reads independently, so it directly gains a 100% read bandwidth efficiency.
 
@@ -261,26 +319,43 @@ With naive chain replication, only the tail of the chain is allowed to answer re
 
 Unavailability is the weakpoint of reconfigurable primary-backup systems.  The dependence on all nodes being functioning, and detecting and reconfiguring around failures, means that 
 
-[cols="1,1,1,1,1"]
+cite:[CRAQ] allows any member of the chain to serve reads, but if there's an ongoing write to the same key, the replica has to wait to hear back from the tail replica that the write was completed before it may respond to the read.  This means CRAQ is optimal for 100% read or 100% write workloads, and degrades read latency in between. cite:[Hermes] allows serving reads in 1RTT
+
+[cols="1,1,1,1,1,1,1"]
 |===
 |
 | Storage Efficiency
 | Read Bandwidth Efficiency
 | Write Bandwidth Efficiency
 | Chance of Unavailability on Failure
+| Read Latency
+| Write Latency
+
+| Chain Replication
+| 33%
+| 33%
+| 100%
+| 100%
+| 1RTT
+| 2.5RTT
 
 | CRAQ
 | 33%
 | 100%
 | 33%
 | 100%
+| 1-3RTT
+| 2.5RTT
 
 | Hermes
 | 33%
-| 100%
+| 50%
 | 16.5%
 | 100%
+| 1RTT
+| 2RTT
 |===
+
 
 It's important to note that the surface level simplicity of replication algorithms rooted in cite:[VirtualSynchrony] hide their complexity via glossing over two nontrivial topics: group membership and failure detection.
 
@@ -301,7 +376,6 @@ Lastly, it's important to note that there's a notable complexity of handling gra
 :uri-spanner-witness: https://cloud.google.com/spanner/docs/replication#witness
 :uri-tikv-follower-reads: https://tikv.org/blog/double-system-read-throughput/
 :uri-spanner-follower-reads: https://cloud.google.com/spanner/docs/replication#read-only
-:uri-ydb-erasure-encode: https://ydb.tech/docs/en/concepts/cluster/distributed_storage
 :uri-pingcap-follower-read-blog: https://www.pingcap.com/blog/doubling-system-read-throughput-with-only-26-lines-of-code/
 
 //:uri-tigerbeetle-fpaxos: https://docs.tigerbeetle.com/deploy/hardware/
@@ -328,7 +402,7 @@ cite:[WitnessReplicas] permit removing the full copy of the data from a minority
 Only {uri-edb-pgdist-witness}[EnterpriseDB Postgres Distributed] and {uri-spanner-witness}[(Cloud) Spanner] implement support for witness replicas as part of Raft and Multi-Paxos, respectively.
 
 cite:[ErasureEncodedRaft] again allows storing the equivalent of 3 copies spread across 5 replicas, thus achieving 33% storage efficiency a different way.
-The other possible direction for storage efficiency improvement is cite:[ErasureEncodedRaft].  Erasure encoding is popular in distributed filesystems and blob storage systems, but incredibly rare in distributed databases; I am only aware of {uri-ydb-erasure-encode}[YDB] using it.  Thus, as 99% of the Raft implementations one might ever encounter have a storage efficiency of 1/5th, that is the value that will be used for storage efficiency for the rest of the analysis.
+The other possible direction for storage efficiency improvement is cite:[ErasureEncodedRaft].  Erasure coding is popular in distributed filesystems and blob storage systems, but incredibly rare in distributed databases; I am only aware of {uri-ydb-erasure-encode}[YDB] using it.  Thus, as 99% of the Raft implementations one might ever encounter have a storage efficiency of 1/5th, that is the value that will be used for storage efficiency for the rest of the analysis.
 
 Naive Raft has the leader serve all reads, yielding 1/5th read throughput.  cite:[LinearizableQuorumReads] pitches the idea that one can also perform linearizable reads by reading from a majority quorom of the non-leader replicas, and implementing this brings Raft to 2/5ths read throughput. cite:[PaxosQuorumLeases]{nospace}sidenote:ref[] pitches the idea of electing a leader and two more replicas to which the leader must replicated all commits, thus enabling those required followers to serve reads to clients with no further coordination, which brings Raft to 3/5ths read throughput at the cost of some tail latency on writes and increased risk of unavailability on failure. cite:[ConsistentFollowerReads]{nospace}sidenote:ref[]{nospace}sidenote:ref[] allows any follower to serve read requests by first checking with the leader for the most recently applied position in the replication log, allowing for 5/5ths read throughput at the cost of read latency increasing to 2RTTs.  Each has their own set of tradeoffs, but we'll use 5/5ths as Raft's optimal read throughput, which is realistic given that it's been implemented in production systems such as {uri-spanner-follower-reads}[Spanner] and {uri-tikv-follower-reads}[TiKV].
 [.aside]#sidenote:def[] cite:[PaxosQuorumLeases] is an example of a replication algorithm that's a hybrid of Failure Masking and Failure Detection, but strikes a trade-off more towards Failure Detection than where Raft sits.#
@@ -446,7 +520,7 @@ This is using "Common Improvements" from the Leadered section, "Paxos" from the 
 
 Immediately apparent is that Reconfigurable Primary-Backup both requires less nodes, and delivers a uniformly equal-or-better resource efficiency for the less resources used.
 
-Even when examining the most resource optimal variants of each class of replication algorithm (the erasure encoded variants):
+Even when examining the most resource optimal variants of each class of replication algorithm (the erasure coded variants):
 
 [cols="1,1,1,1,1,1"]
 |===
@@ -464,7 +538,7 @@ Even when examining the most resource optimal variants of each class of replicat
 | 20%
 | 20%
 
-| Erasure Encoded Paxos
+| Erasure Coded Paxos
 | 5
 | 33%
 | 33%
@@ -479,7 +553,7 @@ Even when examining the most resource optimal variants of each class of replicat
 | 100%
 |===
 
-We see that erasure encoding just brings each quorum algorithm to the resource efficacy of Reconfigurable Primary-Backup, but still requires 66% more nodes than Reconfigurable Primary-Backup.
+We see that erasure coding just brings each quorum algorithm to the resource efficacy of Reconfigurable Primary-Backup, but still requires 66% more nodes than Reconfigurable Primary-Backup.
 
 Leaderless Paxos struggles with livelock when there's high contention on updating a single item, and Raft doesn't.  There are a number of other resources to consider in a real environment other than what was presented in this post.  CPU, memory, disk IOPS, etc., are all finite resources, which were not discussed, but if those become the limiting factor for performance, then that is the bottleneck and efficiency metric to be mindful of. cite:[ScalableButWasteful] notes that CPU constraints can lead cite:[MultiPaxos] to have 2x more throughput than cite:[EPaxos].  If throughput is what determines the amount of hardware you need to buy/rent for your database deployment, and the hardware is CPU constrained, then this is a more impactful efficiency to keep in mind for leaderful vs leaderless quorum replication.  (However, I still claim reconfigurable primary-backup would be even more cost effective!)
 
@@ -491,20 +565,19 @@ And I do understand that there's reasons why we don't see a large number of reco
 
 :uri-rystsov-simple-consensus: https://web.archive.org/web/20240121170711/http://rystsov.info/2017/02/15/simple-consensus.html
 
-Raft blends together failure masking and failure detection into one replication algorithm, and thus exists as a middle-ground between resource efficiency and high availability.  But this blending leaves Raft in an odd place. By partly being a failure detection-based replication algorithm, a reliable Raft implementation has to pick up all the complexity of detecting gray failures in the same way as a Reconfigurable Primary-Backup algorithm, but without the corresponding resource efficiency advantages to justify the complexity.  However, by also being a failure masking algorithm, it also must deal with nodes being transiently unavailable, and the corresponding error handling complexity and state space explosion that occurs in tracking that.  Existing in the middle of this design space trade off is accepting the highest amount of implementation complexity.
+Raft blends together failure masking and failure detection into one replication algorithm, and thus exists as a middle-ground between resource efficiency and high availability.  It delivers a better read bandwidth efficiency than leaderless consensus, and also delivers a lower chance of unavailability upon random replica failure.
 
-The benefit of being a failure masking, quorum-based algorithm is that failures can be handled transparently without the client noticing.  As soon as one replica (Raft's leader) is using failure detection instead, the client needs to be okay with the fact that the replica group will have occasional seconds of unavailability whenever the leader unexpectedly dies.  The upper bound of expected latency rises drastically with the first addition of a replica requiring failure detection.  It doesn't increase as more replicas are converted to requiring failure detection.  The frequency of transient unavailability events increases, but the expected duration of those events is constant.
+This blending leaves Raft with the full complexity of both sides as well. By partly being a failure detection-based replication algorithm, a reliable Raft implementation has to pick up all the complexity of detecting gray failures in the same way as a Reconfigurable Primary-Backup algorithm, but without the corresponding resource efficiency advantages to justify the complexity.  However, by also being a failure masking algorithm, it also must deal with nodes being transiently unavailable, and the corresponding error handling complexity and state space explosion that occurs in tracking that.  Existing in the middle of this design space trade off is accepting the highest amount of implementation complexity.
 
-On the opposite side, the benefit of being a failure detection, virtual synchrony-based replication algorithm is the decrease in nodes required for stem:[f=2];
+The main benefit of being a failure masking, quorum-based algorithm is that failures can be handled transparently without the client noticing it in the form of a transient spike in latency.  As soon as one replica (Raft's leader) is using failure detection instead, the client needs to be okay with the fact that the replica group will have occasional seconds of unavailability whenever the leader unexpectedly dies.  The upper bound of expected latency rises drastically with the first addition of a replica requiring failure detection.  It doesn't increase as more replicas are converted to requiring failure detection.  The frequency of transient unavailability events increases, but the expected duration of those events is constant.
 
-Instead of gaining the benefits of quorums or virtual synchrony, Raft instead blends the worst aspects of failure masking replication algorithms (poor read/write throughput efficiency and poor storage efficiency) with the worst aspects of failure detection replication algorithms (transient unavailability on failure).  However you feel about reconfigurable primary-backup and failure detection-based distributed system design{nospace}sidenote:ref[] is _exactly_ how you should feel about the leader in Raft/Multi-Paxos.
-// TODO: say why quorums are bad
-[.aside]#sidenote:def[] Some folk really don't like failure detection and having a reconfiguration step during which the partition is unavailable, and that's okay.  But any failure pattern you might have thought of and felt concerned about while reading the failure detection section applies precisely the same to the leader in Raft. If you think it's unacceptable that chain replication has unavailability during reconfiguration when any replica fails, the exact same unavailability during reconfiguration happening to Raft when the leader fails should also feel unacceptable.#
+Furthermore, when Raft is deployed to replicate partitions of a database, leadership responsibility is distributed evenly across the cluster to evenly balance the increased workload of being a leader.  Thus, the failure of any one node is going to lead to _some_ partition being transiently unavailable.  It's not even an argument of _will_ there being unavailability, it's just a question of how many partitions will be affected. However you feel about reconfigurable primary-backup and failure detection-based distributed system design{nospace}sidenote:ref[] is _exactly_ how you should feel about the leader in Raft/Multi-Paxos.
+[.aside]#sidenote:def[] Some folk really don't like systems which rely on failure detectors and have a reconfiguration step during which the partition is unavailable, and that's okay.  But any failure pattern you might have thought of and felt concerned about while reading the failure detection section applies precisely the same to the leader in Raft. If you think it's unacceptable that chain replication has unavailability during reconfiguration when any replica fails, the exact same unavailability during reconfiguration happening to Raft when the leader fails should also feel unacceptable.#
 
-I find it hard to believe that paying for 66% more resources, in exchange for seeing a partial decrease in p99.9 latency from better transient unavailability handling is as commonly the correct trade off as Raft's pervasive usage would make it seem.  Denis Rystsov {uri-rystsov-simple-consensus}[compared Raft versus Paxos]{nospace}sidenote:ref[] in the form of cite:[CASPaxos] and showed the leaderless version of consensus to be less complex and more available.  Individual machines in production are reasonably reliable, we just emphasize their unreliability because at scale, the aggregate chance of a failure is quite high.  cite:[FoundationDB] runs its entire (greatly more than 5 node) distributed transaction subsystem as one virtual synchrony-based entity, and runs through an extensive recovery process on failure. The paper comments "In August 2020, there was only one transaction system recovery, which took 8.61 seconds. This corresponds to five 9s availability."  So even for a system that's more failure risky and with a worse recovery time than Hermes, the tail latency and unavailability on failure isn't bad enough to warrant SLA concern.  The set of use cases where Raft would be the optimal choice seems to be quite narrow.
+The main benefit of being a failure detection, reconfigurable primary-backup based replication algorithm is the ability to use only 3 replicas to achieve stem:[f=2] as opposed to 5 for a quorum-based system. Choosing to use Raft over Hermes means paying for 66% more hardware for replicas, in exchange for which one gains a partial decrease in p99.9 latency from better transient unavailability handling.  I'm doubtful that this is as commonly the correct trade off as Raft's pervasive usage would make it seem.  Denis Rystsov {uri-rystsov-simple-consensus}[compared Raft versus Paxos]{nospace}sidenote:ref[] in the form of cite:[CASPaxos] and showed the leaderless version of consensus to be less complex and more available.  Individual machines in production are reasonably reliable, we just emphasize their unreliability because at scale, the aggregate chance of a failure is quite high.  cite:[FoundationDB] runs its entire (greatly more than 5 node) distributed transaction subsystem as one virtual synchrony-based entity, and runs through an extensive recovery process on failure. The paper comments "In August 2020, there was only one transaction system recovery, which took 8.61 seconds. This corresponds to five 9s availability."  So even for a system that's more failure risky and with a worse recovery time than Hermes, the tail latency and unavailability on failure isn't bad enough to warrant SLA concern.  The set of use cases where Raft would be the optimal choice seems to be quite narrow.
 [.aside]#sidenote:def[] This has been locally mirrored (with permission from Denis) from its original home {uri-rystsov-simple-consensus-original}[on rystsov.info], which is currently unavailable, and {uri-rystsov-simple-consensus-archive}[the archive.org mirror] suffers the occasional DDoS.#
 
-This isn't to say that Raft is a poor choice of replication algorithm.  Raft is always a _safe_ choice.  Choosing Raft over leaderless Paxos means that one doesn't have to worry about livelock on contended items.  Choosing Raft over Hermes means one can likely move the leader away from a machine causing persistent gray failure issues, and then mask the failures instead.  This can build a story where one can remove the largest sources of potential outages on both sides, by just paying some extra money for stem:[2f+1] replicas.  Most use cases are read-heavy, and Raft lets you deliver 100% read bandwidth efficiency via follower reads, so it's not money being entirely wasted either.  Raft's safety is only further increased by there being a single text giving sufficient description on how to implement Raft, complemented by a rich number of blog posts detailing subtle issues which caused outages elsewhere.  No one is doing to get in trouble for choosing Raft, as it's not _bad_ at anything.  It's just resoundingly mediocre at everything.
+This isn't to say that Raft is a poor choice of replication algorithm.  Raft is always a _safe_ choice.  Choosing Raft over leaderless Paxos means that one doesn't have to worry about livelock on contended items.  Choosing Raft over Hermes means one can likely move the leader away from a machine causing persistent gray failure issues, and then mask the failures instead.  There is a story one can build that Raft removes the largest sources of potential outages on both sides, at the cost of paying some extra money for stem:[2f+1] replicas.  Most use cases are read-heavy, and Raft lets you deliver 100% read bandwidth efficiency via follower reads, so it's not money being entirely wasted either.  Raft's safety as a choice is only further increased by there being a single text giving sufficient description on how to implement Raft, complemented by a rich number of blog posts detailing subtle issues which caused outages elsewhere.  No one is doing to get in trouble for choosing Raft, as it's not _too_ bad at anything.  It's just resoundingly mediocre at everything.
 
 My only ask is that before choosing Raft by default to solve your next replication need, please do spend a moment thinking about if it strikes the right set of tradeoffs for your use case.
 
