@@ -5,6 +5,7 @@
 :page-features: stem, plot
 :toc: preamble
 :bibtex-file: 2024-resource-efficiency-in-replication.bib
+
 :nospace:
 
 [.aside]#With thanks to AJ Werner for pointers to Cockroach's optimizations, Reuben Bond for links to good Virtual Synchrony overview papers, and Phil Eaton for early reads and feedback.#
@@ -234,9 +235,15 @@ There's two shapes of algorithms in this class of failure detection replication 
 
 // TODO: Explicitly disambiguate that this is synchronous primary-backup.
 
+For failure detection replication algorithms, the data flow is different for reads and writes, so in an attempt to briefly summarize the options.sidenote:ref[]
+[.aside]#sidenote:def[] And thanks to cite:[Hermes] for how to succinctly express the reads and writes in one diagram.#
+
+image::failure-detection-replication.svg[align=center]
+
+////
 [cols="1,1"]
 |===
-^h| Chain ^h| Broadcast
+^h| Chain ^h| Primary-Backup
 
 a|
 .Writes
@@ -262,12 +269,28 @@ digraph G {
 ----
 
 a|
+.Writes
 [graphviz]
 ----
 digraph G {
   Client -> Primary   [dir=both];
   Primary -> Replica1 [dir=both];
   Primary -> Replica2 [dir=both];
+}
+----
+
+.Reads
+[graphviz]
+----
+digraph G {
+  {rank=min; Client;}
+  {rank=same; Primary;}
+  {rank=max; Replica1; Replica2;}
+  Client -> Primary [dir=both];
+  Client -> Replica1 [dir=both];
+  Client -> Replica2 [dir=both];
+  Replica1 -> Primary [style=dashed, dir=both];
+  Replica2 -> Primary [style=dashed, dir=both];
 }
 ----
 
@@ -297,19 +320,37 @@ digraph G {
 ----
 
 a|
+.Writes
 [graphviz]
 ----
 digraph G {
+  {rank=min; Client;}
+  {rank=same; Replica1;}
+  {rank=max; Replica2; Replica3;}
   Client -> Replica1 [dir=both];
   Client -> Replica2 [dir=both];
   Client -> Replica3 [dir=both];
   Replica1 -> Replica2 [dir=both];
   Replica2 -> Replica3 [dir=both];
-  Replica1 -> Replica3 [dir=both];
+  Replica3 -> Replica1 [dir=both];
+}
+----
+
+.Reads
+[graphviz]
+----
+digraph G {
+  {rank=min; Client;}
+  {rank=same; Replica1;}
+  {rank=max; Replica2; Replica3;}
+  Client -> Replica1 [dir=both];
+  Client -> Replica2 [dir=both];
+  Client -> Replica3 [dir=both];
 }
 ----
 
 |===
+////
 
 In almost all membership-based replication algorithms, all three replicas store a full copy of the data, yielding 33% storage efficiency.  Unlike the quorum systems, there's no inherent opportunity for erasure coding.  When the number of replicas is stem:[F+1], we expect that a single alive replica can serve reads for all of its data.  Applying erasure coding requires increasing the set of replicas (while the erasure coding maintains the same aggregate storage efficiency), and then choosing the number of parity blocks to equal the number of failures one wishes to be able to recover from.  This effectively applies quorums for failure masking, though at the level of erasure coding rather than at the level of the replication algorithm.  Such a design is common in blob storage systems, but not in distributed databases, except for {uri-ydi-erasure-coding}[YDB].
 
