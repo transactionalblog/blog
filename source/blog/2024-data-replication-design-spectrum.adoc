@@ -4,7 +4,7 @@
 :stem: latexmath
 :page-features: stem, plot
 :toc: preamble
-:bibtex-file: 2024-resource-efficiency-in-replication.bib
+:bibtex-file: 2024-data-replication-design-spectrum.bib
 
 :nospace:
 
