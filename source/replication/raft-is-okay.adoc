@@ -6,7 +6,7 @@
 :toc: preamble
 :bibtex-file: raft-is-okay.bib
 
-[.hidden]
+[.display-hidden]
 == Section
 
 :uri-rystsov-simple-consensus: https://web.archive.org/web/20240121170711/http://rystsov.info/2017/02/15/simple-consensus.html

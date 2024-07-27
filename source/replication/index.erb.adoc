@@ -1,0 +1,13 @@
+= Replication
+:revdate: 2024-07-14
+:page-layout: index
+
+Replication algorithms
+
+[.display-hidden]
+== Uncategorized
+
+++++
+<%= partial("partials/index_section", :locals => {}) %>
+++++
+
