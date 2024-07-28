@@ -1,18 +1,17 @@
 = Data Replication Design Spectrum
-:revdate: 2024-06-15
+:revdate: 2024-07-27
 :page-hidden: true
 :stem: latexmath
 :page-features: stem, plot
 :toc: preamble
 :bibtex-file: 2024-data-replication-design-spectrum.bib
-
 :nospace:
 
 [.aside]#With thanks to AJ Werner for pointers to Cockroach's optimizations, Reuben Bond for links to good Virtual Synchrony overview papers, and Phil Eaton for early reads and feedback.#
 
 [#chosen_preamble]
 --
-Consistent replication algorithms can be placed on a sliding scale in terms of how they handle a replica failures.  Across the three common points on this spectrum, the resource and cost efficiency, availability, and latency are compared.  This all builds to the argument that Raft's strength is its consistent mediocrity across all metrics.
+Consistent replication algorithms can be placed on a sliding scale based on how they handle replica failures.  Across the three common points on this spectrum, the resource efficiency, availability, and latency are compared, providing guidance for how to choose an appropriate replication algorithm for a use case.
 --
 
 == Failure Masking vs Failure Detection
@@ -228,30 +227,24 @@ One of the largest concerns around deploying cite:[Paxos] to production is its v
 
 Failure detection-based replication algorithms have a chosen set of replicas in a replication group which must be live for the algorithm to make progress.  On detected replica failure, these algorithms reconfigure the replication group to exclude the failed replica and include a new, live replica.  Rather than allow replicas to be failed, a failed replica is evicted from the replication group.  All replicas are either working, or will be excommunicated.
 
-All reconfiguration-based replication protocols share certain attributes.  Writes go to all replicas, and thus reads may go to a single replica.  As all writes are always sent to all replicas, only stem:[f+1] replicas are needed to tolerate stem:[f] failures, as a single replica will always have a full and consistent snapshot of data.
+All reconfiguration-based replication protocols share certain attributes.  Writes go to all replicas, and thus reads may go to a single replica.  As all writes are always sent to all replicas, only stem:[f+1] replicas are needed to tolerate stem:[f] failures, as a single replica will always have a full and consistent snapshot of data.  As a consequence of only having stem:[f+1] nodes for stem:[f] failures, there is a consistent theme in that all algorithms examined are _not consensus_.  This also means that they cannot solve consensus problems, such as deciding which replicas are responsible for a shard of data, or which node is the primary.  They all rely on an external consensus service to help with those issues.  Think of this as a control plane / data plane split: there's one instance of a consensus service in the control plane orchestrating the small amount of metadata deciding which nodes are in which replication groups responsible for which shards of data, and the horizontally scalable data plane replicates each shard of data within its assigned group.
 
-As a consequence of only having stem:[f+1] nodes for stem:[f] failures, there is a consistent theme in that all algorithms examined are _not consensus_.  This also means that they cannot solve consensus problems, such as deciding which replicas are responsible for a shard of data, or which node is the primary.  They all rely on an external consensus service to help with those issues.  Think of this as a control plane / data plane split: there's one instance of a consensus service in the control plane orchestrating the small amount of metadata deciding which nodes are in which replication groups responsible for which shards of data, and the horizontally scalable data plane replicates each shard of data within its assigned group.
+There's two shapes of algorithms in this class of failure detection-based replication protocols: those in which inter-replica communication is done as a broadcast, those in which it is done as a linear chain.  Broadcast-based replication is well known as cite:[PrimaryBackup] replication, which we'll be examining through the lens of cite:[PacificA] which has more of an emphasis on the reconfiguration support, and cite:[Hermes] as a more recent improvement on broadcast-based replication.  For chain-based replication, we'll be examining the original cite:[ChainReplication], and cite:[CRAQ] as its more recent improvement.
 
-There's two shapes of algorithms in this class of failure detection-based replication protocols: those in which inter-replica communication is done as a broadcast, those in which it is done as a linear chain.  Broadcast-based replication is well known as cite:[PrimaryBackup] replication, which we'll be examining through the lens of cite:[PacificA] which has move of an emphasis on the reconfiguration support, and cite:[Hermes] as a more recent improvement on broadcast-based replication.  For chain-based replication, we'll be examining the original cite:[ChainReplication], and cite:[CRAQ] as its more recent improvement.
-
-In academia, many of this ideas are rooted in cite:[VirtualSynchrony].  Evolving Paxos into a reconfigurable primary-backup replication was examined in cite:[VerticalPaxosII]. cite:[PacificA] and cite:[Hermes] are more recent but different views on broadcast-based replication which we'll be examining in more detail. cite:[CRAQ] is the most famous chain replication algorithm, with cite:[HyperDex] being a more recently proposed chain-based system.  In industry, cite:[Kafka] and cite:[FoundationDB] use different variants of reconfiguration around failures, {uri-apache-pegasus}[Apache Pegasus] uses cite:[PacificA].  Nearly all of the chain replication databases in industry seem to have died out, as {uri-hibari}[hibari] was one of the last but appears abandoned now, and HyperDex almost become a startup.
+In academia, many of the ideas in reconfiguration-based replication are rooted in cite:[VirtualSynchrony].  Evolving Paxos into a reconfigurable primary-backup replication was examined in cite:[VerticalPaxosII].  In industry, cite:[Kafka] and cite:[FoundationDB] use different variants of broadcast-based replication, and {uri-apache-pegasus}[Apache Pegasus] uses cite:[PacificA].  Nearly all of the chain replication databases in industry seem to have died out, as {uri-hibari}[hibari] was one of the last but appears abandoned now, and cite:[HyperDex] almost become a startup.
 
 [.aside]#And thanks to the cite:[Hermes] paper for how to succinctly express the variations in reads and writes in one diagram.#
 
 image::failure-detection-replication.svg[align=center]
 
-In failure detection-based replication algorithms, all three replicas store a full copy of the data, yielding 33% storage efficiency.  Unlike the quorum systems, there's no inherent opportunity for erasure coding.  When the number of replicas is stem:[F+1], we expect that a single alive replica can serve reads for all of its data.  Applying erasure coding requires increasing the set of replicas (while the erasure coding maintains the same aggregate storage efficiency), and then choosing the number of parity blocks to equal the number of failures one wishes to be able to recover from.  This effectively applies quorums for failure masking, though at the level of erasure coding rather than at the level of the replication algorithm.  Such a design is common in blob storage systems, but not in distributed databases, except for {uri-ydb-erasure-coding}[YDB].
+In failure detection-based replication algorithms, all three replicas store a full copy of the data, yielding a 33% storage efficiency for all four algorithms.  Unlike the quorum systems, there's no inherent opportunity for erasure coding.  When the number of replicas is stem:[F+1], we expect that a single alive replica can serve reads for all of its data.  Applying erasure coding requires increasing the set of replicas (while the erasure coding maintains the same aggregate storage efficiency), and then choosing the number of parity blocks to equal the number of failures one wishes to be able to recover from.  This effectively applies quorums for failure masking, though at the level of erasure coding rather than at the level of the replication algorithm.  Such a design is common in blob storage systems, but not in distributed databases, except for {uri-ydb-erasure-coding}[YDB].
 
-With naive chain replication, only the tail of the chain is allowed to answer read requests, which means a read bandwidth efficiency of 33%.  cite:[CRAQ] permits any node to answer reads, and thus it gets 100% read bandwidth efficiency.  Both Primary-Backup and cite:[Hermes] are capable of serving reads from all nodes, so they gain a 100% read bandwidth efficiency.
-
-Both chain replication and cite:[CRAQ] have 33% write bandwidth efficiency, as one replica accepts writes and each replica sends to only one more replica so there's no further bottleneck on outgoing bandwidth.  Primary-Backup only allows the primary to accept writes, and it must broadcast to two replicas, yielding a 16% write bandwidth efficiency.  cite:[Hermes] allows any replica to accept writes, and receives the replication broadcast from the other two replicas.  This balances the incoming and outgoing bandwidth requirements to allow 33% write bandwidth efficiency.
-
-Unavailability is the weakpoint of reconfiguration-based systems.  In all examined systems, any failure requires detection (generally through a heartbeat timeout), and then a membership view change to a new set of non-failed replicas.  Any replica failure has a 100% chance of causing a client-visible spike in latency due to no requests being processed while the heartbeat times out and the view change protocol runs.
-
-Chain replication serves reads in 1RTT but from only the tail. cite:[CRAQ] allows any member of the chain to serve reads, but if there's an ongoing write to the same key, the replica has to wait to hear back from the tail replica that the write was completed before it may respond to the read.sidenote:ref[] Primary-Backup can serve reads in 1RTT from the primary, or 2RTT from the replicas (as they need to contact the primary for the most recently applied log update).  cite:[Hermes] allows serving reads in 1RTT (but possibly requires waiting for up to 1RTT while a write finishes).
+With cite:[ChainReplication], only the tail of the chain is allowed to answer read requests, which it does with 1RTT means a read bandwidth efficiency of 33%.  cite:[CRAQ] permits any node to answer reads, and thus it gets 100% read bandwidth efficiency, but if there's an ongoing write to the same key, the replica has to wait to hear back from the tail replica that the write was completed before it may respond to the read.{nospace}sidenote:ref[]  Both cite:[PacificA] and cite:[Hermes] are capable of serving reads from all nodes, so they gain a 100% read bandwidth efficiency.  cite:[PacificA]'s primary can serve reads in 1RTT and the secondaries in 2RTT (as the must check with the primary). cite:[Hermes] allows serving reads in 1RTT (but possibly requires waiting for up to 1RTT while a write finishes).  If we wished to strictly ensure 1RTT reads, one could use cite:[PacificA] and decline to read from the secondaries.
 [.aside]#sidenote:def[] This means CRAQ is optimal for 100% read or 100% write workloads, and degrades read latency in between, which is a trade off I haven't seen in any other replication algorithm.  It'd be ideal for large data loads (100% writes), followed by an online serving workload (100% reads), and could serve reads with degraded latency as a data load is ongoing.#
 
-Both chain replication and cite:[CRAQ] yield a chain's worth of latency for writes, so for 3 replicas that's 1RTT between the client and the head and 1.5RTT across the three replicas. Primary-Backup and cite:[Hermes] use a 2RTT broadcast.
+Both cite:[ChainReplication] and cite:[CRAQ] have 33% write bandwidth efficiency, as one replica accepts writes and each replica sends to only one more replica so there's no further bottleneck on outgoing bandwidth.  The chain means that writes in both take 2.5RTT to complete.  cite:[PacificA] only allows the primary to accept writes, and it must broadcast to two replicas, yielding a 16% write bandwidth efficiency.  cite:[Hermes] allows any replica to accept writes, and receives the replication broadcast from the other two replicas.  This balances the incoming and outgoing bandwidth requirements to allow 33% write bandwidth efficiency.  Both broadcast-based replication algorithms take 2RTT for writes.
+
+Unavailability is the weakpoint of reconfiguration-based systems.  In all examined systems, any failure requires detection (generally through a heartbeat timeout), and then a membership view change to a new set of non-failed replicas.  Any replica failure has a 100% chance of causing a client-visible spike in latency due to no requests being processed while the heartbeat times out and the view change protocol runs.
 
 [cols="1,1,1,1,1,1,1"]
 |===
@@ -285,6 +278,14 @@ a| cite:[PacificA]
 | 16.7%
 | 100%
 | 1-2RTT
+| 2RTT
+
+a| cite:[PacificA] (Primary-only)
+| 33%
+| 33%
+| 16.7%
+| 100%
+| 1RTT
 | 2RTT
 
 a| cite:[Hermes]
@@ -414,13 +415,17 @@ a| cite:[ErasureCodedRaft]
 
 Databases built around Multi-Paxos generally aren't picking _just_ one optimization to implement.  The exact tradeoff of reads versus writes and throughput versus latency is specific to each individual use case.  Thus, databases tend to implement multiple optimizations, and allow users to configure specific database deployments or tables within the database for how they wish for reads and writes to be done.  The optimizations covered above are also just those that affect the resource efficiency.  There's a tremendously larger set of published optimizations focusing on performance when geographically distributed, enhancing failure recovery, managing replicated log truncation, etc.
 
-One of the major points of this post which will be emphasized below is that Raft is 1/5th failure detection + 4/5ths failure masking.  In the failure detection section, we discussed the complexity in failure detection-based replication algorithms is often centered around group membership changes and (gray) failure detectors.  How to safely implement leader election and group membership changes has been often discussed in consensus papers, but the need for a comprehensive failure detector for the Raft leader is often overlooked.  Notably however, cite:[MultiPaxosMadeComplete] gives the topic a proper treatment.
+In the failure detection section, we discussed the complexity in failure detection-based replication algorithms is often centered around group membership changes and (gray) failure detectors.  How to safely implement leader election and group membership changes has been often discussed in consensus papers, but the need for a comprehensive failure detector for the Raft leader is often overlooked.  Notably however, cite:[MultiPaxosMadeComplete] gives the topic a proper treatment.
+
+One of the major points of this post is that Raft is 1/5th failure detection + 4/5ths failure masking.  However you feel about reconfiguration and failure detection-based distributed system design{nospace}sidenote:ref[] is _exactly_ how you should feel about the leader in Raft/Multi-Paxos.
+[.aside]#sidenote:def[] Some folk really don't like systems which rely on failure detectors and have a reconfiguration step during which the partition is unavailable, and that's okay.  But any failure pattern you might have thought of and felt concerned about while reading the failure detection section applies precisely the same to the leader in Raft. If you think it's unacceptable that chain replication has unavailability during reconfiguration when any replica fails, the exact same unavailability during reconfiguration happening to Raft when the leader fails should also feel unacceptable.#
+
 
 == Comparison
 
-There isn't a single way to do a direct, fair, apples-to-apples comparison of different systems and optimizations across the different replication algorithms.  Instead, I'll be presenting comparisons choosing the optimal point for each class of replication algorithms in several categories: the most popular/common choice in each class, the latency-optimal choice, the throughput-optimal choice, and the storage-optimal choice.
+There isn't a single way to do a direct, fair, apples-to-apples comparison of different systems and optimizations across the different replication algorithms.  We'll first look at the most popular/common choice for each category, and then take a look at the latency-optimal, throughput-optimal, and storage-optimal choices.
 
-For the popularity-based rankings, we'll use "Paxos" from the Quorums section, "PacificA" from the Reconfiguration section, and 
+For the popularity-based rankings, we'll use "Paxos" from the Quorums section, "PacificA" from the Reconfiguration section, and "Consistent Follower Reads" from the Hybrid section:
 
 [cols="1,1,1,1,1,1,1,1"]
 |===
@@ -461,14 +466,57 @@ For the popularity-based rankings, we'll use "Paxos" from the Quorums section, "
 | 2RTT
 |===
 
-Immediately apparent is that all Reconfiguration-based both requires less nodes, and delivers a uniformly equal-or-better resource efficiency for the less resources used.
+Using Paxos requires compromising read throughput.  PacificA delivers superior write bandwidth and similar latencies to Raft, with the trade off being higher chance of unavailability versus more replicas required, respectively.
 
-The storage optimized variants are all the erasure coded variants.  Except we get to make a completely arbitrary choice for reconfiguration-based replication as they're all the same:
+For our latency-optimized comparison:
 
-[cols="1,1,1,1,1,1"]
+[cols="1,1,1,1,1,1,1,1"]
 |===
 |
-| Nodes Required for stem:[f=2]
+| Nodes Required for stem:[F=2]
+| Storage Efficiency
+| Read Bandwidth Efficiency
+| Write Bandwidth Efficiency
+| Chance of Unavailability on Failure
+| Read Latency
+| Write Latency
+
+| Paxos (Quorums)
+| 5
+| 20%
+| 20%
+| 20%
+| 0%
+| 1RTT
+| 2RTT
+
+| PacificA Primary-Only (Reconfiguration)
+| 3
+| 33%
+| 33%
+| 33%
+| 100%
+| 1RTT
+| 2RTT
+
+| Linearizable Quorum Reads (Hybrid)
+| 5
+| 20%
+| 40%
+| 5%
+| 20%
+| 1RTT
+| 2RTT
+|===
+
+Reveals an interesting effect that Reconfiguration-based algorithms 
+
+The throughput-optimized variants and storage-optimized variants are actually the same!  (Except for storage-optimized reconfiguration-based replication algorithm, we could arbitrary choose any, as they're all the same.)
+
+[cols="1,1,1,1,1,1,1,1"]
+|===
+|
+| Nodes Required for stem:[F=2]
 | Storage Efficiency
 | Read Bandwidth Efficiency
 | Write Bandwidth Efficiency
@@ -494,23 +542,20 @@ The storage optimized variants are all the erasure coded variants.  Except we ge
 | 1-3RTT
 | 2.5RTT
 
-| Erasure Coded Raft
+| Throughput Optimized Raft
 | 5
 | 33%
+| 100%
 | 20%
-| 8.3%
 | 20%
 | 2RTT
-| 2RTT
+| 3.5RTT
 |===
 
-We see that erasure coding just brings each quorum-based algorithm to the resource efficacy of the reconfiguration-based algorithm, but still requires 66% more nodes than a reconfiguration-based algorithm.
+We see that erasure coding just brings each quorum-based algorithm to the resource efficacy of the reconfiguration-based algorithm, but still requires 66% more nodes than a reconfiguration-based algorithm.  This leaves reconfiguration-based replication algorithms as the most cost-effective to deploy for storage-bottlenecked deployments.  They're also the least complex, as erasure coding quickly places one on a more complex and far less explored implementation path.
+
 
 There are a number of other resources to consider in a real environment other than what was presented in this post.  CPU, memory, disk IOPS, etc., are all finite resources, which were not discussed, but if those become the limiting factor for performance, then that is the bottleneck and efficiency metric to be mindful of. cite:[ScalableButWasteful] notes that CPU constraints can lead cite:[MultiPaxos] to have 2x more throughput than cite:[EPaxos].  If throughput is what determines the amount of hardware you need to buy/rent for your database deployment, and the hardware is CPU constrained, then this is a more impactful efficiency to keep in mind for leaderful vs leaderless quorum replication.  (However, I still claim reconfiguration-based replication would be even more cost effective!)
-
-Correspondingly, reconfiguration-based replication algorithms are more common in block storage products where I suspect there's been more pressure on price; it's databases specifically which feels more like a monoculture.  cite:[Ceph] implements both parallel and chain replication.  cite:[GFS] implements parallel replication where the client is responsible for sending the data to each replica to be buffered, and the primary broadcast is used to tell each replica to write the buffered data.  cite:[HDFS] similarly follows suit.  That's not to say that all block storage products do, as for example cite:[AlibabaEBS] and cite:[PolarFS] use leaderful consensus, but just that reconfiguration-based replication is comparatively a much more frequently chosen solution for replication in the different domain.
-
-And I do understand that there's reasons why we don't see a large number of reconfigurable-primary backup databases.  Requiring an external consensus service to manage replication groups requires first having a consensus solution implemented and production ready.  This could either be using an existing solution like Zookeeper or Etcd, but then those might have existing issues, you're then required to become an expert in running them, and using a separate project as the core of your service adds a significant hassle to testing.  The alternative is to implement your own, and then you're doing all the work of just deploying leaderless Paxos or leaderful Raft, only to turn and do even more work before being able to deploy to production.  And there still isn't a single great reference for how to safely identify and reconfigure around gray failures.
 
 == References
 
@@ -519,4 +564,4 @@ And I do understand that there's reasons why we don't see a large number of reco
 bibliography::[]
 --
 
-link:2024-resource-efficiency-in-replication.bib[References as BibTeX]
+link:2024-data-replication-design-spectrum.bib[References as BibTeX]
