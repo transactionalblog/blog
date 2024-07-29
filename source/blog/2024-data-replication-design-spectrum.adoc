@@ -19,7 +19,7 @@ Consistent replication algorithms can be placed on a sliding scale based on how 
 When designing a distributed database, one needs to choose a replication algorithm to replicate data across partitions while maintaining consistency.  Data replication algorithms fall across two categories: those designed to quietly tolerate failing replicas (failure masking), and those necessitating explicit reconfiguration around identified failures (failure detection).  This post mounts the argument that these are just two opposite points on a spectrum of design possibilities in-between.  We'll be taking a look at three points{nospace}sidenote:ref[] in particular: quorum-based leaderless replication for failure masking algorithms, reconfiguration-based replication for failure detection algorithms, and leaderful consensus as the most well-known set of replication algorithms which blend the two.
 [.aside]#sidenote:def[] Don't forget about the idea that there's more valid points along the spectrum than just these three!#
 
-[pikchr,align="center"]
+[pikchr,align="center",role="white-bg"]
 ----
 down
 text "Failure Masking"
@@ -43,7 +43,7 @@ There isn't one universally optimal replication algorithm to use.  Compiling tog
 sidenote:ref[][.aside]#sidenote:def[] The chart is weighted by number of database systems, whereas a more realistic metric would be something that accounts for popularity such as the number of deployed machines or size of managed data.  With cloud vendors preferring leaderful replication by a large extent, it's likely that a popularity-weighted chart would be even more heavily skewed towards leaderful replication.  However, there's no way I can get that information to present such a graph.# 
 
 ++++
-<div id="chart"></div>
+<div id="chart" class="white-bg"></div>
 ++++
 
 .Table of data from which the chart is derived
@@ -239,6 +239,7 @@ There's two shapes of algorithms in this class of failure detection-based replic
 In academia, many of the ideas in reconfiguration-based replication are rooted in cite:[VirtualSynchrony].  Evolving Paxos into a reconfigurable primary-backup replication was examined in cite:[VerticalPaxosII].  In industry, cite:[Kafka] and cite:[FoundationDB] use different variants of broadcast-based replication, and {uri-apache-pegasus}[Apache Pegasus] uses cite:[PacificA].  Nearly all of the chain replication databases in industry seem to have died out, as {uri-hibari}[hibari] was one of the last but appears abandoned now, and cite:[HyperDex] almost become a startup.  Reconfiguration-based replication algorithms are frequently found in block and blob storage products{nospace}sidenote:ref[] where the decreased number of replicas means significant cost savings.  cite:[Ceph] implements both broadcast and chain-based replication.  cite:[GFS] implements broadcast-based replication, and cite:[HDFS] similarly follows suit.
 [.aside]#sidenote:def[] That's not to say that all such storage products do, as for example cite:[AlibabaEBS] and cite:[PolarFS] use leaderful consensus, but just that reconfiguration-based replication is comparatively a much more frequently chosen solution for replication in the different domain.  It's databases specifically that's more aligned itself around leaderful consensus.#
 
+[.white-bg]
 image::failure-detection-replication.svg[align=center]
 
 Our analysis is consistently targeting stem:[f=2], and thus for quorums, this means we'll be looking at a the efficiencies of a replication group of stem:[f+1 = 3] replicas.
