@@ -16,7 +16,11 @@ require_relative 'asciidoc_extensions/reading_time'
 activate :asciidoc, backend: 'xhtml5', safe: :unsafe, template_dirs: 'asciidoc_templates', attributes: ['source-highlighter=rouge', 'toc-title=']
 set :skip_build_clean, proc {|f| f.start_with? 'build/images/'}
 
-activate :asset_hash, :ignore => [%r{^images/rss.svg}, %r{^stylesheets/bamboo/.*.css}]
+activate :asset_hash, :ignore => [
+  %r{^images/rss.svg},
+  %r{^stylesheets/bamboo/.*.css},
+  %r{^images/.*.svg},
+]
 activate :reading_time
 
 class ImageDirPerAsciidoc < Middleman::Extension
