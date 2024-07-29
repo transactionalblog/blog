@@ -1,0 +1,37 @@
+<%
+    void_element_slash = '/'
+    target = @attributes['target']
+    width_attr = (attr? 'width') ? %( width="#{@attributes['width']}") : ''
+    height_attr = (attr? 'height') ? %( height="#{@attributes['height']}") : ''
+    if ((attr? 'format', 'svg') || (target.include? '.svg')) && document.safe < SafeMode::SECURE
+      if attr? 'inline'
+        puts "Inline not supported because asciidoctor"
+        exit
+        img = (read_svg_contents node, target) || %(<span class="alt">#{alt}</span>)
+      elsif attr? 'interactive'
+        fallback = (attr? 'fallback') ? %(<img src="#{image_uri @attributes['fallback']}" alt="#{alt}"#{width_attr}#{height_attr}#{void_element_slash}>) : %(<span class="alt">#{alt}</span>)
+        img = %(<object type="image/svg+xml" data="#{src = image_uri target}"#{width_attr}#{height_attr}>#{fallback}</object>)
+      else
+        img = %(<img src="#{src = image_uri target}" alt="#{alt}"#{width_attr}#{height_attr}#{void_element_slash}>)
+      end
+    else
+      img = %(<img src="#{src = image_uri target}" alt="#{alt}"#{width_attr}#{height_attr}#{void_element_slash}>)
+    end
+    if (attr? 'link') && ((href_attr_val = @attributes['link']) != 'self' || (href_attr_val = src))
+      img = %(<a class="image" href="#{href_attr_val}">#{img}</a>)
+    end
+    id_attr = id ? %( id="#{id}") : ''
+    classes = ['imageblock']
+    classes << (@attributes['float']) if attr? 'float'
+    classes << %(text-#{@attributes['align']}) if attr? 'align'
+    classes << role if role
+    class_attr = %( class="#{classes.join ' '}")
+    title_el = title? ? %(\n<div class="imagetitle">#{@title}</div>) : ''
+%>
+<%= %(<div#{id_attr}#{class_attr}>
+#{title_el}
+<div class="content">
+#{img}
+</div>
+</div>)
+%>
