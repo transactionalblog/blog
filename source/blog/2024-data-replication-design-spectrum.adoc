@@ -177,7 +177,7 @@ Majority quorums{nospace}sidenote:ref[] do a simple broadcast for both reads and
 
 A major advantage of leaderless, quorum-based algorithms is the lack of dependence on a leader.  All failures can be masked, with no need of detecting or reconfiguring around the failure.  All leaderless replication algorithms earn a perfect 0% chance of unavailability on random node failure.
 
-Though majority quorums has been repetitively stated to be a simple 1RTT broadcast for both reads and writes, that's a bit of an over-simplification.  For majority quorums to be linearizable, this posts's threshold for "consistent", cite:[ReadRepair] must be used to write back the most recent value if replicas diverged, thus earning a worst case 2RTT for reads.  Majority quorums are thus the inverse of Paxos, which always has two rounds of broadcasts for writes, and reads are a one round broadcast.
+Though majority quorums has been repetitively stated to be a simple 1RTT broadcast for both reads and writes, that's a bit of an over-simplification.  For majority quorums to be linearizable, this posts's threshold for "consistent", cite:[ReadRepair] must be used to write back the most recent value if replicas diverged, thus earning a worst case 2RTT for reads.  Majority quorums are thus the inverse of Paxos, which always has two rounds of broadcasts for writes, and reads are a one round broadcast. cite:[FastPaxos] permits performing writes in one round if a supermajority of replicas accept.
 
 An implementation of majority quorums typically uses some form of a Last Writer Wins timestamping scheme, so that if a read returns three distinct values, it's possible to choose the "most recent" value as the correct read result.  cite:[ABD] uses a logical clock, and what's referred to as just "majority quorums"{nospace}sidenote:ref[] here uses a physical clock.  ABD ensures that its writes have a higher logical clock than all existing values by first reading the existing values, thus earning it 2RTT for writes, and does a similar read repair step after reads to earn it 2RTT for reads also.  Majority quorums with physical timestamping can use its local time to skip the first phase of ABD's write protocol, so its writes are just 1RTT.
 [.aside]#sidenote:def[] If it were not for the immense popularity of physically timestamped majority quorums, due to its use in systems like Cassandra, I would have greatly preferred to present ABD as the "default" majority quorum algorithm.  For learning purposes, at least I'd suggest starting with it instead.#
@@ -224,6 +224,14 @@ An implementation of majority quorums typically uses some form of a Last Writer 
 | 1-2RTT
 | 2RTT
 
+| a:[FastPaxos]
+| 20%
+| 20%
+| 20%
+| 0%
+| 1RTT
+| 1-2RTT
+
 | Erasure Coded Paxos
 | 33%
 | 33%
@@ -241,7 +249,7 @@ An implementation of majority quorums typically uses some form of a Last Writer 
 | 2RTT
 |===
 
-This table presents that the difference between majority quorums/ABD and Paxos is one of read and write latency, but again, don't forget that there's a very significant difference in data consistency between the two replication algorithms. It's also not strictly a one-or-the other.  cite:[Gryff] is an example of a design uses cite:[ABD] for reads and writes, and cite:[EPaxos] for read-modify-writes.  Although Erasure Coded Paxos outwardly appears optimal, it isn't an algorithm that actually exists neither in academia nor in industry.
+This table presents that the difference between majority quorums/ABD and Paxos is one of read and write latency, but again, don't forget that there's a very significant difference in data consistency between the two replication algorithms. It's also not strictly a one-or-the other.  cite:[Gryff] is an example of a design uses cite:[ABD] for reads and writes, and cite:[EPaxos] for read-modify-writes.  Although Erasure Coded Paxos outwardly appears optimal across a number of metrics, it isn't an algorithm that actually exists neither in academia nor in industry.
 
 One of the largest concerns around deploying cite:[Paxos] to production is its vulnerability to livelock under contention.  Contending proposals can force both to retry the writes, mutually preventing forward progress, and so contention on a single replicated item is to be avoided if possible.  cite:[Megastore] is very contention prone as every proposal is trying to target the next slot in the replicated log, and thus they tried to include a weak leadership optimization.  cite:[PaxosStore] deployed only to geographically close replicas to minimize the latency from proposing to accepting, thus minimizing the window for proposals to conflict.  cite:[EPaxos] focuses on allowing concurrent updates to distinct entities, and only ordering conflicting proposals.  cite:[CASPaxos] avoids a log entirely, and thus trivially allows concurrent updates on distinct items.  cite:[Tempo] and cite:[Accord] assign client-generated timestamps to all requests so that all replicas process requests in a deterministic order, but at the cost of a fixed increase in latency to wait out clock skew bounds before processing any request.  If a use case requires handling potentially many concurrent update attempts to the same item, then it's possible that leaderless consensus is not a good choice of replication algorithm.
 
@@ -521,7 +529,7 @@ For the popularity-based rankings, we'll use "Paxos" from the Quorums section, "
 
 Using Paxos requires compromising read throughput.  PacificA delivers superior write bandwidth and similar latencies to Raft, with the trade off being higher chance of unavailability versus more replicas required, respectively.
 
-For our latency-optimized comparison, one can choose either "Majority Quorums" for faster writes or "Paxos" for faster reads.  Read latency tends to be a higher concern, so we'll opt for that.  "PacificA (Primary-only)" is the latency optimal reconfiguration-based algorithm.  Linearizable Quorum Reads is our hybrid selection.  (And note again that all primary/leader based replication algorithms depend on leader leases and clock synchronization to be able to serve 1RTT reads from the primary/leader.)
+For our latency-optimized comparison, "Fast Paxos" is the quorum-based replication algorithm which offers the possibility for 1RTT reads and writes.  "PacificA (Primary-only)" is the latency optimal reconfiguration-based algorithm.  Linearizable Quorum Reads is our hybrid selection.  (And note again that all primary/leader based replication algorithms depend on leader leases and clock synchronization to be able to serve 1RTT reads from the primary/leader.)
 
 [cols="1,1,1,1,1,1,1,1"]
 |===
@@ -534,14 +542,14 @@ For our latency-optimized comparison, one can choose either "Majority Quorums" f
 | Read Latency
 | Write Latency
 
-| Paxos
+| Fast Paxos
 | 5
 | 20%
 | 20%
 | 20%
 | 0%
 | 1RTT
-| 2RTT
+| 1-2RTT
 
 | PacificA Primary-Only
 | 3
