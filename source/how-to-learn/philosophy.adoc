@@ -26,6 +26,7 @@ experienced practitioners.
 
 Which is still quite abstract and overly generalized, so let's use some concrete examples.
 
+[#depth]
 == Difficulty Due to Depth
 
 Distributed systems and database research has been ongoing since the 1970s.  Any
@@ -102,6 +103,7 @@ what you wish.  Something like https://blog.acolyer.org/[The Morning Paper]
 would likely be a much better fit, or similar blogs that cover papers in
 high-level detail.
 
+[#breadth]
 == Difficulty Due to Breadth
 
 If you wish to write a TCP/IP stack for a real world product, you don't need to
