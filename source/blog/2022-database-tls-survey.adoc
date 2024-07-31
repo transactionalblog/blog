@@ -9,7 +9,7 @@ A popularity-based sampling of which databases are using which TLS implementatio
 == Visual Results
 
 ++++
-<div id="chart"></div>
+<div id="chart" class="white-bg aspect-2-1"></div>
 ++++
 
 == Thoughts
