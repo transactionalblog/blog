@@ -19,7 +19,6 @@ set :skip_build_clean, proc {|f| f.start_with? 'build/images/'}
 activate :asset_hash, :ignore => [
   %r{^images/rss.svg},
   %r{^stylesheets/bamboo/.*.css},
-  %r{^images/.*.svg},
 ]
 activate :reading_time
 
@@ -102,6 +101,11 @@ configure :ghpages do
   set :http_prefix, "/blog"
   activate :minify_css
   activate :minify_javascript, compressor: Terser.new
+  #config[:domain] = "https://draft.transactional.blog"
+  #set :http_prefix, "/"
+  #activate :minify_css
+  #activate :minify_javascript, compressor: Terser.new
+  #import_file File.expand_path("_ghpages_cname", config[:source]), "/CNAME"
 end
 
 configure :transactionalblog do
