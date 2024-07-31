@@ -46,7 +46,7 @@ There isn't one universally optimal replication algorithm to use.  Compiling tog
 sidenote:ref[][.aside]#sidenote:def[] The chart is weighted by the number of database systems, whereas a more realistic metric would be something that accounts for popularity such as the number of deployed machines or size of managed data.  With cloud vendors preferring leaderful replication by a large extent, a popularity-weighted chart would likely be even more heavily skewed towards leaderful replication.  However, there's no way I can get that information to present such a graph.# 
 
 ++++
-<div id="chart" class="white-bg"></div>
+<div id="chart" class="white-bg aspect-2-1"></div>
 ++++
 
 .Table of data from which the chart is derived
@@ -114,7 +114,7 @@ var chart = new G2Plot.Pie('chart', {
   colorField: 'replication',
   angleField: 'count',
   radius: 0.9,
-  label: { type: 'spider', formatter: (datum) => datum.replication },
+  label: { type: 'spider', formatter: (datum) => datum.replication, layout: [{ type: 'ellipsis', minLength: 16 }]},
   legend: false,
   interactions: [{ type: 'element-selected' }, { type: 'element-active' }],
 });
