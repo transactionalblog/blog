@@ -564,7 +564,8 @@ For our latency-optimized comparison, "Fast Paxos" is the quorum-based replicati
 | 1-2RTT
 |===
 
-Reveals an interesting effect that Reconfiguration-based algorithms have lower read throughput on the lowest latency variant than either quorum-based or hybrid replication schemes.  (Correspondingly, it feels likely that there's a missing optimization in which reading from all the secondaries in cite:[PacificA] should allow one to do a 1RTT read.)
+Reveals an interesting effect that Reconfiguration-based algorithms have lower read throughput on the lowest latency variant than either quorum-based or hybrid replication schemes.sidenote:ref[]
+[.aside]#sidenote:def[] I don't think a similar optimization which reads only from the backups would be safe unless commits were made durable on the primary first before replication, which would likel cost more than an extra write RTT.  Would be happy to find out I'm wrong!#
 
 For our throughput-optimized and storage-optimized variant analysis, our choices are actually the same!  It's the erasure coded variant of each replication algorithm.  (Except for storage-optimized reconfiguration-based replication algorithm, we could arbitrarily choose any, as they're all the same, but CRAQ is the correct choice for throughput-optimized.)
 
