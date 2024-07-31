@@ -222,7 +222,7 @@ An implementation of majority quorums typically uses some form of a Last Writer 
 | 1-2RTT
 | 2RTT
 
-| a:[FastPaxos]
+a| cite:[FastPaxos]
 | 20%
 | 20%
 | 20%
