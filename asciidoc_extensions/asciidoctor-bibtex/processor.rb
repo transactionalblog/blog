@@ -132,7 +132,21 @@ module AsciidoctorBibtex
         puts "Failed to render #{key}: #{e}"
         cptext = key
       end
-      StringUtils.html_to_asciidoc(cptext)
+      result = StringUtils.html_to_asciidoc(cptext)
+
+      if @biblio[key]&.has_field? 'note'
+        result << " #{@biblio[key].note}."
+      end
+
+      if @biblio[key]&.has_field? 'scholarcluster'
+        result << " https://scholar.google.com/scholar?cluster=#{@biblio[key].scholarcluster}[[scholar\\]]"
+      end
+
+      if @biblio[key]&.has_field? 'arxiv'
+        result << " https://arxiv.org/abs/#{@biblio[key].arxiv}[[arXiv\\]]"
+      end
+
+      result
     end
 
     # Build bibliography text for a given reference
