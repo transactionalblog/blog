@@ -113,7 +113,7 @@ up_title = if current_page.data.category != 'blog' then category_name[current_pa
       %>
     </aside>
     <% end %>
-    <%= if current_page.data.disclaimer then "<aside><p>" + current_page.data.disclaimer + "</p></aside>" end %>
+    <%= if current_page.data.aside then "<aside><p>" + current_page.data.aside + "</p></aside>" end %>
     <%= yield %>
     <!-- TODO: consider https://utteranc.es/ for in-page comments. -->
     <% if !current_page.data.nofooter %>
