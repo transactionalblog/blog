@@ -5,7 +5,7 @@
 
 Suggested reading material for various topics.
 
-[.display-hidden]
+[.display-none]
 == Learning Philosophy
 
 ++++

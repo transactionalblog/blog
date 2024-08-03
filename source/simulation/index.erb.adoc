@@ -5,7 +5,7 @@
 
 A walkthrough of how and why complex infrastructure should be built with deterministic simulation, and how to make such tests as productive as possible for developers.
 
-[.display-hidden]
+[.display-none]
 == Posts
 
 ++++

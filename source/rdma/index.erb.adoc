@@ -4,7 +4,7 @@
 
 Examples, benchmarking, and troubleshooting from experiments with using RDMA.
 
-[.display-hidden]
+[.display-none]
 == Uncategorized
 
 ++++

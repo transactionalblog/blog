@@ -5,7 +5,7 @@
 
 A collection of notes and links from looking at projects and papers on time synchronization.
 
-[.display-hidden]
+[.display-none]
 == Posts
 
 ++++

@@ -5,7 +5,7 @@
 
 While working, I've run across subjects and ideas that seem like good fodder for publications, except I'll never write them.  So I've written these as stubs of papers which introduce context and a problem to be solved.
 
-[.display-hidden]
+[.display-none]
 == Posts
 
 ++++

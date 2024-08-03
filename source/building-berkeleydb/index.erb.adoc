@@ -5,7 +5,7 @@
 
 A B-Tree tutorial series implementing an ABI-compatible BerkeleyDB clone.
 
-[.display-hidden]
+[.display-none]
 == Introduction
 
 ++++

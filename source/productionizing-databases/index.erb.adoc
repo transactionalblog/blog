@@ -6,7 +6,7 @@
 There is a large gap between writing a database that is capable of serving a client's queries, and writing a database that someone would wish to run in production.
 This series tries to cover specifically the features, documentation, and operational guidance that are worth considering building for a new database intended to go to production.
 
-[.display-hidden]
+[.display-none]
 == Posts
 
 ++++

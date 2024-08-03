@@ -4,7 +4,7 @@
 
 Replication algorithms
 
-[.display-hidden]
+[.display-none]
 == Uncategorized
 
 ++++
