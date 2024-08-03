@@ -97,15 +97,11 @@ require 'terser'
 config[:domain] = "http://localhost:4567"
 
 configure :ghpages do
-  config[:domain] = "https://transactionalblog.github.io"
-  set :http_prefix, "/blog"
+  config[:domain] = "https://draft.transactional.blog"
+  set :http_prefix, "/"
   activate :minify_css
   activate :minify_javascript, compressor: Terser.new
-  #config[:domain] = "https://draft.transactional.blog"
-  #set :http_prefix, "/"
-  #activate :minify_css
-  #activate :minify_javascript, compressor: Terser.new
-  #import_file File.expand_path("_ghpages_cname", config[:source]), "/CNAME"
+  import_file File.expand_path("_ghpages_cname", config[:source]), "/CNAME"
 end
 
 configure :transactionalblog do
