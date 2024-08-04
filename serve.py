@@ -50,7 +50,7 @@ async def run_middleman(filepath):
                 if filepath.endswith(ext):
                     filepath = filepath.removesuffix(ext) + convert[ext]
                     cmd = f"bundle exec middleman build --environment=development --glob='{filepath}' --no-clean"
-                break
+                    break
             else:
                 cmd = "bundle exec middleman build --environment=development"
     else:
@@ -66,7 +66,6 @@ async def middleman_changed(filepaths, reload_callback):
         filepath = filepaths[0]
     
     await run_middleman(filepath)
-
     reload_callback()
 
 class WatchdogWatcher(livereload.watcher.Watcher):
@@ -105,22 +104,24 @@ class MiddlemanHandler(FileSystemEventHandler):
         self._initialize()
         if isinstance(event, watchdog.events.DirModifiedEvent):
             return
-
-        self.add(event.src_path)
-        event_loop.call_soon_threadsafe(lambda: self.maybe_run())
+        event_loop.call_soon_threadsafe(lambda: self.add_and_run(event.src_path))
 
     def on_created(self, event):
         self._initialize()
         if isinstance(event, watchdog.events.DirModifiedEvent):
             return
+        event_loop.call_soon_threadsafe(lambda: self.add_and_run(event.src_path))
 
-        self.add(event.src_path)
-        event_loop.call_soon_threadsafe(lambda: self.maybe_run())
+    def add_and_run(self, path):
+        ignore = ['.bak', '.bkp']
+        if any(path.endswith(ext) for ext in ignore):
+            logger.info(f"Ignoring: {path}")
+            return
 
-    def add(self, path):
         logger.info(f"File changed: {path}")
         if path not in self._changes:
             self._changes.append(path)
+        self.maybe_run()
 
     def maybe_run(self):
         if self._changes and self._task is None or self._task.done():
