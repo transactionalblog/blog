@@ -1,5 +1,5 @@
 function positionAsideElements(mq) {
-    if (!mq.matches) {
+    if (mq === null || !mq.matches) {
         return;
     }
 
