@@ -45,6 +45,8 @@ li
 
 p:has(> a:target)
   background-color: var(--b-focus)
+span:has(> a:target)
+  background-color: var(--b-focus)
 
 dd, dt
   margin-bottom: 0em
@@ -233,6 +235,9 @@ b.conum *
 
 ol arabic
   list-style-type: decimal
+
+details[open] > summary
+  margin-bottom: 0em
 
 summary.title
     font-weight: normal

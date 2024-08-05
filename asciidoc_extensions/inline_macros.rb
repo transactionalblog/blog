@@ -64,11 +64,11 @@ class SidenoteMacro < Extensions::InlineMacroProcessor
       sidenum = parent.document.counter '_side_ref'
       text = "^[#{sidenum}]^"
       type = :superscript
-      anchor = "[[_sidenote_#{sidenum}]]"
+      anchor = "[[_sideref_#{sidenum}]]"
       text = anchor + text
     elsif target == 'def' then
       sidenum = parent.document.counter '_side_def'
-      text = "[#{sidenum}]:"
+      text = "[[_sidedef_#{sidenum}]][#{sidenum}]:"
     else
       raise "unknown target #{target}"
     end

@@ -1,5 +1,5 @@
 function positionAsideElements(mq) {
-    if (mq === null || !mq.matches) {
+    if (mq != null && !mq.matches) {
         return;
     }
 
@@ -26,9 +26,9 @@ function positionAsideElements(mq) {
             const myTop = aside.getBoundingClientRect().top;
             let desiredTop = myTop;
 
-            const match = aside.textContent.match(/\[(\d+)\]:/);
-            if (match) {
-                const anchor = document.querySelector('#_sidenote_' + match[1]);
+            const asideAnchor = aside.querySelector('a');
+            if (asideAnchor !== null && asideAnchor.id.startsWith('_sidedef_')) {
+                const anchor = document.querySelector('#' + asideAnchor.id.replace('sidedef', 'sideref'));
                 const anchorTop = anchor.getBoundingClientRect().top;
                 desiredTop = Math.min(myTop, anchorTop);
             }
