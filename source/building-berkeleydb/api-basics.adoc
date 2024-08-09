@@ -2,7 +2,7 @@
 :revdate: 2024-04-07
 :page-order: 5
 :page-tag: reading
-:toc: preamble
+:toc: right
 
 Opening and closing databases as a BerkeleyDB ABI-compatible library.
 

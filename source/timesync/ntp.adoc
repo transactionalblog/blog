@@ -1,7 +1,7 @@
 = NTP
 :revdate: 19-12-2021
 :page-hidden: true
-:toc: preamble
+:toc: right
 :toclevels: 1
 
 The Network Time Protocol is the most available and widely-used time synchronization protocol, but is claimed to offer the worst maximum clock error.

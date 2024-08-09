@@ -2,16 +2,12 @@
 :revdate: 2024-07-31
 :stem: latexmath
 :page-features: stem, plot
-:toc: preamble
+:toc: right
 :bibtex-file: 2024-data-replication-design-spectrum.bib
+:page-aside: With thanks to AJ Werner for pointers to Cockroach's optimizations, Reuben Bond for links to good Virtual Synchrony overview papers, Andrey Satarin for links to better failure detection material, and Phil Eaton, Alex Petrov, and Avinash Sajjanshetty for early reads and feedback.
 :nospace:
 
-[.aside]#With thanks to AJ Werner for pointers to Cockroach's optimizations, Reuben Bond for links to good Virtual Synchrony overview papers, Andrey Satarin for links to better failure detection material, and Phil Eaton, Alex Petrov, and Avinash Sajjanshetty for early reads and feedback.#
-
-[#chosen_preamble]
---
 Consistent replication algorithms can be placed on a sliding scale based on how they handle replica failures.  Across the three common points on this spectrum, the resource efficiency, availability, and latency are compared, providing guidance for how to choose an appropriate replication algorithm for a use case.
---
 
 == Failure Masking vs Failure Detection
 

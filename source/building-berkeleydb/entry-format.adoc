@@ -2,7 +2,7 @@
 :revdate: 2024-03-03
 :page-order: 4
 :page-tag: reading
-:toc: preamble
+:toc: right
 
 Our next goal is to be able to walk the tree, and print out the values stored in the B-Tree.
 

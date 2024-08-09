@@ -2,7 +2,7 @@
 :revdate: 2024-02-24
 :page-order: 3
 :page-tag: reading
-:toc: preamble
+:toc: right
 
 Support for parsing and printing information contained in the header for BerkeleyDB pages.
 

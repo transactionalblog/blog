@@ -3,7 +3,7 @@
 :page-hidden: true
 :stem: latexmath
 :page-features: stem, stem-inline
-:toc: preamble
+:toc: right
 :nospace:
 
 == Write-After-Write Conflicts

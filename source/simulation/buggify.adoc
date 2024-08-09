@@ -1,7 +1,7 @@
 = BUGGIFY
 :revdate: 20-12-2021
 :page-order: 12
-:toc: preamble
+:toc: right
 
 When application code provides high-level fault injection points, fuzzing becomes significantly more effective.
 

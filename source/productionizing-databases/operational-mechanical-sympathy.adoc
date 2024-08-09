@@ -1,7 +1,7 @@
 = Operational Mechanical Sympathy
 :page-hidden: true
 :revdate: 06-02-2022
-:toc: preamble
+:toc: right
 :page-order: 1
 
 Databases run on real machines, and aspects of those machines will affect the operation of the database.

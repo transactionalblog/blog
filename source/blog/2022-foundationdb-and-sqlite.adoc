@@ -3,7 +3,7 @@
 :icons: font
 :page-features: font-awesome
 :page-hidden: true
-:toc: preamble
+:toc: right
 :page-aside: Opinions are my own, and do not represent the opinions of my (previous) employer(s), some of whom directly sponsor or had employed me for FoundationDB development.
 :nospace:
 

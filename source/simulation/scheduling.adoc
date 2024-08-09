@@ -2,7 +2,7 @@
 :revdate: 20-12-2021
 :page-order: 3
 :page-hidden: true
-:toc: preamble
+:toc: right
 
 The first and most vial requirement for deterministic simulation is to have a
 scheduler that controls and executes units of concurrent work.  With this alone,

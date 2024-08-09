@@ -2,7 +2,7 @@
 :revdate: 2024-06-05
 :page-order: 1
 :page-tag: intro
-:toc: preamble
+:toc: right
 
 Welcome to the B-Tree tutorial.
 

@@ -3,7 +3,7 @@
 :page-hidden: true
 :stem: latexmath
 :page-features: stem
-:toc: preamble
+:toc: right
 :bibtex-file: raft-is-okay.bib
 
 [.display-none]

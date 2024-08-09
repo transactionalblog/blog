@@ -1,0 +1,47 @@
+= Motivation
+:revdate: 20-12-2021
+:page-order: 1
+:page-hidden: true
+:toc: right
+
+:uri-jepsen: https://jepsen.io/
+
+For testing sofware projects, there are the common and established tools of
+unit, integration, and end-to-end tests.  For testing more complex distributed
+systems, there exists more advanced tooling: {uri-jepsen}[Jepsen], and
+increasingly lightweight formal methods.  This is a guide to implementing a
+deterministic simulation testing framework, that offers faster and more
+comprehensive testing than Jepsen, while being easier to debug, without yet
+reaching the complexity and abstraction barriers of formal methods.
+
+Asserting the complete correctness of software is a difficult task even for
+simple programs, and this challenge is only amplified as complexity increases,
+the degree of concurrency rises, or as the amount of state maintained expands.
+Distributed databases exist for the exact purpose of providing highly concurrent
+access to large amounts of state, and transactions only add to the complexity
+involved.  Implementation correctness is also of paramount importance, as a
+strictly serializable ACID database with a consistency bug is the same as a
+slow, eventually (in)consistent database.
+
+Whole-system simulation testing is FoundationDB's answer to this imposing
+challenge of correctness testing.  Within the simulated environment, multiple
+processes and their hierarchical fault domain groupings into machines,
+datacenters, etc., are simulated along with all network or disk interactions
+and their own corresponding potential failure modes.  The simulator itself can
+only inject low-level faults at system integration points.  To allow faults to
+be injected in higher level protocols and APIs, simulation also provides a set
+of tools to developers to help bias simulation towards exploring situations
+that are more likely to find bugs.
+
+FoundationDB tests run by fuzzing a comprehensive set of system and
+developer-specified faults against a set of workloads, which enforce a
+specification of promised system behavior.  Any failing test is one that was
+able to break the intended behavior of the database via some combination of
+injected faults.  To enable developers to be able to reliably fix and reproduce
+rare and complex failed tests, simulation tests execute deterministically.
+Each test is given an initial random seed, and re-running the same test with
+the same random seed is guaranteed to reproduce the same test run, every time.
+
+++++
+<blockquote class="twitter-tweet"><p lang="en" dir="ltr"><a href="https://twitter.com/obfuscurity?ref_src=twsrc%5Etfw">@obfuscurity</a> haven&#39;t tested foundation in part because their testing appears to be waaaay more rigorous than mine.</p>&mdash; Yukon Whorenelius (@aphyr) <a href="https://twitter.com/aphyr/status/405017101804396546?ref_src=twsrc%5Etfw">November 25, 2013</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+++++

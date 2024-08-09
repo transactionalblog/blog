@@ -2,7 +2,7 @@
 :revdate: 2024-04-11
 :page-order: 7
 :page-tag: reading
-:toc: preamble
+:toc: right
 :page-hidden: true
 
 Support for using a cursor to read a range of values
