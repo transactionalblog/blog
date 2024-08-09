@@ -1,5 +1,5 @@
 = C++ Service Starter Pack
-:page-hidden: true
+:draft: true
 :revdate: 01-02-2022
 
 An inventory of the frameworks and libraries to use when writing a network service in C++.

@@ -1,5 +1,5 @@
 = Operational Mechanical Sympathy
-:page-hidden: true
+:draft: true
 :revdate: 06-02-2022
 :toc: right
 :page-order: 1

@@ -11,12 +11,12 @@ layout: none
   <language>en-us</language>
   <atom:link href="<%= join_paths(config[:domain], config[:http_prefix], "feed.xml") %>" rel="self" type="application/rss+xml"/>
 <% category_name = blog.articles
-  .select {|a| !(@app.environment? :transactionalblog) || !a.data.hidden }
+  .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft }
   .select {|a| a.path.end_with? 'index.html'}
   .map {|a| [a.data.category, a.title]}
   .to_h %>
 <% blog.articles
-  .select {|a| !(@app.environment? :transactionalblog) || !a.data.hidden}
+  .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft}
   .select {|a| !(a.path.end_with? 'index.html')}
   .map {|a| [ a.data.date.is_a?(String) ? Time.zone.parse(a.data.date) : a.data.date, a]}
   .sort_by {|date, a| [date, (a.data&.order&.to_i || 0)]} # no nil allowed in sort

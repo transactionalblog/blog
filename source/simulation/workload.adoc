@@ -1,7 +1,7 @@
 = Workloads
 :revdate: 01-03-2022
 :page-order: 13
-:page-hidden: true
+:draft: true
 :toc: right
 
 Each simulation test has one or more concurrent workloads.  Defining 

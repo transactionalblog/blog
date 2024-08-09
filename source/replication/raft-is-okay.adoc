@@ -1,6 +1,6 @@
 = Raft is Okay
 :revdate: 2024-06-14
-:page-hidden: true
+:draft: true
 :stem: latexmath
 :page-features: stem
 :toc: right

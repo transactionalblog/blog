@@ -1,6 +1,6 @@
 <!doctype html>
 <% category_name = blog.articles
-  .select {|a| !(@app.environment? :transactionalblog) || !a.data.hidden || current_page.data.hidden }
+  .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft || current_page.data.draft }
   .select {|a| a.path.end_with? 'index.html'}
   .map {|a| [a.data.category, a.title]}
   .to_h %>
@@ -9,18 +9,18 @@
 if current_page.data.category == 'blog' then
   page_up = config.http_prefix
   category_articles = blog.articles
-    .select {|a| !(@app.environment? :transactionalblog) || !a.data.hidden || current_page.data.hidden }
+    .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft || current_page.data.draft }
     .select {|a| a.data.category == current_page.data.category}
     .sort_by {|a| a.date}
     .reverse
 else
   page_up = blog.articles
-    .select {|a| !(@app.environment? :transactionalblog) || !a.data.hidden || current_page.data.hidden }
+    .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft || current_page.data.draft }
     .select {|a| a.data.category == current_page.data.category}
     .select {|a| a.path.end_with? 'index.html'}
     .first
   category_articles = blog.articles
-    .select {|a| !(@app.environment? :transactionalblog) || !a.data.hidden || current_page.data.hidden }
+    .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft || current_page.data.draft }
     .select {|a| a.data.category == current_page.data.category}
     .select {|a| !(a.path.end_with? 'index.html')}
     .sort_by {|a| a.data.order.to_i}
@@ -104,7 +104,7 @@ up_title = if current_page.data.category != 'blog' then category_name[current_pa
     <aside class="postmeta">
       <%=
       metadata = []
-      if current_page.data.hidden then metadata.append("Hidden") end
+      if current_page.data.draft then metadata.append("Draft") end
       if current_page.data.date then metadata.append("Posted " + current_page.data.date.strftime("%Y-%m-%d")) end
       if current_page.data.updated then metadata.append("Updated " + current_page.data.updated.strftime("%Y-%m-%d")) end
       metadata.append(reading_time(current_page) + " minute reading time")

@@ -1,7 +1,7 @@
 = Motivation
 :revdate: 20-12-2021
 :page-order: 1
-:page-hidden: true
+:draft: true
 :toc: right
 
 :uri-jepsen: https://jepsen.io/

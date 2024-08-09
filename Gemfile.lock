@@ -1,7 +1,7 @@
 GIT
   remote: https://github.com/middleman/middleman-asciidoc
-  revision: 30d41349daeb88521b5338a722f054ed33ed449b
-  ref: 30d4134
+  revision: a19c236de6eaeef2f4faac5a4dbb95af5c3620b3
+  ref: a19c236
   specs:
     middleman-asciidoc (1.1.0.dev)
       asciidoctor (>= 1.5.0)

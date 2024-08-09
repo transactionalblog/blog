@@ -1,6 +1,6 @@
 = Key-Value Storage Engines
 :revdate: 2023-05-10
-:page-hidden: true
+:draft: true
 :page-order: 4
 
 == B-Trees

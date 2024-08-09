@@ -3,7 +3,7 @@
 :page-order: 7
 :page-tag: reading
 :toc: right
-:page-hidden: true
+:draft: true
 
 Support for using a cursor to read a range of values
 

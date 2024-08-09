@@ -1,6 +1,6 @@
 = SSDs
 :revdate: 2023-05-10
-:page-hidden: true
+:draft: true
 :page-order: 2
 
 But if you want to go far down this rabbit hole, it's totally possible.  E.g. http://www.vldb.org/pvldb/vol13/p519-kakaraparthy.pdf

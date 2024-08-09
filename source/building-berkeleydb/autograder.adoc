@@ -2,7 +2,7 @@
 :revdate: 2024-04-11
 :page-order: 2
 :page-tag: intro
-:page-hidden: true
+:draft: true
 :toc: right
 
 How to install and use the provided testing framework.

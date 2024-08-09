@@ -21,6 +21,9 @@ activate :asciidoc do |asciidoc|
     'source-highlighter=rouge',
     'toc-title=',
   ]
+  asciidoc.promoted_attributes = [
+    'draft',
+  ]
 end
 set :skip_build_clean, proc {|f| f.start_with? 'build/images/'}
 

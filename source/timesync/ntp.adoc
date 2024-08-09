@@ -1,6 +1,6 @@
 = NTP
 :revdate: 19-12-2021
-:page-hidden: true
+:draft: true
 :toc: right
 :toclevels: 1
 

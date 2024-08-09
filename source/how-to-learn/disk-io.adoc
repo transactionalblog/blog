@@ -1,6 +1,6 @@
 = Kernel and Userland Disk I/O
 :revdate: 2023-05-07
-:page-hidden: true
+:draft: true
 :page-order: 3
 
 Filesystems, async file IO, and durability.

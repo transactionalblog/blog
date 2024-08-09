@@ -5,13 +5,13 @@ nofooter: true
 ---
 
 <% category_name = blog.articles
-  .select {|a| !(@app.environment? :transactionalblog) || !a.data.hidden }
+  .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft }
   .select {|a| a.path.end_with? 'index.html'}
   .map {|a| [a.data.category, a.title]}
   .to_h %>
 
 <% by_category = blog.articles
-    .select {|a| !(@app.environment? :transactionalblog) || !a.data.hidden}
+    .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft}
     .group_by {|a| a.data.category}
 
   articles = []
@@ -44,7 +44,7 @@ nofooter: true
         <a href="<%= index.url %>"><%= index.title %></a>
         <% end %>
       </h3></span>
-      <% if index.data.hidden %><span class="attributes">Hidden</span><%end%>
+      <% if index.data.draft %><span class="attributes">Draft</span><%end%>
     </div>
     <div class="summary">
       <%= index.summary %>
@@ -56,7 +56,7 @@ nofooter: true
           <a href="<%= page.url %>"><%= page.title %></a>
           <% if page.date == max_by_date %></span><% end %>
           </span>
-          <% if page.data.hidden %><span class="attributes">[hidden]</span><%end%>
+          <% if page.data.draft %><span class="attributes">[draft]</span><%end%>
           <% if idx != children.length - 1 %> • <% end %>
         <% end %>
       <% end %>

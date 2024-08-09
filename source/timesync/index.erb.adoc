@@ -1,7 +1,7 @@
 = Time Synchronization
 :revdate: 2022-02-22
 :page-layout: index
-:page-hidden: true
+:draft: true
 
 A collection of notes and links from looking at projects and papers on time synchronization.
 

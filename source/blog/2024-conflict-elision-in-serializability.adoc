@@ -1,6 +1,6 @@
 = Conflict Elision in Serializability
 :revdate: 2024-06-10
-:page-hidden: true
+:draft: true
 :stem: latexmath
 :page-features: stem, stem-inline
 :toc: right

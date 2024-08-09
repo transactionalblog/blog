@@ -1,6 +1,6 @@
 = Storage
 :revdate: 2023-05-10
-:page-hidden: true
+:draft: true
 :page-order: 1
 
 
