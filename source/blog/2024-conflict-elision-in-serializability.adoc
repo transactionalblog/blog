@@ -4,7 +4,6 @@
 :stem: latexmath
 :page-features: stem, stem-inline
 :toc: right
-:nospace:
 
 == Write-After-Write Conflicts
 

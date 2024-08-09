@@ -1,7 +1,6 @@
 = Durable Main-Memory Index Using Flash (2011)
 :revdate: 2024-05-25
 :page-order: 98
-:nospace:
 
 == Archival Note
 

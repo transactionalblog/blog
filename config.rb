@@ -20,6 +20,7 @@ activate :asciidoc do |asciidoc|
   asciidoc.attributes = [
     'source-highlighter=rouge',
     'toc-title=',
+    'nospace=',
   ]
   asciidoc.promoted_attributes = [
     'draft',

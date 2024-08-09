@@ -1,7 +1,6 @@
 = Calling OCaml from C
 :revdate: 2024-04-15
 :toc: right
-:nospace:
 
 Making an OCaml library usable from C.
 

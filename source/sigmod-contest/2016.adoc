@@ -2,7 +2,6 @@
 :revdate: 2024-06-03
 :page-order: 93
 :page-features: alpine
-:nospace:
 
 == Archival Note
 

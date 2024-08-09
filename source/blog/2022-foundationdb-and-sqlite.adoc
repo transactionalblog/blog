@@ -5,7 +5,6 @@
 :draft: true
 :toc: right
 :page-aside: Opinions are my own, and do not represent the opinions of my (previous) employer(s), some of whom directly sponsor or had employed me for FoundationDB development.
-:nospace:
 
 FoundationDB's use of SQLite's btree as its own storage engine should not be used to support claims that SQLite has a high quality and performant storage implementation.
 

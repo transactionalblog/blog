@@ -1,7 +1,6 @@
 = Multi-dimensional Indexing (2012)
 :revdate: 2024-06-01
 :page-order: 97
-:nospace:
 
 == Archival Note
 

@@ -1,7 +1,6 @@
 = Transaction Processing (2015)
 :revdate: 2024-06-03
 :page-order: 94
-:nospace:
 
 == Archival Note
 
