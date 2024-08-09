@@ -13,7 +13,15 @@ require_relative 'asciidoc_extensions/inline_macros'
 require_relative 'asciidoc_extensions/ophistory_diagram'
 require_relative 'asciidoc_extensions/postprocessors'
 require_relative 'asciidoc_extensions/reading_time'
-activate :asciidoc, backend: 'xhtml5', safe: :unsafe, template_dirs: 'asciidoc_templates', attributes: ['source-highlighter=rouge', 'toc-title=']
+activate :asciidoc do |asciidoc|
+  asciidoc.backend = 'xhtml5'
+  asciidoc.safe = :unsafe
+  asciidoc.template_dirs = 'asciidoc_templates'
+  asciidoc.attributes = [
+    'source-highlighter=rouge',
+    'toc-title=',
+  ]
+end
 set :skip_build_clean, proc {|f| f.start_with? 'build/images/'}
 
 activate :reading_time
