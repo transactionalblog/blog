@@ -1,6 +1,6 @@
 = S3-Compatible Cloud Storage Costs
 :revdate: 2023-12-13
-:page-updated: 2024-01-07
+:updated: 2024-01-07
 :page-features: alpine, ejs
 
 S3 is a convenient way to host larger static artifacts for a website, but which S3-compatible service is the cheapest for that usecase?

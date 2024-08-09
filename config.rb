@@ -24,6 +24,7 @@ activate :asciidoc do |asciidoc|
   ]
   asciidoc.promoted_attributes = [
     'draft',
+    'updated',
   ]
 end
 set :skip_build_clean, proc {|f| f.start_with? 'build/images/'}
