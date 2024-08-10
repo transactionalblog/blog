@@ -78,6 +78,7 @@ end
 page '/*.xml', layout: false
 page '/*.json', layout: false
 page '/*.txt', layout: false
+page '/*.bib', layout: false
 
 ignore /.*\.swp/
 
