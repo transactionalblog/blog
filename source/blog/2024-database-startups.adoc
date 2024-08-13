@@ -7,6 +7,7 @@
 * https://yugabyte.com/[YugabyteDB] (2016)
 * https://pingcap.com/[TiDB] (2015)
 * https://cockroachlabs.com/[CockroachDB] (2014)
+* https://ydb.tech/[YDB] (2012)
 * https://sequoiadb.com/[SequoiaDB] (2011)
 * https://singlestore.com/[SingleStore] (2011) -- Formerly MemSQL
 * https://doc.nuodb.com/[NuoDB] (2010) -- Acquired by 3DS
@@ -29,9 +30,16 @@
 * https://openpie.com/[PieCloudDB] (2021)
 * https://oxla.com/[Oxla] (2020)
 * https://databend.rs/[Databend] (2020)
+* https://firebolt.io/[Firebolt] (2019)
+* https://cheetahds.com/[CheetahDB] (2018)
 * https://doris.apache.org/[Apache Doris] (2017)
 ** Commercialized as VeloDB and SelectDB
 * https://cloudberrydb.org/[CloudBerryDB] (2016)
+* https://ocient.com/[Ocient] (2016)
+* https://clickhouse.com/[Clickhouse] (2016)
 ** HashData was founded in 2016, and open sourced as CloudBerryDB in 2023
+* https://dremio.com/[Dremio] (2015)
 * https://kylin.apache.org/[Apache Kylin] (2013)
+* https://prestodb.io/[Presto] (2013)
+** Forked into https://trino.io/[Trinio] in 2019
 * https://snowflake.com[Snowflake] (2012)
