@@ -1,4 +1,4 @@
-= A Survey of Database TLS Implementations
+= A Survey of Database TLS Libraries
 :revdate: 2022-03-21
 :toc: right
 :page-features: plot
