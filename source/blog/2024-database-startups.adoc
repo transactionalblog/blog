@@ -8,22 +8,24 @@ The requirements to be on the list is that the company must be in one of the two
 . It is the developer of a proprietary database or storage product.
 . It is the main developing entity behind an open source database or storage project, and is focused as a company around that project.
 
-If it's an OSS project largely developed by some company where their main product is something else (e.g. a project released by Baidu or LinkedIn), then it's excluded from the scope.  If it's an OSS project with many equal contributors, that's amazing for OSS, but this list is focusing on companies and not technology.
+If it's an OSS project largely developed by some company where their main product is something else (e.g. a project released by Baidu or LinkedIn), then it's excluded from the scope.  If it's an OSS project with many equal contributors, that's amazing for OSS, but this list is focusing on companies and not technology.  If it's a DBaaS company which just provides RDS-like hosting, but does no further development of and around the product, then it too is excluded.
 
-The categorizations are clearly subjective.  I'm aware that some companies fit into more than one category, some companies belong in their own category, etc.  This mostly exists as dbdb.io doesn't give a similarly easy way to filter and sort by some arbitrary sense of category, and has a narrower definition of database than what I'm interested in.
+The categorizations are clearly subjective.  I'm aware that some companies fit into more than one category, some companies belong in their own category, etc.  This mostly exists as dbdb.io doesn't give a similarly easy way to filter and sort by some arbitrary sense of category, and has a narrower definition of database than what I'm interested in.  Some companies pivoted to a database offering, and so the data is either their founding as a database company, or the first release of their database product.
 
-////
-== Hosted / Serverless RDBMS
+== RDBMS Server / Hosted / Serverless
 
-* Neon
-* Supabase
-* Nile
-* Planetscale
-* Citus
-////
+* https://thenile.dev/[Nile] (2022)
+* https://neon.tech[Neon] (2021)
+* https://supabase.com/[Supabase] (2020)
+* https://planetscale.com/[Planetscale] (2018)
+** Develops and commercializes Vitess, which was started in YouTube in 2010
+* https://citusdata.com/[Citus] (2010) -- Acquired by Microsoft in 2019
+* https://mariadb.org/[MariaDB] (2010)
+** Develops and supports MariaDB, which forked from MySQL in 2009
 
 == HTAP SQL
 
+* https://matrixorigin.io/[MatrixOrigin] (2021)
 * https://yugabyte.com/[YugabyteDB] (2016)
 * https://pingcap.com/[PingCAP] (2015)
 * https://cockroachlabs.com/[CockroachDB] (2014)
@@ -47,6 +49,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 * https://velodb.io/[VeloDB] (2022) -- Built on Apache Doris
 * https://starrocks.io/[StarRocks] (2021)
+* https://voltrondata.com/[VoltronData] (2021)
 * https://openpie.com/[PieCloudDB] (2021)
 * http://en.selectdb.com/[SelectDB] (2021) -- Built on Apache Doris
 * https://oxla.com/[Oxla] (2020)
@@ -62,6 +65,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://ocient.com/[Ocient] (2016)
 * https://clickhouse.com/[Clickhouse] (2016)
 * https://dremio.com/[Dremio] (2015)
+* https://yellowbrick.com/[Yellowbrick] (2014)
 //* https://kylin.apache.org/[Apache Kylin] (2013)
 * https://snowflake.com[Snowflake] (2012)
 * https://greenplum.org[Greenplum] (2003)
@@ -100,20 +104,54 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://algolia.com/[Algolia] (2012)
 * https://elastic.co/[Elastic] (2012)
 
-////
-== Not SQL
+== Graph
 
-* https://spiraldb.com/[SpiralDB] (2023) 
+* https://falkordb.com/[FalkorDB] (2023) -- Fork of RedisGraph
+* https://arcadedb.com/[ArcadeDB] (2021) -- Fork of OrientDB
+** OrientDB founded in 2012, acquired by CallidusCloud in 2017, itself acquired by SAP in 2018.  SAP dropped support in 2021, so founder started ArcadeDB to continue OrientDB.
+* https://ragedb.com/[RageDB] (2021)
+* https://neurodb.com/[NeuroDB] (2020)
+* https://ultipa.com/[Ultipa] (2019)
+* https://terminusdb.com/[TerminusDB] (2019)
+* https://dgraph.io/[Dgraph] (2016)
+* https://memgraph.com/[Memgraph] (2016)
+* https://bitnine.net/[Bitnine] (2013) -- https://bitnine.net/agensgraph/[AgensGraph]
+* https://lambdazen.com/[LambdaZen] (2013) -- github:lambdazen/bitsy[]
+* https://galaxybase.com/[Galaxybase] (2013)
+* https://tigergraph.com/[TigerGraph] (2012)
+* https://dydra.com/[Dydra] (2011)
+* https://factnexus.com/[FactNexus] (2010) -- https://graphbase.ai/[GraphBase]
+* https://orientdb.org/[OrientDB] (2010) -- 
+* https://neo4j.com[Neo4j] (2007)
+* https://cambridgesemantics.com/[Cambridge Semantics] (2007) -- https://www.cambridgesemantics.com/product/anzograph/[AnzoGraph]
+** Acquired by Altair in 2024.
+* https://blazegraph.com/[BlazeGraph] (2006) -- Acquired by Amazon in 2022
+* https://stardog.com/[Stardog] (2005)
+* https://ontotext.com/[OntoText] (2004) -- http://graphdb.ontotext.com/[GraphDB]
+** OntoText was founded in 2000.  They first released OWLIM in 2004, which was renamed to GraphDB.
+* https://franz.com/[Franz] (2004)
+** Develops https://allegrograph.com/[AllegraGraph].  Franz was founded in 1984, and also does their Allegro CL common lisp support.
+
+== Other/Multi-Models
+
+* https://spiraldb.com/[SpiralDB] (2023) -- Arrays?  (still in stealth)
+* https://polypheny.com/[Polypheny] (2022) -- Multi-model
+* https://tigerbeetle.com/[TigerBeetle] (2022) -- Financial
+* https://surrealdb.org/[Surreal] (2021) -- Multi-model
+* https://edgedb.com/[EdgeDB] (2018) -- Object
+** MagicStack founded in 2008.  Developed Caos ORM.  Database first released in 2018.
+* https://tiledb.com/[TileDB] (2017) -- Array
+* https://typedb.com/[TypeDB] (2016) -- Multi-model
+** Honestly no idea what to call this model.  They use "polymorphic" and "Enhanced Entity-Relationship".  It supports graph and document-style queries though.
 * https://arangodb.com/[ArangoDB] (2015) -- Multi-model
-* Surreal -- Multi-model
-* MongoDB (2007) -- Document
-* TileDB -- Array
-////
+* https://mongodb.com[MongoDB] (2007) -- Document
+* https://marklogic.com/[MarkLogic] (2001) -- Document
 
 == Queues
 
 * https://s2.dev/[S2] (2023)
 * https://warpstream.com/[WarpStream] (2023)
+* https://gomomento.com/[Momento] (2021)
 * https://redpanda.com/[Redpanda] (2019)
 * https://synadia.com/[Synadia] (2017)
 ** Develops and commercializes https://nats.io[NATS.io]
