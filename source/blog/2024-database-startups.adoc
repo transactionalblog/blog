@@ -1,6 +1,16 @@
 = Database Startups
 :revdate: 2024-08-13
+:page-hook-preamble: false
 :toc: right
+
+The requirements to be on the list is that the company must be in one of the two cases:
+
+. It is the developer of a proprietary database or storage product.
+. It is the main developing entity behind an open source database or storage project, and is focused as a company around that project.
+
+If it's an OSS project largely developed by some company where their main product is something else (e.g. a project released by Baidu or LinkedIn), then it's excluded from the scope.  If it's an OSS project with many equal contributors, that's amazing for OSS, but this list is focusing on companies and not technology.
+
+The categorizations are clearly subjective.  I'm aware that some companies fit into more than one category, some companies belong in their own category, etc.  This mostly exists as dbdb.io doesn't give a similarly easy way to filter and sort by some arbitrary sense of category, and has a narrower definition of database than what I'm interested in.
 
 ////
 == Hosted / Serverless RDBMS
@@ -35,19 +45,19 @@
 
 == Distributed OLAP SQL
 
-// https://blog.spiraldb.com/
-* https://velodb.io/[VeloDB] -- Built on Apache Doris
+* https://velodb.io/[VeloDB] (2022) -- Built on Apache Doris
 * https://starrocks.io/[StarRocks] (2021)
 * https://openpie.com/[PieCloudDB] (2021)
 * http://en.selectdb.com/[SelectDB] (2021) -- Built on Apache Doris
 * https://oxla.com/[Oxla] (2020)
+* https://e6data.com/[e6data] (2020)
 //* https://docs.ahana.cloud/docs/[Ahana] (2020)
-* https://databend.rs/[Databend] (2020)
+* https://databend.com/[Databend] (2020)
 * https://firebolt.io/[Firebolt] (2019)
 * https://cheetahds.com/[CheetahDB] (2018)
 * https://starburst.io/[Starburst] (2017)
 ** Developers of Trino, which forked in 2019 from PrestoDB, itself released 2013
-* https://www.hashdata.xyz/[HashData] (2016)
+* https://hashdata.xyz/[HashData] (2016)
 ** Open sourced as https://cloudberrydb.org/[CloudBerryDB] in 2023
 * https://ocient.com/[Ocient] (2016)
 * https://clickhouse.com/[Clickhouse] (2016)
@@ -93,18 +103,11 @@
 ////
 == Not SQL
 
-* Surreal
-* Mongo
-* TileDB
-////
-
-////
-== Streaming
-
-* Materialize
-* RisingWave
-
-
+* https://spiraldb.com/[SpiralDB] (2023) 
+* https://arangodb.com/[ArangoDB] (2015) -- Multi-model
+* Surreal -- Multi-model
+* MongoDB (2007) -- Document
+* TileDB -- Array
 ////
 
 == Queues
@@ -120,3 +123,33 @@
 ** Hosted RabbitMQ and github:cloudamqp/lavinmq[] developers
 * https://rabbitmq.com/[RabbitMQ] (2007)
 ** Rabbit Technologies Ltd. was acquired by Spring Source/VMWare in 2010, then by Pivotal in 2013, which itself was acquired by VMWare in 2019.
+
+////
+== Streaming
+
+* Materialize
+* RisingWave
+* Arroyo
+* HStreamDB
+* KsqlDB
+* EventStoreDB
+* TimePlus
+* DeltaStream
+////
+
+== AI and Vectors
+
+* https://vespa.ai/[Vespa] (2023)
+** Vespa was opensourced by Yahoo in 2017
+* https://lancedb.com/[LanceDB] (2022)
+* https://featurebase.com/[FeatureBase] (2022)
+** Founded as Molecula in 2017
+* https://postgresml.org/[PostgresML] (2022)
+* https://trychroma.com/Chroma (2022)
+* https://qdrant.tech/[Qdrant] (2021)
+* https://weaviate.io/[Weaviate] (2019)
+* https://pinecone.io/[Pinecone] (2019)
+* https://featureform.com/[FeatureForm] (2017)
+* https://zilliz.com[Zilliz] (2017)
+** Develops and commercializes Milvus
+//* Vald
