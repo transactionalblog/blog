@@ -64,6 +64,8 @@
 * https://polarsignals.com/[Polar Signals] (2020)
 ** Continuous profiling and not actually timeseries
 ** github:polarsignals/frostdb[] is embedded columnar database, like DuckDB
+* https://questdb.io/[QuestDB] (2019)
+** Development started in 2014, company wasn't formed until 2019.
 //* Prometheus
 //* Apache HoraeDB
 * https://dolphindb.com/[DolphinDB] (2018)
@@ -77,18 +79,41 @@
 * https://influxdata.com/[InfluxData] (2012)
 * https://quasardb.net/[QuasarDB] (2009)
 
-////
 == Search
 
-* meilisearch
-* quickwit
-* typesense
-* algolia
-////
+* https://quickwit.io/[Quickwit] (2021)
+* https://meilisearch.com/[Meilisearch] (2018)
+* https://typesense.org/[Typesense] (2016)
+* https://algolia.com/[Algolia] (2012)
+* https://elastic.co/[Elastic] (2012)
 
 ////
 == Not SQL
 
 * Surreal
 * Mongo
+* TileDB
 ////
+
+////
+== Streaming
+
+* Materialize
+* RisingWave
+
+
+////
+
+== Queues
+
+* https://s2.dev/[S2] (2023)
+* https://warpstream.com/[WarpStream] (2023)
+* https://redpanda.com/[Redpanda] (2019)
+* https://synadia.com/[Synadia] (2017)
+** Develops and commercializes https://nats.io[NATS.io]
+* https://confluent.io/[Confluent] (2014)
+** Developers of Kafka, which was released in 2011
+* https://84codes.com/[84codes] (2012)
+** Hosted RabbitMQ and github:cloudamqp/lavinmq[] developers
+* https://rabbitmq.com/[RabbitMQ] (2007)
+** Rabbit Technologies Ltd. was acquired by Spring Source/VMWare in 2010, then by Pivotal in 2013, which itself was acquired by VMWare in 2019.
