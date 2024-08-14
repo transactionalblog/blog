@@ -21,11 +21,13 @@ activate :asciidoc do |asciidoc|
     'source-highlighter=rouge',
     'toc-title=',
     'nospace=',
+    'hook-preamble=true'
   ]
   asciidoc.promoted_attributes = [
     'draft',
     'updated',
   ]
+  asciidoc.promoted_attributes_convert_dashes = true
 end
 set :skip_build_clean, proc {|f| f.start_with? 'build/images/'}
 
@@ -59,6 +61,9 @@ activate :blog do |blog|
   blog.default_extension = ".adoc"
   blog.summary_length = nil
   blog.summary_generator = Proc.new { |article, rendered, length, ellipsis|
+    if article.data.hook_preamble == false
+      next ''
+    end
     page_hook = article.data.hook
     if page_hook
       '<div>' + page_hook + '</div>'
