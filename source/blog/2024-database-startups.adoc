@@ -58,6 +58,7 @@
 
 == Timeseries
 
+* https://openobserve.ai[OpenObserve] (2022)
 * https://greptime.com/[GrepTimeDB] (2022)
 * https://reduct.store/[ReductStore] (2021)
 * https://cnosdb.com/[CnosDB] (2021)
@@ -83,6 +84,8 @@
 
 * https://quickwit.io/[Quickwit] (2021)
 * https://meilisearch.com/[Meilisearch] (2018)
+* https://manticoresearch.com[Manticore Search] (2017)
+** A fork of https://sphinxsearch.com/[Sphinx Search]
 * https://typesense.org/[Typesense] (2016)
 * https://algolia.com/[Algolia] (2012)
 * https://elastic.co/[Elastic] (2012)
