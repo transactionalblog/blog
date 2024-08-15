@@ -17,10 +17,11 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 * https://thenile.dev/[Nile] (2022)
 * https://neon.tech[Neon] (2021)
+* https://turso.tech/[Turso] (2021)
 * https://supabase.com/[Supabase] (2020)
 * https://planetscale.com/[Planetscale] (2018)
 ** Develops and commercializes Vitess, which was started in YouTube in 2010.
-* https://citusdata.com/[Citus] (2010) Acquired by Microsoft in 2019
+* https://citusdata.com/[Citus] (2010) -- Acquired by Microsoft in 2019
 * https://mariadb.org/[MariaDB] (2010)
 ** Develops and supports MariaDB, which forked from MySQL in 2009.
 * https://sap.com/[SAP] (2010)
@@ -35,6 +36,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == HTAP SQL
 
+* https://cedardb.com/[CedarDB] (2023)
 * https://matrixorigin.io/[MatrixOrigin] (2021)
 * https://yugabyte.com/[YugabyteDB] (2016)
 * https://pingcap.com/[PingCAP] (2015)
@@ -44,28 +46,23 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://doc.nuodb.com/[NuoDB] (2010) -- Acquired by 3DS
 * https://leanxcale.com/[LeanXcale] (2010)
 
-== Single-Server OLAP SQL
+== OLAP SQL
 
 * https://tablespace.com/[TableSpace] (2024)
-* https://cedardb.com/[CedarDB] (2023)
 * https://paradedb.com/[ParadeDB] (2023)
 ** DuckDB-in-Postgres via github:paradedb/pg_analytics[]
-* https://seafowl.io/[Splitgraph] (2022) -- Acquired by EDB
-** Datafusion-in-Postgres via github:splitgraph/seafowl[]
-* https://hydra.so/[Hydra] (2021)
-** DuckDB-in-Postgres via github:hydradatabase/pg_quack[]
-* https://duckdb.org/[DuckDB] (2018)
-
-== Distributed OLAP SQL
-
 * https://motherduck.com/[MotherDuck] (2022)
 * https://velodb.io/[VeloDB] (2022) -- Built on Apache Doris
+* https://seafowl.io/[Splitgraph] (2022) -- Acquired by EDB
+** Datafusion-in-Postgres via github:splitgraph/seafowl[]
 * https://starrocks.io/[StarRocks] (2021)
 * https://voltrondata.com/[VoltronData] (2021)
 * https://myscale.com/[MyScale] (2021) -- Fork of ClickHouse
 * https://clickhouse.com/[ClickHouse] (2021)
 ** ClickHouse started as a project in 2009.  The company was founded in 2021.
 * https://datapelago.io/[DataPelago] (2021)
+* https://hydra.so/[Hydra] (2021)
+** DuckDB-in-Postgres via github:hydradatabase/pg_quack[]
 * https://openpie.com/[PieCloudDB] (2021)
 * http://en.selectdb.com/[SelectDB] (2021) -- Built on Apache Doris
 * https://oxla.com/[Oxla] (2020)
@@ -74,6 +71,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://databend.com/[Databend] (2020)
 * https://firebolt.io/[Firebolt] (2019)
 * https://cheetahds.com/[CheetahDB] (2018)
+* https://duckdb.org/[DuckDB] (2018)
 * https://starburst.io/[Starburst] (2017)
 ** Developers of Trino, which forked in 2019 from PrestoDB, itself released 2013.
 * https://hashdata.xyz/[HashData] (2016)
@@ -94,6 +92,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://vertica.com/[Vertica] (2005)
 ** Acquired by HP in 2011, Micro Focus in 2017, then OpenText in 2023.
 * https://greenplum.org[Greenplum] (2003)
+* https://exasol.com/[Exasol] (2000)
 * https://teradata.com/[Teradata] (1979)
 
 == Document
