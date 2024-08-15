@@ -1,13 +1,10 @@
 = SQL on Key-Value Storage
-:revdate: 2024-05-05
-:page-hidden: true
-:toc: preamble
-:nospace:
+:revdate: 2024-08-15
+:draft: true
+:toc: right
+:bibtex-file: 2024-sql-on-kv-storage.bib
 
-A popular method of implementing SQL has been to build a key-value database, and
-then map SQL down onto key-value pairs.  This is a listing of requirements for a
-SQL transaction manager being implemented on a key-value store, and commentary
-on tradeoffs therein.
+Requirements and design constraints for a implementing SQL on a (distributed) key-value store, with commentary on tradeoffs therein.
 
 == Design Constraints
 
@@ -46,6 +43,7 @@ And possibly a subset of the less common:
 - object / json / protobuf / xml
 - array
 - geometry
+- vector
 - money
 
 And then how to encode tuples of these types such that the tuples still maintain lexicographic ordering for tuple comparison.
@@ -65,6 +63,8 @@ However, you'll still need to define your own support for some of the less commo
 
 The part of the row that is not the primary key does not require lexicographic ordering, and thus the additional computational and space overhead of a lexicographic order preserving serialization format isn't necessary.
 Thus, a more efficient encoding for values can also be considered.
+It's also common for some types (e.g. geometry or vector) to not be permitted in the primary key.
+Thus a lexicographic ordering scheme isn't required for them, and only a separate unordered value encoding scheme would be needed.
 This does, however, mean essentially implementing, optimizing, and maintaining two different encodings of data in your database.
 
 The encoding will need to be evolvable, and have a way add and remove columns from the row.
@@ -77,6 +77,9 @@ It could be a table, it could be an index, it could be a materialized view.
 This metadata will likely be prepended to each key (using the lexicographic encoding), so that all rows for a table/index/etc. are grouped together by lexicographic ordering.
 
 === SQL Isolation Model
+
+:uri-oracle-read-committed: https://docs.oracle.com/cd/E25054_01/server.1111/e25789/consist.htm#BABEIHGJ
+:uri-read-committed-si: https://sqlperformance.com/2014/05/t-sql-queries/read-committed-snapshot-isolation
 
 ////
 - need to support the SQL isolation model
@@ -91,9 +94,9 @@ This metadata will likely be prepended to each key (using the lexicographic enco
 Our goal is to build something which supports Read Committed or Snapshot Isolation, but not an efficient implementation of Serializable.
 
 Note that by "Read Committed", there is a significant difference between what the ANSI standard defines as Read Committed, and what the database industry at large defines as Read Committed.  The ANSI Standard claims that Read Committed should behave like exactly what it says: any data which is committed is visible for reading, but unlike Snapshot Isolation, the committed data read might form an inconsistent snapshot which observes only parts of some transactions.  The database industry has largely implemented Read Committed as "Snapshot Isolation except the server is allowed to pick a new read snapshot".sidenote:ref[]sidenote:ref[]
-[.aside]#sidenote:def[] For a more detailed explanation, take a look at https://docs.oracle.com/cd/E25054_01/server.1111/e25789/consist.htm#BABEIHGJ[Oracle's documentation on Read Committed].#
-[.aside]#sidenote:def[] SQL Server appears to offer both Read Committed isolation levels.  It calls the ANSI Standard "Read Committed", and the commonly implemented variant https://sqlperformance.com/2014/05/t-sql-queries/read-committed-snapshot-isolation["Read Committed Snapshot Isolation"], though I haven't seen that name used elsewhere to identify this "Almost Snapshot Isolation" variant.#
 Databases implement "Almost Snapshot Isolation" Read Committed instead of just Snapshot Isolation as it retains one very important difference: if the query encounters a conflict, the server is permitted to retry the statement with a new read snapshot until it succeeds.  Under Snapshot Isolation, that failure must be returned to the client so that they can retry the entire transaction body.  This means that Read Committed observes significantly fewer transaction aborts than Snapshot Isolation.
+[.aside]#sidenote:def[] For a more detailed explanation, take a look at {uri-oracle-read-comitted}[Oracle's documentation on Read Committed].#
+[.aside]#sidenote:def[] SQL Server appears to offer both Read Committed isolation levels.  It calls the ANSI Standard "Read Committed", and the commonly implemented variant {uri-read-committed-si}["Read Committed Snapshot Isolation"], though I haven't seen that name used elsewhere to identify this "Almost Snapshot Isolation" variant.#
 
 The strong suggestion of not pursuing Serializable is one of the divergences between a local-only database and a distributed database.
 For local-only, it's fine to chase after Serializable and two phase locking is a standard and reasonable way of achieving that goal, in the distributed case, it is a folly.
@@ -101,7 +104,8 @@ To build an efficient implementation of Serializable, one needs non-trivial coop
 For example, the storage layer could be extended to support Cockroach-style "remember the version at which each key was last read", or Spanner-style "maintain in-memory locks for each row read or written", or a model of a less well-known system.
 However, without some extension permitting support from the storage layer for serializability, I have yet to see an implementation strategy for Serializable which does not slaughter performance.
 
-There is an advantage of offering Serializable over Snapshot Isolation though, which is that an MVCC Serializable implementation only needs to check for read-after-write conflicts, and can omit checking for write-after-write or write-after-read conflicts.  MVCC itself removes the need to check for write-after-read conflicts.  If all writes in a transaction are written in the same version, then it's impossible to form a cycle using only writes, so write-after-write conflicts don't need to be checked.sidenote:ref[][.aside]#sidenote:def[] M. Yabandeh and D. Gómez Ferro, "A critique of snapshot isolation," in Proceedings of the 7th ACM european conference on Computer Systems - EuroSys '12, Bern, Switzerland: ACM Press, 2012, p. 155. doi: 10.1145/2168836.2168853.# Thus, write-after-write conflict heavy workloads could see an increase in performance when using Serializable over Snapshot Isolation due to the lack of write-after-write conflict causing statement aborts and restarts.
+There is an advantage of offering Serializable over Snapshot Isolation though, which is that an MVCC Serializable implementation only needs to check for read-after-write conflicts, and can omit checking for write-after-write or write-after-read conflicts.sidenote:ref[]  MVCC itself removes the need to check for write-after-read conflicts.  If all writes in a transaction are written in the same version, then it's impossible to form a cycle using only writes, so write-after-write conflicts don't need to be checked. Thus, write-after-write conflict heavy workloads could see an increase in performance when using Serializable over Snapshot Isolation due to the lack of write-after-write conflict causing statement aborts and restarts.
+[.aside]#sidenote:def[] bibitem:[CritiqueOfSnapshotIsolation]#
 
 === SQL Transaction Model
 
@@ -158,6 +162,20 @@ amount of data, or it might be a single autocommit statement.
 
 === Transaction Protocol
 
+////
+Transaction Protocol Design Space
+
+- Client-driven 3PC is the standard
+  - CRDB, TiDB, YB all have minor variations
+  - Most of them call it "2PC", which it is not
+  - Follow-on optimization for -1 RTT for small transactions
+    - Link the CRDB blog post and Rystsov's blog post
+
+- Actual 2PC?
+  - Spanner only
+  - Note that this is because they broke the rules
+////
+
 Given the necessity of supporting complex, long-running transactions with that
 write a large amount of data, there's essentially only one viable high level
 strategy for implementation:
@@ -182,29 +200,12 @@ registered with the server.
 
 Most, but not all distributed SQL databases follow this transaction protocol.  However, Spanner notably does not.  Rather than acquire locks via staging pending writes, it acquires an in-memory lock on the leader of the replication group responsible for that key. This is a significantly cheaper operation as the lock is both not replicated and not durable, but that also means that a crash can cause the lock to be lost while the transaction holding it is still executing.  Thus, at transaction commit, Spanner must re-validate that all acquired locks are still held.
 
-And there's still other databases that don't follow it at all, and potentially accept other limitations on what they can do.  VoltDB is very optimized towards single-partition statements, and accepts a very expensive global coordination phase for executing distributed statements.  LeanXcale 
+And there's still other databases that don't follow it at all, and potentially accept other limitations on what they can do.  VoltDB is very optimized towards single-partition statements, and accepts a very expensive global coordination phase for executing distributed statements.  LeanXcale supports snapshot isolation, but forces staleness.  Spanner buffers all writes in the client and waits until commit, thus placing limits on 
+
+// LeanXcale snapshot isolation but stale
+// Spanner didn't allow read-your-writes
 
 === Concurrency Control
-
-
-
-== Optimizations
-
-=== MVCC Read Amplification
-
-=== Large Value Read Amplification
-
-=== Reading Backwards
-
-`SELECT min(primary_key) FROM Table` is optimally done with a forward scan.
-`SELECT max(primary_key) FROM Table` is optimally done with a reverse scan.
-Don't forget that reading backwards is going to be an important thing to support.
-
-Thus, if the solution to MVCC cleanup or 
-
-=== Deferred Constraints
-
-Primary key constraints can be deferred, so data models which assume that a primary key is unique will break.
 
 ////
 Concurrency Control Design Space
@@ -231,17 +232,35 @@ Concurrency Control Design Space
   - CRDB and TiDB both started with optimistic CC
   - Moved to pessimistic CC
 
-Transaction Protocol Design Space
+////
 
-- Client-driven 3PC is the standard
-  - CRDB, TiDB, YB all have minor variations
-  - Most of them call it "2PC", which it is not
-  - Follow-on optimization for -1 RTT for small transactions
-    - Link the CRDB blog post and Rystsov's blog post
 
-- Actual 2PC?
-  - Spanner only
-  - Note that this is because they broke the rules
+== Supporting SQL Features
+
+=== MVCC Read Amplification
+
+////
+bibitem:[EvaluationOfMVCC]
+////
+
+=== Large Value Read Amplification
+
+=== Reading Backwards
+
+`SELECT min(primary_key) FROM Table` is optimally done with a forward scan.
+`SELECT max(primary_key) FROM Table` is optimally done with a reverse scan.
+Don't forget that reading backwards is going to be an important thing to support!
+
+Thus, if the solution to MVCC cleanup or 
+
+=== Deferred Constraints
+
+Primary key constraints can be deferred, so data models cannot assume that a primary key is unique.
+
+
+
+
+////
 
 Intermezzio
 
@@ -297,10 +316,66 @@ Don't forget that reading backwards is going to be an important thing to support
 
 - Detecting multiple writes to same key
 
+- Constraints requires reading both with and without current writes
+
 - Deferred Constraints
 
+- Index construction can require Writing in the past
 
-- Writing in the past
+- Triggers require executing extra statements in the same context as the original statement.
+  - MySQL semantics fail the statement, but not the transaction, if triggers fail.
+
+- There's probably more that even I don't know about.
+////
+
+== Reflections
+
+:uri-eatonphil-mvcc: https://notes.eatonphil.com/2024-05-16-mvcc.html
+
+////
+
+=== Escape Hatches are Important
+
+A basic draft of MVCC isn't terribly complicated.
+Concurrency without locking related keys is hard
+MVCC cleanup is the most complex
+Still tractable for one person to design and write in a reasonable timeframe
+
+Complexity then spiraled out of control as bespoke support required by random SQL features.
+Sensible decisions earlier become incredibly difficult to undo mistakes.
+Were your primary keys unique by definition?  Sorry, port your entire data model because now deferred constraints is a thing.
+And so writing SQL on KV isn't _hard_, it just feels like it requires having worked in SQL land for 20 years to know all the features and how they interact with concurrency control and transactions, to know what the actual correct set of requirements are for a SQL transaction layer on a key-value store.
+
+This absurdity feels like it exists in Key-Value land more than traditional databases.  In-progress transaction data only needs to exist in memory.
+Need more space?  Just add a new page type to your btree file.
+Need even more space? Add a new file on the filesystem.
+There's easy escape hatches for being able to add new, unplanned data.
+
+When interacting with a key-value store, the key format needs to encode every possible way of writing data.
+That's set once, globally.
+Adding more space requires changing the format of stored keys, which is not an easy or cheap operation.
+
+
+Instead, make sure to leave yourself an escape hatch at every possible level.
+Leave yourself the space to add extra per-key metadata.
+Allow adding extra per-transaction metadata.
+Allow adding extra per-table metadata.
+
+
+=== SQL Enforces a Design Monoculture
+
+There's not really a lot of room in the transaction and concurrency model for innovation.
+
+Not to say people haven't:
+ - Cockroach commit at now vs YB/TiDB commit at future
+ - Cockroach pipelining statement executions
+
+ I would really like to see increment locks, escrow transactions, etc. make their way into SQL.
+ The concurrency primitives are rather restricted today.
 
 
 ////
+
+It's {uri-eatonphil-mvcc}[not terribly much work] to put together a rough Read Committed MVCC implementation.  It's more work to make that concurrent when one cannot lock related keys which form one SQL row.  It's the most complicated to get MVCC cleanup working in such a context.
+
+But the absurdity to me hit

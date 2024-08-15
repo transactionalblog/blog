@@ -2,8 +2,9 @@
 :revdate: 2022-03-21
 :toc: right
 :page-features: plot
+:page-hook-preamble: false
 
-A popularity-based sampling of which databases are using which TLS implementations.
+I was curious how much the choice of which TLS library to use in a database has been affected by all of the OpenSSL security vulnerabilities, so I checked the code of a number of OSS databases.
 
 == Visual Results
 
