@@ -1,5 +1,6 @@
 = Database Startups
 :revdate: 2024-08-13
+:updated: 2024-08-15
 :page-hook-preamble: false
 :toc: right
 
@@ -18,10 +19,19 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://neon.tech[Neon] (2021)
 * https://supabase.com/[Supabase] (2020)
 * https://planetscale.com/[Planetscale] (2018)
-** Develops and commercializes Vitess, which was started in YouTube in 2010
-* https://citusdata.com/[Citus] (2010) -- Acquired by Microsoft in 2019
+** Develops and commercializes Vitess, which was started in YouTube in 2010.
+* https://citusdata.com/[Citus] (2010) Acquired by Microsoft in 2019
 * https://mariadb.org/[MariaDB] (2010)
-** Develops and supports MariaDB, which forked from MySQL in 2009
+** Develops and supports MariaDB, which forked from MySQL in 2009.
+* https://sap.com/[SAP] (2010)
+** SAP was founded in 1972.  SAP HANA is their database, released in 2010.
+* https://vistadb.com/[VistaDB] (2007)
+* https://percona.com/[Percona] (2006)
+* https://enterprisedb.com/[EnterpriseDB] (2004)
+** Acquired by Green Hill partners in 2019, then Bain Capital in 2022.
+* https://kingbase.com.cn/[Kingbase] (1999)
+* https://faircom.com/[FairCom] (1979)
+* https://oracle.com/[Oracle] (1977)
 
 == HTAP SQL
 
@@ -36,6 +46,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == Single-Server OLAP SQL
 
+* https://tablespace.com/[TableSpace] (2024)
 * https://cedardb.com/[CedarDB] (2023)
 * https://paradedb.com/[ParadeDB] (2023)
 ** DuckDB-in-Postgres via github:paradedb/pg_analytics[]
@@ -47,9 +58,14 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == Distributed OLAP SQL
 
+* https://motherduck.com/[MotherDuck] (2022)
 * https://velodb.io/[VeloDB] (2022) -- Built on Apache Doris
 * https://starrocks.io/[StarRocks] (2021)
 * https://voltrondata.com/[VoltronData] (2021)
+* https://myscale.com/[MyScale] (2021) -- Fork of ClickHouse
+* https://clickhouse.com/[ClickHouse] (2021)
+** ClickHouse started as a project in 2009.  The company was founded in 2021.
+* https://datapelago.io/[DataPelago] (2021)
 * https://openpie.com/[PieCloudDB] (2021)
 * http://en.selectdb.com/[SelectDB] (2021) -- Built on Apache Doris
 * https://oxla.com/[Oxla] (2020)
@@ -59,21 +75,34 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://firebolt.io/[Firebolt] (2019)
 * https://cheetahds.com/[CheetahDB] (2018)
 * https://starburst.io/[Starburst] (2017)
-** Developers of Trino, which forked in 2019 from PrestoDB, itself released 2013
+** Developers of Trino, which forked in 2019 from PrestoDB, itself released 2013.
 * https://hashdata.xyz/[HashData] (2016)
 ** Open sourced as https://cloudberrydb.org/[CloudBerryDB] in 2023
+* http://oushu.com/en[Oushu] (2016) -- Fork of Apache HAWQ
 * https://ocient.com/[Ocient] (2016)
 * https://clickhouse.com/[Clickhouse] (2016)
 * https://dremio.com/[Dremio] (2015)
 * https://yellowbrick.com/[Yellowbrick] (2014)
+* https://brytlyt.io/[Brytlyt] (2013)
+** Acquired by Opensignal in 2024
+* https://databricks.com/[Databricks] (2013)
 //* https://kylin.apache.org/[Apache Kylin] (2013)
 * https://snowflake.com[Snowflake] (2012)
+* https://cloudera.com/[Cloudera] (2008)
+** Originally offered commercial Hadoop, and later Impala and Kudu.
+* https://xtremedata.com/[XtremeData] (2005)
+* https://vertica.com/[Vertica] (2005)
+** Acquired by HP in 2011, Micro Focus in 2017, then OpenText in 2023.
 * https://greenplum.org[Greenplum] (2003)
+* https://teradata.com/[Teradata] (1979)
 
 == Document
 
+* https://endatabas.com[Endatabas] (2023)
 * https://fireproof.storage/[Fireproof Storage] (2022)
 * https://sneller.ai/[Sneller] (2021)
+* https://ferretdb.com/[FerretDB] (2021)
+* https://xtdb.com/[XTDB] (2018)
 * https://jsonbin.io/[JSONBIN.io] (2017)
 * https://harperdb.io/[HarperDB] (2017)
 * https://coretex-ag.com/[Coretex AG] (2014)
@@ -81,6 +110,8 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://couchbase.com/[Couchbase] (2010)
 * https://existsolutions.com/[Exist Solutions] (2010) -- https://exist-db.org/[ExistDB], which was started in 2000
 * https://hibernatingrhinos.com/[Hibernating Rhinos] (2009) -- https://ravendb.net/[RavenDB]
+* https://cloudant.com/[Cloudant] (2008) -- https://couchdb.apache.org/[CouchDB]
+** Acquired by IBM in 2014.
 * https://mongodb.com[MongoDB] (2007)
 * https://marklogic.com/[MarkLogic] (2001)
 * https://nexedi.com/[Nexedi] (2005)
@@ -92,7 +123,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://arcadedb.com/[ArcadeDB] (2021) -- Fork of OrientDB
 ** OrientDB was founded in 2012, acquired by CallidusCloud in 2017, itself acquired by SAP in 2018.  SAP dropped support in 2021, so founder started ArcadeDB to continue OrientDB.
 * https://ragedb.com/[RageDB] (2021)
-* https://neurodb.com/[NeuroDB] (2020)
+* https://neurodb.org/[NeuroDB] (2020)
 * https://ultipa.com/[Ultipa] (2019)
 * https://terminusdb.com/[TerminusDB] (2019)
 * https://dgraph.io/[Dgraph] (2016)
@@ -101,7 +132,10 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://lambdazen.com/[LambdaZen] (2013) -- github:lambdazen/bitsy[]
 * https://galaxybase.com/[Galaxybase] (2013)
 * https://tigergraph.com/[TigerGraph] (2012)
+* https://velocitydb.com/[VelocityDB] (2011)
 * https://dydra.com/[Dydra] (2011)
+* https://sparsity-technologies.com[Sparsity Technologies] (2010)
+** Spin-off from the Data Management group at Universitat Politècnica de Catalunya in Barcelona, Spain.
 * https://factnexus.com/[FactNexus] (2010) -- https://graphbase.ai/[GraphBase]
 * https://neo4j.com[Neo4j] (2007)
 * https://cambridgesemantics.com/[Cambridge Semantics] (2007) -- https://www.cambridgesemantics.com/product/anzograph/[AnzoGraph]
@@ -148,24 +182,37 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://typesense.org/[Typesense] (2016)
 * https://algolia.com/[Algolia] (2012)
 * https://elastic.co/[Elastic] (2012)
+* https://splunk.com/[Splunk] (2003)
 
 == Other/Multi-Models
 
 * https://spiraldb.com/[SpiralDB] (2023) -- Arrays?  (still in stealth)
 * https://polypheny.com/[Polypheny] (2022) -- Multi-model
 * https://tigerbeetle.com/[TigerBeetle] (2022) -- Financial
+* https://dragonflydb.io/[Dragonfly] (2021) -- Redis
 * https://surrealdb.org/[Surreal] (2021) -- Multi-model
 * https://evitadb.io/[EvitaDB] (2020) -- E-commerce
+* https://dolthub.com/[Dolthub] (2018) -- Git-like MySQL
+* https://codenotary.com/[CodeNotary] (2018) -- https://immudb.io/[ImmuDB] immutable database
 * https://edgedb.com/[EdgeDB] (2018) -- Object
 ** MagicStack founded in 2008.  Developed Caos ORM.  Database first released in 2018.
 * https://tiledb.com/[TileDB] (2017) -- Array
+* https://yottadb.com/[YottaDB] (2017) -- Embedded Key-Value
 * https://typedb.com/[TypeDB] (2016) -- Multi-model
 ** Unsure precisely.  They use "polymorphic" and "Enhanced Entity-Relationship".  It supports graph and document-style queries though.
 * https://arangodb.com/[ArangoDB] (2015) -- Multi-model
 * https://cratedb.com/[CrateDB] (2013) -- Multi-model
+* https://datomic.com/[Datomic] (2012) -- Datalog "datomic facts"
+* https://redis.io/[Redis] (2011)
+** Redis hosting from 2011-2015.  Redis creator joined in 2015, left in 2020.  Now leads development of Redis.
+* https://datastax.com/[DataStax] (2010)
+** Contributes heavily to Cassandra, which is wide column with its own CQL.
+* https://aerospike.com/[Aerospike] (2009) -- Key-Value
+* https://hazelcast.org/[Hazelcast] (2008) -- Key-Value
 
 == Queues
 
+* https://hatchet.run/[Hatchet] (2023)
 * https://s2.dev/[S2] (2023)
 * https://warpstream.com/[WarpStream] (2023)
 * https://gomomento.com/[Momento] (2021)
@@ -177,35 +224,34 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://rabbitmq.com/[RabbitMQ] (2007)
 ** Rabbit Technologies Ltd. was acquired by Spring Source/VMWare in 2010, then by Pivotal in 2013, which itself was acquired by VMWare in 2019.
 
-////
-== Streaming
+== Stateful Streaming
 
-* Materialize
-* RisingWave
-* Arroyo
-* HStreamDB
-* KsqlDB
-* EventStoreDB
-* TimePlus
-* DeltaStream
-////
+* https://risingwave.com/[RisingWave] (2023)
+* https://arroyo.dev/[Arroyo] (2022)
+* https://timeplus.com/[TimePlus] (2021)
+* https://emqx.com/[EMQ] (2021)
+** EMQ was founded in 2012, and released https://hstream.io/[HStreamDB] in 2021.
+* https://deltastream.io/[DeltaStream] (2020)
+* https://materialize.com/[Materialize] (2019)
+* https://readyset.co/[ReadySet] (2019)
+* https://eventstore.com/[EventStoreDB] (2019)
 
 == AI and Vectors
 
-* https://www.getmegaportal.com/[MegaPortal] (2023) -- https://closevector.getmegaportal.com/[CloseVector]
+* deployql.com[DeployQL] (2024) -- github:DeployQL/LintDB[]
+* https://getmegaportal.com/[MegaPortal] (2023) -- https://closevector.getmegaportal.com/[CloseVector]
 * https://infiniflow.org/[InfiniFlow] (2023)
 * https://vespa.ai/[Vespa] (2023)
-** Vespa was opensourced by Yahoo in 2017
+** Vespa was opensourced by Yahoo in 2017.  Company founded around it in 2023.
 * https://lancedb.com/[LanceDB] (2022)
 * https://marqo.ai/[Marqo] (2022)
 * https://featurebase.com/[FeatureBase] (2022)
-** Founded as Molecula in 2017
+** Founded as Molecula in 2017.  Released FeatureBase in 2022.
 * https://postgresml.org/[PostgresML] (2022)
 * https://trychroma.com/[Chroma] (2022)
 * https://qdrant.tech/[Qdrant] (2021)
 * https://weaviate.io/[Weaviate] (2019)
 * https://pinecone.io/[Pinecone] (2019)
 * https://featureform.com/[FeatureForm] (2017)
-* https://zilliz.com[Zilliz] (2017)
-** Develops and commercializes Milvus
+* https://zilliz.com[Zilliz] (2017) -- github:milvus-io/milvus[]
 //* Vald
