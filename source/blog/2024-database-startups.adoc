@@ -3,12 +3,12 @@
 :page-hook-preamble: false
 :toc: right
 
-The requirements to be on the list is that the company must be in one of the two cases:
+The requirements to be on the list is that the company must fall in one of the two cases:
 
 . It is the developer of a proprietary database or storage product.
 . It is the main developing entity behind an open source database or storage project, and is focused as a company around that project.
 
-If it's an OSS project largely developed by some company where their main product is something else (e.g. a project released by Baidu or LinkedIn), then it's excluded from the scope.  If it's an OSS project with many equal contributors, that's amazing for OSS, but this list is focusing on companies and not technology.  If it's a DBaaS company which just provides RDS-like hosting, but does no further development of and around the product, then it too is excluded.
+And also be alive, or their product still supported if acquired. If it's an OSS project largely developed by some company where their main product is something else (e.g. a project released by Baidu or LinkedIn), then it's excluded from the scope.  If it's an OSS project with many equal contributors, that's amazing for OSS, but this list is focusing on companies and not technology.  If it's a DBaaS company which just provides RDS-like hosting, but does no further development of and around the product, then it too is excluded.  Also no ledger/blockchain.
 
 The categorizations are clearly subjective.  I'm aware that some companies fit into more than one category, some companies belong in their own category, etc.  This mostly exists as dbdb.io doesn't give a similarly easy way to filter and sort by some arbitrary sense of category, and has a narrower definition of database than what I'm interested in.  Some companies pivoted to a database offering, and so the data is either their founding as a database company, or the first release of their database product.
 
@@ -70,6 +70,49 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://snowflake.com[Snowflake] (2012)
 * https://greenplum.org[Greenplum] (2003)
 
+== Document
+
+* https://fireproof.storage/[Fireproof Storage] (2022)
+* https://sneller.ai/[Sneller] (2021)
+* https://jsonbin.io/[JSONBIN.io] (2017)
+* https://harperdb.io/[HarperDB] (2017)
+* https://coretex-ag.com/[Coretex AG] (2014)
+* https://fauna.com/[FaunaDB] (2012)
+* https://couchbase.com/[Couchbase] (2010)
+* https://existsolutions.com/[Exist Solutions] (2010) -- https://exist-db.org/[ExistDB], which was started in 2000
+* https://hibernatingrhinos.com/[Hibernating Rhinos] (2009) -- https://ravendb.net/[RavenDB]
+* https://mongodb.com[MongoDB] (2007)
+* https://marklogic.com/[MarkLogic] (2001)
+* https://nexedi.com/[Nexedi] (2005)
+** Company founded in 2005.  Develops https://neo.nexedi.com/[NEO], a fork(?) of ZODB.
+
+== Graph
+
+* https://falkordb.com/[FalkorDB] (2023) -- Fork of RedisGraph
+* https://arcadedb.com/[ArcadeDB] (2021) -- Fork of OrientDB
+** OrientDB was founded in 2012, acquired by CallidusCloud in 2017, itself acquired by SAP in 2018.  SAP dropped support in 2021, so founder started ArcadeDB to continue OrientDB.
+* https://ragedb.com/[RageDB] (2021)
+* https://neurodb.com/[NeuroDB] (2020)
+* https://ultipa.com/[Ultipa] (2019)
+* https://terminusdb.com/[TerminusDB] (2019)
+* https://dgraph.io/[Dgraph] (2016)
+* https://memgraph.com/[Memgraph] (2016)
+* https://bitnine.net/[Bitnine] (2013) -- https://bitnine.net/agensgraph/[AgensGraph]
+* https://lambdazen.com/[LambdaZen] (2013) -- github:lambdazen/bitsy[]
+* https://galaxybase.com/[Galaxybase] (2013)
+* https://tigergraph.com/[TigerGraph] (2012)
+* https://dydra.com/[Dydra] (2011)
+* https://factnexus.com/[FactNexus] (2010) -- https://graphbase.ai/[GraphBase]
+* https://neo4j.com[Neo4j] (2007)
+* https://cambridgesemantics.com/[Cambridge Semantics] (2007) -- https://www.cambridgesemantics.com/product/anzograph/[AnzoGraph]
+** Acquired by Altair in 2024.
+* https://blazegraph.com/[BlazeGraph] (2006) -- Acquired by Amazon in 2022
+* https://stardog.com/[Stardog] (2005)
+* https://ontotext.com/[OntoText] (2004) -- http://graphdb.ontotext.com/[GraphDB]
+** OntoText was founded in 2000.  They first released OWLIM in 2004, which was renamed to GraphDB.
+* https://franz.com/[Franz] (2004)
+** Develops https://allegrograph.com/[AllegraGraph].  Franz was founded in 1984, and also does their Allegro CL common lisp support.
+
 == Timeseries
 
 * https://openobserve.ai[OpenObserve] (2022)
@@ -92,6 +135,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 //* opentsdb
 * https://warp10.io/[Warp10] (2013)
 * https://influxdata.com/[InfluxData] (2012)
+* https://db4iot.com[DB4IoT] (2010)
 * https://quasardb.net/[QuasarDB] (2009)
 
 == Search
@@ -100,37 +144,10 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://meilisearch.com/[Meilisearch] (2018)
 * https://manticoresearch.com[Manticore Search] (2017)
 ** A fork of https://sphinxsearch.com/[Sphinx Search]
+* https://oncedb.com/[OnceDB] (2016) -- For
 * https://typesense.org/[Typesense] (2016)
 * https://algolia.com/[Algolia] (2012)
 * https://elastic.co/[Elastic] (2012)
-
-== Graph
-
-* https://falkordb.com/[FalkorDB] (2023) -- Fork of RedisGraph
-* https://arcadedb.com/[ArcadeDB] (2021) -- Fork of OrientDB
-** OrientDB founded in 2012, acquired by CallidusCloud in 2017, itself acquired by SAP in 2018.  SAP dropped support in 2021, so founder started ArcadeDB to continue OrientDB.
-* https://ragedb.com/[RageDB] (2021)
-* https://neurodb.com/[NeuroDB] (2020)
-* https://ultipa.com/[Ultipa] (2019)
-* https://terminusdb.com/[TerminusDB] (2019)
-* https://dgraph.io/[Dgraph] (2016)
-* https://memgraph.com/[Memgraph] (2016)
-* https://bitnine.net/[Bitnine] (2013) -- https://bitnine.net/agensgraph/[AgensGraph]
-* https://lambdazen.com/[LambdaZen] (2013) -- github:lambdazen/bitsy[]
-* https://galaxybase.com/[Galaxybase] (2013)
-* https://tigergraph.com/[TigerGraph] (2012)
-* https://dydra.com/[Dydra] (2011)
-* https://factnexus.com/[FactNexus] (2010) -- https://graphbase.ai/[GraphBase]
-* https://orientdb.org/[OrientDB] (2010) -- 
-* https://neo4j.com[Neo4j] (2007)
-* https://cambridgesemantics.com/[Cambridge Semantics] (2007) -- https://www.cambridgesemantics.com/product/anzograph/[AnzoGraph]
-** Acquired by Altair in 2024.
-* https://blazegraph.com/[BlazeGraph] (2006) -- Acquired by Amazon in 2022
-* https://stardog.com/[Stardog] (2005)
-* https://ontotext.com/[OntoText] (2004) -- http://graphdb.ontotext.com/[GraphDB]
-** OntoText was founded in 2000.  They first released OWLIM in 2004, which was renamed to GraphDB.
-* https://franz.com/[Franz] (2004)
-** Develops https://allegrograph.com/[AllegraGraph].  Franz was founded in 1984, and also does their Allegro CL common lisp support.
 
 == Other/Multi-Models
 
@@ -138,14 +155,14 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://polypheny.com/[Polypheny] (2022) -- Multi-model
 * https://tigerbeetle.com/[TigerBeetle] (2022) -- Financial
 * https://surrealdb.org/[Surreal] (2021) -- Multi-model
+* https://evitadb.io/[EvitaDB] (2020) -- E-commerce
 * https://edgedb.com/[EdgeDB] (2018) -- Object
 ** MagicStack founded in 2008.  Developed Caos ORM.  Database first released in 2018.
 * https://tiledb.com/[TileDB] (2017) -- Array
 * https://typedb.com/[TypeDB] (2016) -- Multi-model
-** Honestly no idea what to call this model.  They use "polymorphic" and "Enhanced Entity-Relationship".  It supports graph and document-style queries though.
+** Unsure precisely.  They use "polymorphic" and "Enhanced Entity-Relationship".  It supports graph and document-style queries though.
 * https://arangodb.com/[ArangoDB] (2015) -- Multi-model
-* https://mongodb.com[MongoDB] (2007) -- Document
-* https://marklogic.com/[MarkLogic] (2001) -- Document
+* https://cratedb.com/[CrateDB] (2013) -- Multi-model
 
 == Queues
 
@@ -153,10 +170,8 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://warpstream.com/[WarpStream] (2023)
 * https://gomomento.com/[Momento] (2021)
 * https://redpanda.com/[Redpanda] (2019)
-* https://synadia.com/[Synadia] (2017)
-** Develops and commercializes https://nats.io[NATS.io]
-* https://confluent.io/[Confluent] (2014)
-** Developers of Kafka, which was released in 2011
+* https://synadia.com/[Synadia] (2017) -- https://nats.io[NATS.io]
+* https://confluent.io/[Confluent] (2014) -- Kafka, which was released in 2011
 * https://84codes.com/[84codes] (2012)
 ** Hosted RabbitMQ and github:cloudamqp/lavinmq[] developers
 * https://rabbitmq.com/[RabbitMQ] (2007)
@@ -177,13 +192,16 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == AI and Vectors
 
+* https://www.getmegaportal.com/[MegaPortal] (2023) -- https://closevector.getmegaportal.com/[CloseVector]
+* https://infiniflow.org/[InfiniFlow] (2023)
 * https://vespa.ai/[Vespa] (2023)
 ** Vespa was opensourced by Yahoo in 2017
 * https://lancedb.com/[LanceDB] (2022)
+* https://marqo.ai/[Marqo] (2022)
 * https://featurebase.com/[FeatureBase] (2022)
 ** Founded as Molecula in 2017
 * https://postgresml.org/[PostgresML] (2022)
-* https://trychroma.com/Chroma (2022)
+* https://trychroma.com/[Chroma] (2022)
 * https://qdrant.tech/[Qdrant] (2021)
 * https://weaviate.io/[Weaviate] (2019)
 * https://pinecone.io/[Pinecone] (2019)
