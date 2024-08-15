@@ -238,7 +238,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == AI and Vectors
 
-* deployql.com[DeployQL] (2024) -- github:DeployQL/LintDB[]
+* https://deployql.com[DeployQL] (2024) -- github:DeployQL/LintDB[]
 * https://getmegaportal.com/[MegaPortal] (2023) -- https://closevector.getmegaportal.com/[CloseVector]
 * https://infiniflow.org/[InfiniFlow] (2023)
 * https://vespa.ai/[Vespa] (2023)
