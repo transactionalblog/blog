@@ -15,12 +15,15 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == RDBMS Server / Hosted / Serverless
 
+* https://crystaldb.cloud/[CrystalDB] (2022)
 * https://thenile.dev/[Nile] (2022)
 * https://neon.tech[Neon] (2021)
 * https://turso.tech/[Turso] (2021)
+* https://xata.io/[Xata] (2020)
 * https://supabase.com/[Supabase] (2020)
 * https://planetscale.com/[Planetscale] (2018)
 ** Develops and commercializes Vitess, which was started in YouTube in 2010.
+* https://crunchydata.com/[Crunchy Data] (2012)
 * https://citusdata.com/[Citus] (2010) -- Acquired by Microsoft in 2019
 * https://mariadb.org/[MariaDB] (2010)
 ** Develops and supports MariaDB, which forked from MySQL in 2009.
@@ -62,13 +65,13 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 ** ClickHouse started as a project in 2009.  The company was founded in 2021.
 * https://datapelago.io/[DataPelago] (2021)
 * https://hydra.so/[Hydra] (2021)
-** DuckDB-in-Postgres via github:hydradatabase/pg_quack[]
+** DuckDB-in-Postgres via github:duckdb/pg_duckdb[]
 * https://openpie.com/[PieCloudDB] (2021)
 * http://en.selectdb.com/[SelectDB] (2021) -- Built on Apache Doris
+* https://databend.com/[Databend] (2021)
 * https://oxla.com/[Oxla] (2020)
 * https://e6data.com/[e6data] (2020)
 //* https://docs.ahana.cloud/docs/[Ahana] (2020)
-* https://databend.com/[Databend] (2020)
 * https://firebolt.io/[Firebolt] (2019)
 * https://cheetahds.com/[CheetahDB] (2018)
 * https://duckdb.org/[DuckDB] (2018)
@@ -190,6 +193,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://tigerbeetle.com/[TigerBeetle] (2022) -- Financial
 * https://dragonflydb.io/[Dragonfly] (2021) -- Redis
 * https://surrealdb.org/[Surreal] (2021) -- Multi-model
+* https://authzed.com[AuthZed] (2020) -- Authorization
 * https://evitadb.io/[EvitaDB] (2020) -- E-commerce
 * https://dolthub.com/[Dolthub] (2018) -- Git-like MySQL
 * https://codenotary.com/[CodeNotary] (2018) -- https://immudb.io/[ImmuDB] immutable database
@@ -202,6 +206,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://arangodb.com/[ArangoDB] (2015) -- Multi-model
 * https://cratedb.com/[CrateDB] (2013) -- Multi-model
 * https://datomic.com/[Datomic] (2012) -- Datalog "datomic facts"
+* https://scylladb.com/[ScyllaDB] (2012) -- Wide column. (Cassandra-compatible)
 * https://redis.io/[Redis] (2011)
 ** Redis hosting from 2011-2015.  Redis creator joined in 2015, left in 2020.  Now leads development of Redis.
 * https://datastax.com/[DataStax] (2010)
@@ -226,6 +231,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 == Stateful Streaming
 
 * https://risingwave.com/[RisingWave] (2023)
+* https://denormalized.io/[Denormalized] (2022)
 * https://arroyo.dev/[Arroyo] (2022)
 * https://timeplus.com/[TimePlus] (2021)
 * https://emqx.com/[EMQ] (2021)
@@ -238,6 +244,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 == AI and Vectors
 
 * https://deployql.com[DeployQL] (2024) -- github:DeployQL/LintDB[]
+* https://turbopuffer.com[turbopuffer] (2023)
 * https://getmegaportal.com/[MegaPortal] (2023) -- https://closevector.getmegaportal.com/[CloseVector]
 * https://infiniflow.org/[InfiniFlow] (2023)
 * https://vespa.ai/[Vespa] (2023)
@@ -254,3 +261,10 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://featureform.com/[FeatureForm] (2017)
 * https://zilliz.com[Zilliz] (2017) -- github:milvus-io/milvus[]
 //* Vald
+
+
+////
+TODO
+
+spice.ai (query multiple databases together)
+////
