@@ -70,8 +70,11 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * http://en.selectdb.com/[SelectDB] (2021) -- Built on Apache Doris
 * https://databend.com/[Databend] (2021)
 * https://oxla.com/[Oxla] (2020)
+* https://startree.ai/[StarTree] (2020)
+** Develops and commercializes Apache Pinot
 * https://e6data.com/[e6data] (2020)
 //* https://docs.ahana.cloud/docs/[Ahana] (2020)
+* https://tinybird.co/[Tinybird] (2019) -- Hosted++ ClickHouse
 * https://firebolt.io/[Firebolt] (2019)
 * https://cheetahds.com/[CheetahDB] (2018)
 * https://duckdb.org/[DuckDB] (2018)
@@ -82,6 +85,8 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * http://oushu.com/en[Oushu] (2016) -- Fork of Apache HAWQ
 * https://ocient.com/[Ocient] (2016)
 * https://clickhouse.com/[Clickhouse] (2016)
+* https://imply.io/[Imply Data] (2015)
+** Develops and commercializes Apache Druid
 * https://dremio.com/[Dremio] (2015)
 * https://yellowbrick.com/[Yellowbrick] (2014)
 * https://brytlyt.io/[Brytlyt] (2013)
