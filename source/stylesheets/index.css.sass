@@ -14,16 +14,13 @@ $text-font: 'Open Sans', sans-serif
 $code-font: 'Inconsolata', monospace
 
 body
-  display: flex
+  position: relative
+  font-family: $text-font
+  align-items: start
   justify-content: center
 
 main
-  display: grid
-  font-family: $text-font
-  align-items: start
-
-  > *
-    grid-column: content
+  position: relative
 
 h1
   text-align: center
@@ -68,23 +65,7 @@ h3
   display: none
 
 .article
-  display: contents
-
-  .heading
-    display: contents
-    grid-column: left / end
-  .title
-    grid-column: content
-  .date
-    grid-column: left
-    justify-self: end
-    color: var(--b-txt-dark)
-  .attributes
-    grid-column: left
-    justify-self: end
-    color: var(--b-txt-dark)
   .summary
-    grid-column: content
     &::after
       display: block
       height: 1.5em
@@ -127,17 +108,102 @@ div.nav_header
 div.nav_footer
   margin-bottom: 1.5em
 
-@media (max-width: 600px)
-  main
-    grid-template-columns: [left content] 1fr [end] 0px
+@media (max-width: 610px)
+  body
+    --sidemargin-padding: 0px
+    --sidemargin-width: 0px
+    width: auto
+
+  .aside
+    display: block
+    margin-top: 1.5em
+
+  .aside:before
+    content: ' '
+    clear: right
+
+  .aside:after
+    content: ' '
+    clear: right
+
+  .postmeta
+    float: right
+    margin-left: 2em
 
   .article
-    .date
-      justify-self: start
-    .attributes
-      justify-self: start
+    .heading
+      .date
+        display: inline
+      .title
+        display: inline
+        h3
+          display: inline
+      .attributes
+        display: inline-block
+        float: right
 
-@media (min-width: 600px)
-  main
-    grid-template-columns: [left] 100px 10px [content] minmax(auto, 700px) [end]0px
+//@media (max-width: 610px)
+//  body
+//    --sidemargin-padding: 0px
+//    --sidemargin-width: 0px
+//    width: auto
+//
+//  .aside
+//    display: block
+//    margin-top: 1.5em
+//
+//  .aside:before
+//    content: ' '
+//    clear: right
+//
+//  .aside:after
+//    content: ' '
+//    clear: right
+//
+//  .postmeta
+//    float: right
+//    margin-left: 2em
+//
+//  .article
+//    .heading
+//      display: flex
+//      flex-wrap: wrap
+//
+//      .date
+//        display: inline-block
+//        margin-right: 1ex
+//      .title
+//        display: inline-block
+//      .attributes
+//        display: inline-block
+//        margin-left: auto
+
+@media (min-width: 610px)
+  body
+    --body-width: calc(min(98vw - 85px - 10px - 30px, 700px))
+    position: relative
+    width: calc(var(--body-width) + 85px + 10px)
     margin: auto
+    justify-content: left
+
+  main
+    margin-left: auto
+    position: relative
+    width: var(--body-width)
+
+  .article
+    .heading
+      display: flex
+      flex-wrap: nowrap
+
+      .date
+        position: absolute
+        margin-left: -11ex
+        display: inline-block
+      .title
+        display: inline-block
+        flex: 1
+      .attributes
+        flex: 0 0 auto
+        margin-left: auto
+        display: inline-block

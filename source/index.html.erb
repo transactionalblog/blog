@@ -44,7 +44,7 @@ nofooter: true
         <a href="<%= index.url %>"><%= index.title %></a>
         <% end %>
       </h3></span>
-      <% if index.data.draft %><span class="attributes">Draft</span><%end%>
+      <% if index.data.draft %><span class="attributes">[draft]</span><%end%>
     </div>
     <div class="summary">
       <%= index.summary %>
@@ -55,9 +55,9 @@ nofooter: true
           <% if page.date == max_by_date %><span class="series-new"><% end %>
           <a href="<%= page.url %>"><%= page.title %></a>
           <% if page.date == max_by_date %></span><% end %>
-          </span>
-          <% if page.data.draft %><span class="attributes">[draft]</span><%end%>
+          <% if page.data.draft %><span class="child-attributes">[draft]</span><%end%>
           <% if idx != children.length - 1 %> • <% end %>
+          </span>
         <% end %>
       <% end %>
     </div>
