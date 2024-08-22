@@ -261,15 +261,9 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://postgresml.org/[PostgresML] (2022)
 * https://trychroma.com/[Chroma] (2022)
 * https://qdrant.tech/[Qdrant] (2021)
+* https://spice.ai/[Spice AI] (2021)
 * https://weaviate.io/[Weaviate] (2019)
 * https://pinecone.io/[Pinecone] (2019)
 * https://featureform.com/[FeatureForm] (2017)
 * https://zilliz.com[Zilliz] (2017) -- github:milvus-io/milvus[]
 //* Vald
-
-
-////
-TODO
-
-spice.ai (query multiple databases together)
-////
