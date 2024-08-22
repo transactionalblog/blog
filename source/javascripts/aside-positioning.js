@@ -1,12 +1,20 @@
-function positionAsideElements(mq) {
-    if (mq != null && !mq.matches) {
-        return;
+function compareAsides(lhs, rhs) {
+    const classOrder = ['.postmeta', '.postaside', '.toc', '.aside'];
+    if (lhs.className == '.aside' && rhs.className == '.aside') {
+        const parseFootNum = (e) => parseInt(e.querySelector('a').id.replace('_sidedef_', ''));
+        return parseFootNum(lhs) - parseFootNum(rhs);
+    } else {
+        const lhsOrder = classOrder.indexOf(lhs.className);
+        const rhsOrder = classOrder.indexOf(rhs.className);
+        return lhsOrder - rhsOrder;
     }
+}
 
+function positionAsideElements(_) {
     // Find all 'aside' elements
     const asideElements = Array.from(document.querySelectorAll('aside,.aside,.toc'));
 
-    asideElements.sort( (lhs,rhs) => lhs.getBoundingClientRect().top - rhs.getBoundingClientRect().top);
+    asideElements.sort(compareAsides);
 
     main_element = document.querySelector('main');
     if (main_element === null) {
@@ -30,7 +38,7 @@ function positionAsideElements(mq) {
             if (asideAnchor !== null && asideAnchor.id.startsWith('_sidedef_')) {
                 const anchor = document.querySelector('#' + asideAnchor.id.replace('sidedef', 'sideref'));
                 const anchorTop = anchor.getBoundingClientRect().top;
-                desiredTop = Math.min(myTop, anchorTop);
+                desiredTop = anchorTop;
             }
 
             if (previousAsideBottom > desiredTop) {
@@ -48,6 +56,11 @@ function positionAsideElements(mq) {
 // any minor issues once all content is fully loaded.
 window.addEventListener("DOMContentLoaded", function() {
   positionAsideElements({matches: true});
+
+  const detailsElements = document.querySelectorAll("details");
+  detailsElements.forEach(function (element) {
+    element.addEventListener("toggle", positionAsideElements);
+  });
 });
 window.addEventListener("load", function() {
   positionAsideElements({matches: true});
