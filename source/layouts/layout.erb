@@ -40,7 +40,7 @@ category_heading = if up_title.nil? || up_title == 'Blog' then '' else up_title 
     <meta name="twitter:card" content="summary" />
     <meta property="og:title" content="<%= category_heading + current_page.data.title %>" />
     <meta property="og:site_name" content="<%= config[:domain].gsub(/^https?:\/\//, '') %>" />
-    <meta property="og:description" content="<%= current_page.data.hook %>" />
+    <% if current_page.data.hook then %> <meta property="og:description" content="<%= current_page.data.hook %>" /> <% end %>
     <!-- Use the title from a page's frontmatter if it has one -->
     <title><%= current_page.data.title || "Middleman" %></title>
     <link rel="icon" type="image/x-icon" href="<%= add_http_prefix "/favicon.ico"%>"/>
