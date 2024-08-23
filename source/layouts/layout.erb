@@ -29,6 +29,7 @@ this_page_idx = category_articles.find_index {|a| a.path == current_page.path}
 page_prev = if this_page_idx and this_page_idx > 0 then category_articles[this_page_idx-1] else nil end
 page_next = if this_page_idx and this_page_idx+1 < category_articles.length then category_articles[this_page_idx+1] else nil end
 up_title = if current_page.data.category != 'blog' then category_name[current_page.data.category] else 'Blog' end
+category_heading = if up_title.nil? || up_title == 'Blog' then '' else up_title + ': ' end
 %>
 <html>
   <head>
@@ -36,6 +37,10 @@ up_title = if current_page.data.category != 'blog' then category_name[current_pa
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="twitter:card" content="summary" />
+    <meta property="og:title" content="<%= category_heading + current_page.data.title %>" />
+    <meta property="og:site_name" content="<%= config[:domain].gsub(/^https?:\/\//, '') %>" />
+    <meta property="og:description" content="<%= current_page.data.hook %>" />
     <!-- Use the title from a page's frontmatter if it has one -->
     <title><%= current_page.data.title || "Middleman" %></title>
     <link rel="icon" type="image/x-icon" href="<%= add_http_prefix "/favicon.ico"%>"/>
@@ -128,8 +133,8 @@ up_title = if current_page.data.category != 'blog' then category_name[current_pa
         <span class="up"><%= link_to "↑ " + up_title + " ↑", page_up %></span>
         <span class="next"><%= if page_next then link_to (page_next.title + " ↦"), page_next end %></span>
       </div>
-      <% category_heading = if current_page.data.category != 'blog' then category_name[current_page.data.category] + ": " else "" end .titleize %>
       <% if current_page.data.category == 'blog' || !page_up.data.aggregate %>
+      <% category_heading = if current_page.data.category != 'blog' then category_name[current_page.data.category] + ": " else "" end .titleize %>
       <p><a href="https://discu.eu/?q=<%= "https://transactional.blog" + current_page.url %>&submit_title=<%= category_heading + current_page.data.title %>">See discussion of this page on Reddit, HN, and lobsters.</a></p>
       <% end %>
     <% end %>
