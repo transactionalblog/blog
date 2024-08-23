@@ -93,11 +93,15 @@ up_title = if current_page.data.category != 'blog' then category_name[current_pa
     <% end %>
     <div>
     <% if current_page.data.nofooter %>
-    <a href="<%= add_http_prefix "/feed.xml"%>">
-      <svg height="16" width="16" style="float: right">
-        <use xlink:href="<%= add_http_prefix "/images/rss.svg#rss"%>"></use>
-      </svg>
-    </a>
+    <span style="float: right">
+      <a href="<%= add_http_prefix "/about.html"%>">About</a>
+      <span style="display: inline-block; width: 1ex"></span>
+      <a href="<%= add_http_prefix "/feed.xml"%>">
+        <svg height="16" width="16">
+          <use xlink:href="<%= add_http_prefix "/images/rss.svg#rss"%>"></use>
+        </svg>
+      </a>
+    </span>
     <% end %>
     <h1><%= if current_page.data.no_title then "" else current_page.data.title end %></h1>
     </div>

@@ -1,0 +1,7 @@
+= About
+:revdate: 2024-08-22
+:page-layout: index
+
+== Contact
+
+Email `domain of this website including .TLD`@gmail.com.
