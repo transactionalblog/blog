@@ -67,7 +67,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://hydra.so/[Hydra] (2021)
 ** DuckDB-in-Postgres via github:duckdb/pg_duckdb[]
 * https://openpie.com/[PieCloudDB] (2021)
-* http://en.selectdb.com/[SelectDB] (2021) -- Built on Apache Doris
+* https://en.selectdb.com/[SelectDB] (2021) -- Built on Apache Doris
 * https://databend.com/[Databend] (2021)
 * https://oxla.com/[Oxla] (2020)
 * https://startree.ai/[StarTree] (2020)
@@ -82,7 +82,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 ** Developers of Trino, which forked in 2019 from PrestoDB, itself released 2013.
 * https://hashdata.xyz/[HashData] (2016)
 ** Open sourced as https://cloudberrydb.org/[CloudBerryDB] in 2023
-* http://oushu.com/en[Oushu] (2016) -- Fork of Apache HAWQ
+* https://oushu.com/en[Oushu] (2016) -- Fork of Apache HAWQ
 * https://ocient.com/[Ocient] (2016)
 * https://clickhouse.com/[Clickhouse] (2016)
 * https://imply.io/[Imply Data] (2015)
@@ -163,6 +163,8 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://polarsignals.com/[Polar Signals] (2020)
 ** Continuous profiling and not actually timeseries
 ** github:polarsignals/frostdb[] is embedded columnar database, like DuckDB
+* https://chronosphere.io/[Chronosphere] (2019)
+** Provides support for and develops https://m3db.io/[M3DB], which itself began in 2014 within Uber.
 * https://questdb.io/[QuestDB] (2019)
 ** Development started in 2014, company wasn't formed until 2019.
 //* Prometheus
