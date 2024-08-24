@@ -1,8 +1,9 @@
-= dbdiag: ophistory
+= Concurrent Operation Diagram Generator
 :revdate: 16-12-2022
 :page-features: python_wasm, alpine
+:page-hook-preamble: false
 
-Anouncing github:thisismiller/dbdiag[]'s `ophistory` script, a https://docs.asciidoctor.org/diagram-extension/latest/[diagram as text] tool to allow visualizing the concurrent executions of operations.
+The diagrams in https://cs.brown.edu/~mph/HerlihyW90/p463-herlihy.pdf[Linearizability: A Correctness Condition for Concurrent Objects] are a nice example of how to show how multiple concurrent operations overlap, and the possibilities for orderings that arise.  If you'd like to be able to make similar diagrams, there's a script that can generate them from a simple text-based description of the operations. 
 
 == Demo
 
@@ -186,6 +187,8 @@ B: Ok(b) BZ
 |===
 
 == Usage
+
+Clone github:thisismiller/dbdiag[], and therein lies a script `ophistory`.  The interactive demo above is loading this script via python-in-wasm.
 
 ----
 $ ophistory --help
