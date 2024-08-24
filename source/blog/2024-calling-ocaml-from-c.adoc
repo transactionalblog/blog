@@ -1,13 +1,12 @@
 = Calling OCaml from C
 :revdate: 2024-04-15
 :toc: right
+:page-hook-preamble: false
 
-Making an OCaml library usable from C.
+The official docs on this subject is https://v2.ocaml.org/manual/intfc.html[Interfacing C with OCaml], which is a useful read, though it focuses more on making C callable from OCaml.  It's also missing some collective guidance on how to interact with OCaml values from C and not offend the garbage collector when the C function isn't being called by OCaml.  So, these are my rough notes on how to get all the pieces to fit together.  This is subtweeting the ongoing link:/building-berkeleydb/[Building BerkeleyDB] series, as my personal BerkeleyDB re-implementation is in OCaml.
 
 == Basics
 :uri-dune-forums-post: https://discuss.ocaml.org/t/linking-several-so-libraries-produced-by-dune/6133
-
-The official docs on this subject is https://v2.ocaml.org/manual/intfc.html[Interfacing C with OCaml], which is a useful read, though it focuses more on making C callable from OCaml.  It's also missing some collective guidance on how to interact with OCaml values from C and not offend the garbage collector when the C function isn't being called by OCaml.  So, these are my rough notes on how to get all the pieces to fit together.  This is subtweeting the ongoing link:/building-berkeleydb/[Building BerkeleyDB] series, as my personal BerkeleyDB re-implementation is in OCaml.
 
 I'm going to assume a minimal directory structure, which looks like:
 
@@ -71,7 +70,7 @@ let () =
   Callback.register "ocaml_library_func2" func2_as_string
 ----
 <1> Associate each function you wish to expose with a unique string.
-<2> Accessing and manipulating primitive types is easier than OCaml types, so if there's easy opportunities to turn types into int/string/etc., then it's sometimes worth the small wrapper function to do so
+<2> Accessing and manipulating primitive types is easier than OCaml types, so if there's easy opportunities to turn types into int/string/etc., then it's sometimes worth the small wrapper function to do so.
 
 `cstubs.c` is where you'll implement the C half that knows how to invoke the registered OCaml functions.
 
