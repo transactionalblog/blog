@@ -59,6 +59,7 @@ This new `dune` file should contain the below:{nospace}sidenote:ref[]
 <5> The major point of having this is that install lets you rename the `.so`, otherwise its name will be your module name + `.so`.
 
 `capi.ml` is where you'll leverage the https://v2.ocaml.org/api/Callback.html[Callback] library to register the functions that you wish to make accessible to C.
+
 .capi.ml
 [source,ocaml]
 ----
