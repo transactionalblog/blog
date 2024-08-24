@@ -12,7 +12,7 @@ function compareAsides(lhs, rhs) {
 
 function positionAsideElements(_) {
     // Find all 'aside' elements
-    const asideElements = Array.from(document.querySelectorAll('aside,.aside,.toc'));
+    const asideElements = Array.from(document.querySelectorAll('.postmeta,.postaside,.aside,.toc'));
 
     asideElements.sort(compareAsides);
 
@@ -33,6 +33,9 @@ function positionAsideElements(_) {
             const previousAsideBottom = previousAside.getBoundingClientRect().bottom;
             const myTop = aside.getBoundingClientRect().top;
             let desiredTop = myTop;
+            if (aside.className == 'postaside') {
+                desiredTop = previousAsideBottom;
+            }
 
             const asideAnchor = aside.querySelector('a');
             if (asideAnchor !== null && asideAnchor.id.startsWith('_sidedef_')) {
@@ -65,4 +68,5 @@ window.addEventListener("DOMContentLoaded", function() {
 window.addEventListener("load", function() {
   positionAsideElements({matches: true});
 });
-window.matchMedia("(min-width: 920px)").addEventListener('change', positionAsideElements)
+window.matchMedia("(min-width: 921px)").addEventListener('change', positionAsideElements)
+window.matchMedia("(min-width: 936px)").addEventListener('change', positionAsideElements)
