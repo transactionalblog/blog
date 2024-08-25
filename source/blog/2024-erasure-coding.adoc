@@ -1,0 +1,348 @@
+= Erasure Coding for Distributed Systems
+:revdate: 2024-08-25
+:draft: true
+:stem: latexmath
+:page-features: stem, alpine
+:toc: right
+:bibtex-file: 2024-erasure-coding.bib
+:page-aside: With thanks to Shachaf Ben-Kiki for discussions, corrections, and feedback.
+:page-hook: An overview of erasure coding, its trade-offs, and applications in distributed storage systems.
+
+
+:uri-backblaze-b2-coding: https://www.backblaze.com/docs/cloud-storage-performance
+
+Suppose one has stem:[N] servers across which to store a file.  One extreme is to give each of the stem:[N] servers a full copy of the file.  Any server can supply a full copy of the file, so even if stem:[N-1] servers are destroyed, the file hasn't been lost.  This provides the best durability and fault tolerance, but is the most expensive in terms of storage space used.  The other extreme is to carve the data up into stem:[N] equal sized chunks, and give each server one chunk.  Reading the file will require reading all stem:[N] chunks and reassembling the file.  This will provide the best cost efficiency, as each server can contribute to the file read request while using the minimum amount of storage space.
+
+Erasure codes are the way to more generally describe the space of trade-offs between storage efficiency and fault tolerance.  One can say "I'd like this file carved into stem:[N] chunks, such that it can still be reconstructed with any stem:[M] chunks destroyed", and there's an erasure code with those parameters which will provide the minimum sized chunks necessary to meet that goal.
+
+The simplest intuition for there being middle points in this tradeoff is to consider a file replicated across three servers such that reading from any two should be able to yield the whole contents.  We can divide the file into two pieces, the first half of the file forms the first chunk (stem:[A]) and the second half of the file forms the second chunk (stem:[B]).  We can then produce a third equal sized chunk that's the exclusive or of the two (stem:[A \oplus B]).  By reading any two of the three, we can reconstruct the whole file:
+
+[cols="1,2"]
+|===
+h| Chunks Read h| Reconstruct Via
+| stem:[\{A, B\}] | stem:[A :: B]
+| stem:[\{A, A \oplus B\}] | stem:[A :: (A \oplus (A \oplus B))]
+| stem:[\{B, A \oplus B\}] | stem:[(B \oplus (A \oplus B)) :: B]
+|===
+
+And all erasure codes follow this same pattern of data and parity chunks.
+
+== Erasure Coding Basics
+:uri-raid: https://en.wikipedia.org/wiki/Standard_RAID_levels
+
+Configuring an erasure code revolves around one formula:
+
+[stem]
+[.font-size-larger]
+++++
+k + m = n
+++++
+
+[horizontal]
+stem:[k]:: The number of pieces the data is split into.  One must read at least this many chunks in total to be able to reconstruct the value.  Each chunk in the resulting erasure code will be stem:[1/k] of the size of the original file.
+stem:[m]:: The number of parity chunks to generate.  This is the fault tolerance of the code, or the number of reads which can fail to complete.
+stem:[n]:: The total number of chunks that are generated.
+
+Erasure codes are frequently referred to by their stem:[k+m] tuple.  It is important to note that the variable names are not consistent across all literature.  The only constant is that an erasure code written as stem:[x+y] means stem:[x] data chunks and stem:[y] parity chunks.
+
+Please enjoy a little calculator to show the effects of different stem:[k] and stem:[m] settings:
+
+++++
+<div x-data="{k: 3, m: 2}" style="border: 1px solid; margin-bottom: 1.5em; padding: 20px;">
+<div style="margin-bottom: 1.5em; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+    <div>
+    <label for="K">\(k\)</label>
+    <input type="text" x-model.number.debounce="k" />
+    </div>
+    <div>
+    <label for="M">\(m\)</label>
+    <input type="text" x-model.number.debounce="m" />
+    </div>
+</div>
+Each chunk is \(1/k = \)<kbd x-text="(100/k).toFixed(2)"></kbd>% of the size of the original data.  There are \(k + m =\)<kbd x-text="k+m"></kbd> chunks total, and together they are equivalent to \((m + k) / k =\)<kbd x-text="((m+k)/k).toFixed(2)"></kbd> full copies of the data.
+</div>
+++++
+
+
+Erasure codes are incredibly attractive to storage providers, as they offer a way to fault tolerance at minimal storage overhead.
+Backblaze B2 runs with stem:[17+3], allowing it to tolerate 3 failures at only an 18% storage space overhead.  OVH Cloud uses an stem:[8+4] code, allowing it to tolerate 4 failures at 50% overhead.  Scaleway uses a stem:[6+3] code, tolerating three failures with a 50% overhead.  "Cloud storage reliability for Big Data applications"{nospace}sidenote:ref[] pays significant attention to the subject of erasure coding due to the fundamental role it plays in reducing storage cost and increasing durability for storage providers.
+The trade-off in erasure coding is a reduction in storage space used at the cost of an increase in requests issued to read data.  Rather than issuing one request to read a file-sized chunk from one disk, requests are issued to stem:[k+m] disks.  Storage systems meant for infrequently accessed data, like Backblaze's backup service, form ideal targets for erasure coding.  Infrequent access means issuing more IO operations per second won't be a problematic tax, and the storage savings are significant when compared to storing multiple full copies of every file.
+[.aside]#sidenote:def[] bibitem:[BlobStorageSurvey]#
+
+"Erasure coding" describes a general class of algorithms, and not any one algorithm in particular.  In general, Reed-Solomon codes can be used to implement any stem:[k+m] configuration of erasure codes.  Due to the prevalence of {uri-raid}[RAID], special attention in erasure coding research has been paid towards developing more efficient algorithms specialized for implementing these specific subsets of erasure coding. RAID-0 is stem:[k+0] erasure coding.  RAID-1 is stem:[1+m] erasure coding.  RAID-4 and RAID-5 are slightly different variations of stem:[k+1] erasure coding.  RAID-6 is stem:[k+2] erasure coding.  Algorithms optimized for these cases are mentioned in the implementation section below, but it's also perfectly fine to not be aware of what exact algorithm is being used to implement the choice of a specific stem:[k+m] configuration.
+
+Everything described in this post is about _Minimum Distance Separable_ (MDS) erasure codes, which is only one of many erasure code families.  MDS codes provide the quorum-like property that any stem:[m] chunks can be used to reconstruct the full value.  Other erasure codes take other tradeoffs, where some combinations of less than stem:[m] chunks can be used to reconstruct the full value, but other combinations require more than stem:[m] chunks.  "Erasure Coding in Windows Azure Storage"{nospace}sidenote:ref[] nicely explains the motivation of why Azure devised Local Reconstruction Codes for their deployment.  "SD Codes: Erasure Codes Designed for How Storage Systems Really Fail"{nospace}sidenote:ref[] pitches specializing an erasure code towards recovering from sector failures, as the most common failure type.  Overall, if one has knowledge about the expected pattern of failures, then a coding scheme which allows recovering from expected failures with less than stem:[m] chunks, and unexpected failures with more than stem:[m] chunks would have a positive expected value.
+[.aside]#sidenote:def[] bibitem:[ErasureCodingWindowsAzureStorage] +
+         sidenote:def[] bibitem:[SDCodes]#
+
+== Applications in Distributed Systems
+
+=== Space and Tail Latency Improvements
+:uri-brooker-ec-vs-tail: https://brooker.co.za/blog/2023/01/06/erasure.html
+
+Most direct application is in reducing storage cost and increasing durability of data in systems with a known, fixed set of replicas.
+Think of Blob or NFS storage.  A metadata service maps a file path to a server that stores the file.  Instead of having 3 replicas storing the full file each, having 15 replicas storing the chunks of the (10+5) erasure coded file.  Such a coding yields half the total amount of data to store, and more than double the fault tolerance.  
+
+More generally, this pattern translates to "instead of storing data across X servers, consider storing it across X+m with a (X+m) erasure code".
+Over on Marc Brooker's blog, this is illustrated {uri-brooker-ec-vs-tail}[using a caching system].  Instead of using consistent hashing to identify one of stem:[k] cache servers to query, one can use a stem:[k+m] erasure code with stem:[k+m] cache servers and not have to wait for the stem:[m] slowest responses.  This provides both a storage space and tail latency improvement.
+
+And again, the space and latency savings do come at a cost, which is an increase in IOPS/QPS, or effectively CPU.  In both cases, we're betting that the limiting resource which determines how many machines or disks we need to buy is space, and that we can increase our CPU usage to decrease the amount of data that needs to be stored.  If the system is already pushing its CPU limits, then erasure coding might not be a cost saving idea.
+
+=== Quorum Systems
+
+Consider a quorum system with 5 replicas, where one must read from and write to at least 3 of them, a simple majority.  Erasure codes are well matched on the read side, where a stem:[3+2] erasure code equally represents that a read may be completed using the results from any 3 of the 5 replicas.  Unfortunately, the rule is that write are allowed to complete as long as they're received by any 3 replicas, so one could only use a stem:[1+2] code, which is exactly the same as writing three copies of the file.  Thus, there's no trivial savings to be had by applying erasure coding.
+
+RS-Paxos{nospace}sidenote:ref[] examined the applicability of erasure codes to Paxos, and similarly concluded that the only advantage is when there's an overlap between two quorums of more than one replica.  A quorum system of 7 replicas, where one must read and write to at least 5 of them would have the same 2 replica fault tolerance, but would be able to apply a stem:[3+2] erasure code.  In general, with stem:[N] replicas and a desired fault tolerance of stem:[f], the best one can do with a fixed erasure coding scheme is stem:[(N-2f)+f].
+[.aside]#sidenote:def[] bibitem:[RSPaxos]#
+
+HRaft{nospace}sidenote:ref[] explores that there is a way to get the desired improvement from a simple majority quorum, but adapting the coding to match the number of available replicas.  When all 5 replicas are available then we may use a stem:[3+2] encoding, when 4 are available then use a stem:[2+2] encoding, and when only 3 are available then use a stem:[1+2] encoding.  Adapting the erasure code to the current replica availability yields our optimal improvement, but comes with a number of drawbacks.  Each write is optimistic in guessing the number of replicas which are currently available, and writes must be re-coded and resent to all replicas if one replica unexpectedly didn't acknowledge the write.  Additionally, one must still provision the system such that a replica storing the full value of every write is possible, so that after two failures, the system running in a stem:[1+2] configuration won't cause unavailability due to lacking disk space or throughput.  However, if failures are expected to be rare and will be recovered from quickly, then HRaft's adaptive encoding scheme will yield significant improvements.
+[.aside]#sidenote:def[] bibitem:[ErasureCodedHRaft]#
+
+== Usage Basics
+:uri-jerasure: https://jerasure.org/
+:uri-isa-l: https://www.intel.com/content/www/us/en/developer/tools/isa-l/overview.html
+:uri-pypi-pyeclib: https://pypi.org/project/pyeclib/
+
+For computing erasure codings, there is a mature and standard {uri-jerasure}[Jerasure].  If on a modern Intel processor, the Intel {uri-isa-l}[Intelligent Storage Acceleration Library] is a SIMD-optimized library consistently at the top of the benchmarks.
+
+As an example, we can use {uri-pypi-pyeclib}[pyeclib] as a way to get easy access to an erasure coding implementation from python, and
+and apply it to specifically to HRaft's proposed adaptive erasure coding scheme:
+
+[%collapsible]
+.Python source code
+====
+[source,python]
+----
+#!/usr/bin/env python
+# Usage: ./ec.py <K> <M>
+import sys
+K = int(sys.argv[1])
+M = int(sys.argv[2])
+
+# Requires running the following to install dependencies:
+# $ pip install --user pyeclib
+# $ sudo dnf install liberasurecode-devel
+import pyeclib.ec_iface as ec
+
+# liberasurecode_rs_vand is built into liberasurecode, so this
+# shouldn't have any other dependencies.
+driver = ec.ECDriver(ec_type='liberasurecode_rs_vand',
+                     k=K, m=M, chksum_type='none')
+data = bytes([i % 100 + 32 for i in range(10000)])
+print(f"Erasure Code(K data chunks = {K}, M parity chunks = {M})"
+      f" of {len(data)} bytes")
+
+# Produce the coded chunks.
+chunks = driver.encode(data)
+
+# There's some metdata that's prefixed onto each chunk to identify
+# its position.  This isn't technically required, but there isn't
+# an easy way to disable it.  There's also some additional bytes
+# which I can't account for.
+metadata_size = len(driver.get_metadata(chunks[0]))
+chunk_size = len(chunks[0]) - metadata_size
+print(f"Encoded into {len(chunks)} chunks of {chunk_size} bytes")
+print("")
+
+# This replication scheme is X% less efficient than writing 1 copy
+no_ec_size = (K+M) * len(data)
+print(f"No EC: {(M+K)*len(data)} bytes, {1/(K+M) * 100}% efficiency")
+print(f"Expected: {(M+K)/K * len(data)} bytes,"
+      f" {1/ (1/K * (K+M)) * 100}% efficiency")
+total_ec_size = chunk_size * len(chunks)
+print(f"Actual: {total_ec_size} bytes,"
+      f" {len(data) / total_ec_size * 100}% efficiency")
+
+# Validate that our encoded data decodes using minimal chunks
+import random
+indexes = random.sample(range(K+M), K)
+# Prepended metadata is used to determine the chunk part number
+# from the data itself.  Other libraries require this to be
+# passed in as part of the decode call.
+decoded_data = driver.decode([chunks[idx] for idx in indexes])
+assert decoded_data == data
+----
+====
+
+
+When there's 5/5 replicas available, HRaft would use a stem:[3+2] erasure code:
+
+----
+$ ./ec.py 3 2
+Erasure Code(K data chunks = 3, M parity chunks = 2) of 10000 bytes
+Encoded into 5 chunks of 3355 bytes
+
+No EC: 50000 bytes, 20% efficiency
+Expected: 16666.666666666668 bytes, 60.00000000000001% efficiency
+Actual: 16775 bytes, 59.61251862891207% efficiency
+----
+
+When there's 4/5 replicas available, HRaft would use a stem:[2+2] erasure code:
+
+----
+$ ./ec.py 2 2
+Erasure Code(K data chunks = 2, M parity chunks = 2) of 10000 bytes
+Encoded into 4 chunks of 5021 bytes
+
+No EC: 40000 bytes, 25% efficiency
+Expected: 20000.0 bytes, 50% efficiency
+Actual: 20084 bytes, 49.790878311093406% efficiency
+----
+
+When there's 3/5 replicas available, HRaft would use a stem:[1+2] erasure code:
+
+----
+$ ./ec.py 1 2
+Erasure Code(K data chunks = 1, M parity chunks = 2) of 10000 bytes
+Encoded into 3 chunks of 10021 bytes
+
+No EC: 30000 bytes, 33.33333333333333% efficiency
+Expected: 30000.0 bytes, 33.33333333333333% efficiency
+Actual: 30063 bytes, 33.263480025280245% efficiency
+----
+
+== Usage Not So Basics
+
+As always, things aren't quite perfectly simple.
+
+=== Decoding Cost Variability
+
+Decoding performance varies with the number of data chunks that need to be recovered.  Decoding a stem:[3+2] code from the three data chunks is computationally trivial.  Decoding the same file from two data chunks and one parity chunk involves solving a system of linear equations via gaussian elimination, and the computational increases as the number of required parity chunks involved increases.  Thus, if using an erasure code as part of a quorum system, be aware that the CPU cost of decoding will vary depending on exactly which replicas reply.
+
+There's a few different papers comparing different erasure code implementations and their performance across varying block size and number of data chunks to reconstruct.  I'll suggest "Practical Performance Evaluation of Space Optimal Erasure Codes for High Speed Data Storage Systems"{nospace}sidenote:ref[] as the one I liked the most, from which the following figure was taken:
+[.aside]#sidenote:def[] bibitem:[ErasureCodeEvaluation]#
+
+image::decoding_performance.png[]
+
+=== Library Differences
+:uri-ydb-talk: https://www.youtube.com/watch?v=URAm-bbst-o
+:uri-catid-leopard-benchmark: https://github.com/catid/leopard/blob/master/Benchmarks.md
+
+Liberasurecode abstracts over most common erasure coding implementation libraries, but be aware that does not mean that the implementations are equivalent.  Just because two erasure codes are both stem:[3+2] codes doesn't mean the same math was used to construct them.
+
+Correspondingly, liberasurecode doesn't _just_ do the linear algebra work, it "helpfully" adds metadata necessary to configure which decoder to use and how, which you can't disable or modify:
+
+[source,c]
+.liberasurecode / erasurecode.h
+----
+struct __attribute__((__packed__))
+fragment_metadata
+{
+    uint32_t    idx;                /* 4 */
+    uint32_t    size;               /* 4 */
+    uint32_t    frag_backend_metadata_size;    /* 4 */
+    uint64_t    orig_data_size;     /* 8 */
+    uint8_t     chksum_type;        /* 1 */
+    uint32_t    chksum[LIBERASURECODE_MAX_CHECKSUM_LEN]; /* 32 */
+    uint8_t     chksum_mismatch;    /* 1 */
+    uint8_t     backend_id;         /* 1 */
+    uint32_t    backend_version;    /* 4 */
+} fragment_metadata_t;
+----
+
+This is just a liberasurecode thing.  Using either Jerasure or ISA-L directly allows access to only the erasure coded data.  It _is_ required as part of the APIs that each chunk must be provided along with if it was the Nth data or parity chunk, so the index must be maintained somehow as part of metadata.
+
+As was noted in the {uri-ydb-talk}[YDB talk at HydraConf], Jerasure does a permutation of the output from what one would expect from just the linear algebra.  This means that it's up to the specific implementation details of a libarary as to if reads must be aligned with writes -- Jerasure cannot read a subset or superset of what was encoded.  ISA-L applies no permutation, so reads may decode unaligned subsets or supersets of encoded data.
+
+Jerasure and ISA-L are, by far, the most popular libraries for erasure coding, but they're not the only ones.  github:tahoe-lafs/zfec[] is also a reasonably well known implementation.  Christopher Taylor has written at least three MDS erasure coding implementations taking different tradeoffs (github:catid/cm256[], github:catid/longhair[], github:catid/leopard[]), and a comparison and discussion of the differences can be found on {uri-catid-leopard-benchmark}[leopard's benchmarking results page].  If erasure coding becomes a bottleneck, it's very likely that a library more optimized for your specific use case can be found somewhere, but ISA-L is generally good enough.
+
+== Implementing Erasure Codes
+:uri-backblaze-reed-solomon: https://www.backblaze.com/blog/reed-solomon/
+:uri-akalin-intro: https://www.akalin.com/intro-erasure-codes
+:uri-tomverbeure-intro: https://tomverbeure.github.io/2022/08/07/Reed-Solomon.html
+
+It is entirely acceptable and workable to treat erasure codes as a magic function which turns 1 file into stem:[n] chunks and back.  You can stop reading here, and not knowing the details of what math is being performed will not hinder your ability to leverage erasure codes to great effect in distributed systems or databases.  (And if you continue, take what follows with a large grain of salt, as efficient erasure coding is a subject folk have spent years on, and the below is the what I've collected from a couple days of reading through papers I only half understand.)
+
+The construction of the stem:[n] chunks is some linear algebra generally involving a Galois Field, none of which is important to understand to be able to productively _use_ erasure codes.  Backblaze published a {uri-backblaze-reed-solomon}[a very basic introduction].  The best introduction to the linear algebra of erasure coding that I've seen is Fred Akalin's {uri-akalin-intro}["A Gentle Introduction to Erasure Codes"].  {uri-tomverbeure-intro}[Reed-Solomon Error Correcting Codes from the Bottom Up] covers Reed-Solomon codes and Galois Field polynomials specifically.  There's also a plethora of erasure coding related questions on the Stack Overflow family of sites, so any question over the math that one might have has already likely been asked and answered there.
+
+With the basics in place, there's two main dimensions to investigate: what is the exact MDS encoding and decoding algorithm to implement, and how can one implement that algorithm most efficiently.
+
+=== Algorithmic Efficiency
+
+In general, most MDS codes are calculated as a matrix multiplication, where addition is replaced with XOR, and multiply is replaced with a more expensive multiplication over GF(256).  For the special cases of 1-3 parity chunks (stem:[m \in \{1,2,3\}]), there are algorithms which use only XORs:
+
+* stem:[m=1] is a trivial case of a single parity chunk, which is just the XOR of all data chunks.
+* stem:[m=2] is also known as RAID-6, for which I would recommend Liberation codes{nospace}sidenote:ref[]sidenote:ref[] as _nearly_ optimal with an implementation available as part of {uri-jerasure}[Jerasure], and HDP codes{nospace}sidenote:ref[] and EVENODD{nospace}sidenote:ref[] as notable but patented.  If stem:[k+m+2] is prime, then X-Codes{nospace}sidenote:ref[] are also optimal.
+* stem:[m=3] can be done via STAR{nospace}sidenote:ref[] coding.
+
+****
+sidenote:def[] bibitem:[Liberation] +
+sidenote:def[] bibitem:[OptimalLiberation] +
+sidenote:def[] bibitem:[HDP] +
+sidenote:def[] bibitem:[EVENODD] +
+sidenote:def[] bibitem:[XCode] +
+sidenote:def[] bibitem:[STAR] +
+****
+
+Otherwise and more generally, a form of Reed-Solomon coding is used.  The encoding/decoding matrix is either a stem:[k \times n] Vandermonde{nospace}sidenote:ref[] matrix with the upper stem:[k \times k] of it gaussian eliminated to form an identity matrix, or an stem:[k \times k] identiy matrix with a stem:[k \times m] Cauchy{nospace}sidenote:ref[] matrix glued onto the bottom.  In both cases, the goal is to form a matrix where the top stem:[k \times k] is an identity matrix (so that each data chunk is preserved), and any deletion of stem:[m] rows yields an invertible matrix.  Encoding is multiplying by this matrix, and decoding deletes the rows corresponding to erased chunks, and then solves the matrix as a system of linear equations for the missing data.
+
+Gaussian elimination, as used in ISA-L, is the simplest method of decoding, but also the slowest.  For Cauchy matrixes this can be improved{nospace}sidenote:ref[], as done in github:catid/cm256[].  The current fastest methods appear to be implemented in github:catid/leopard[], which uses Fast Fourier Transforms{nospace}sidenote:ref[]{nospace}sidenote:ref[] for the encoding and decoding.
+
+****
+sidenote:def[] bibitem:[Vandermonde] +
+sidenote:def[] bibitem:[Cauchy] +
+sidenote:def[] bibitem:[CauchySolver] +
+sidenote:def[] bibitem:[FFTEncoder] +
+sidenote:def[] bibitem:[FFTDecoder] +
+****
+
+=== Implementation Efficiency
+:uri-std-experimental-simd: https://en.cppreference.com/w/cpp/experimental/simd/simd
+:uri-compiler-builtins: https://gcc.gnu.org/onlinedocs/gcc/Vector-Extensions.html
+:uri-parpar-gf-multiply: https://github.com/animetosho/ParPar/blob/master/fast-gf-multiplication.md
+:uri-parpar-xor-depends: https://github.com/animetosho/ParPar/blob/master/xor_depends/info.md
+:uri-plan-fast-galois: https://web.eecs.utk.edu/~jplank/plank/papers/CS-07-593/
+:uri-fast-erasure-coding: https://www.usenix.org/conference/fast19/presentation/zhou
+
+There's levels of implementation efficiency for erasure codes which function over any stem:[k+m] configuration:
+
+[.with-margin-bottom]
+. Implement the algorithm in C, and rely on the compiler for auto-vectorization.
++
+This provides the most straightforward and most portable implementation, at acceptable performance.  Usage of `restrict` and ensuring the appropriate architecture-specific compilation flags have been specified (e.g. `-march=native`).
+
+. Rely on a vectorization library or compiler intrinsics to abstract the platform specifics.
++
+github:google/highway[] and github:xtensor-stack/xsimd[] appear to be reasonably commonly used libraries which try to use the best available SIMD instructions to accomplish general tasks.  There is also the upcoming {uri-std-experimental-simd}[`std::experimental::simd`].  C/C++ compilers also offer {uri-compiler-builtins}[builtins] for vectorization support.
++
+The core of the encoding and decoding is galois field multiply and addition.  Optimized libraries for this can be found at github:catid/gf256[] and {uri-plan-fast-galois}[James Plank's Fast Galois Field Arithmetic Library].
+
+. Handwrite a vectorized implementation of the core encoding and decoding functions.
++
+Further discussion of fast GF(256) operations can be found in the PARPAR project: {uri-parpar-gf-multiply}[fast-gf-multiplication] and the {uri-parpar-xor-depends}[xor_depends work].  The consensus appears to be that a XOR-only GF multiply should be faster than a table-driven multiply.
+
+Optimizing further involves specializing the code to one specific stem:[k+m] configuration by transforming the matrix multiplication with a constant into a linear series of instructions, and then:
+
+[.with-margin-bottom, start=4]
+. Find an optimal coding matrix and XOR schedule for the specific GF polynomial and encoding matrix.
++
+****
+bibitem:[MatrixOptimization] +
+bibitem:[OptimizingXorCodes] +
+****
+
+. Apply further operation, memory, and cache optimizations.
++
+****
+bibitem:[ProgramOptimizationTechniques]
+****
++
+The code is publicly available at github:yuezato/xorslp_ec[].
+
+. Programmatically explore an optimized instruction schedule for a specific architecture.
++
+****
+bibitem:[OptimizedMachineLearning]
+****
++
+The code is publicly available at github:Thesys-lab/tvm-ec[].
+
+For a more fully explored treatment of this topic, please see {uri-fast-erasure-coding}["Fast Erasure Coding for Data Storage: A Comprehensive Study of the Acceleration Techniques"]{nospace}sidenote:ref[], which also has a video of the presenter if that's your preferred medium.
+[.aside]#sidenote:def[] bibitem:[AccelerationTechniqueSurvey]#
+
+== References
+:uri-plank-dblp: https://dblp.org/pid/07/3005.html
+
+link:2024-erasure-coding.bib[References as BibTeX]
+
+And if you're looking to broadly dive deeper, I'd suggest starting with reviewing {uri-plank-dblp}[James S. Plank's publications].
