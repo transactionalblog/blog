@@ -159,10 +159,10 @@ Our analysis is consistently targeting stem:[f=2], and thus for quorums, this me
 
 For storage efficiency, all replicas store a full copy of the data by default, and thus 1/5th of the total storage capacity is available post-replication.  There are a wide set of storage optimizations, and all have seen little adoption in industry. cite:[WitnessReplicas] permit removing the full copy of the data from a minority (2/5ths) of the replication group, with that minority instead only storing the version number for each replicated value.  However, this comes at the cost that a read cannot always successfully be completed if the most up-to-date value is "known" only by witnesses.  This is effectively unavailability for even some types of network partitions and thus removes it from consideration for this analysis.
 
-{uri-erasure-codes}[Erasure coding] is instead an attractive possibility for reducing storage costs, as it would encode the data such that any three copies could reform the original data, and the total storage used across all 5 replicas would be the equivalent of 3 full copies of the data.  Its usual cost of having to read encoded values from three replicas to decode into the full, correct result is essentially free, as those reads are required by the quorum logic anyway.
+{uri-erasure-codes}[Erasure coding] is instead an attractive possibility for reducing storage costs, as it would encode the data such that any three copies could reform the original data, and the total storage used across all 5 replicas would be the equivalent of 1.67 full copies of the data.  Its usual cost of having to read encoded values from three replicas to decode into the full, correct result is essentially free, as those reads are required by the quorum logic anyway.
 cite:[RSPaxos] examined applying erasure coding to Paxos log entries, and concluded that space savings can only be obtained if fault tolerance is sacrificed.
 However, I believe the ideas presented in cite:[ErasureCodedRaft] should apply equally to leaderless consensus as well, so we'll assume erasure coding is feasible.sidenote:ref[]
-This brings the storage efficiency for an erasure coded Paxos to 33%.  
+HRaft adaptively changes the erasure code based on the number of available replicas, which brings the storage efficiency to 33% (a stem:[1+2] code) when 3 replicas are available, to 60% storage efficiency (a stem:[3+2] code) when all 5 replicas are available.  Pessimistically, one must likely provision for 33% storage efficiency, but if failures can be repaired quickly, closer to the 60% storage effiency is likely.
 [.aside]#sidenote:def[] There are a number of issues being handwaved away here.  It's unclear how to apply operations from the log when any one replica only has the erasure coded values stored.  cite:[ErasureCodedRaft] falls back to full data replication when a single node stops responding, and this was improved in cite:[ErasureCodedHRaft].  Erasure coding in consensus has not received a significant amount of academic attention, and so I'm hopeful that other deficiencies can likely be similarly explored and improved.  This is mostly to show the theoretical maximum in an ideal world and less a claim that it's what _should_ be implemented.#
 
 Majority quorums{nospace}sidenote:ref[] do a simple broadcast for both reads and writes, which earns a uniform 20% read bandwidth efficiency and 20% write bandwidth efficiency.  Applying the erasure coding ideas above to the Paxos log entries could bring the write efficiency from 20% to 33%, and reading erasure coded data also brings the read efficiency from 20% to 33%.  It is not _required_ for majority quorums nor Paxos to always immediately send read requests to all replicas, however, and optimistically choosing to only read from a minority can allow for a read throughput of 33% when all replicas are available, at the cost of increased tail latency and degradation of latency and throughput if a replica fails.  Combining this minimal majority reads with erasure coding allows for 55% read throughput efficiency.
@@ -226,7 +226,7 @@ a| cite:[FastPaxos]
 | 1-2RTT
 
 | Erasure Coded Paxos
-| 33%
+| 33% - 60%
 | 33%
 | 33%
 | 0%
@@ -234,7 +234,7 @@ a| cite:[FastPaxos]
 | 2RTT
 
 | Erasure Coded Minimal Majority Reads Paxos
-| 33%
+| 33% - 60%
 | 55%
 | 33%
 | 0%
@@ -377,7 +377,7 @@ Our analysis is consistently targeting stem:[f=2], and thus for quorums, this me
 All replicas store a full copy of the data, and thus 1/5th of the total storage capacity is available post-replication.  The storage optimizations available are similar to what was discussed for leaderless replication.
 cite:[WitnessReplicas] permit removing the full copy of the data from a minority (2/5ths) of the replication group, and the leaderful consensus variant of witness replicas is always able to serve reads from the leader even with a simple majority of replicas alive.  Note though, that removing storage means that witness replicas can't serve reads.  
 I'm only aware of {uri-edb-pgdist-witness}[EnterpriseDB Postgres Distributed] and {uri-spanner-witness}[(Cloud) Spanner] implementing support for witness replicas as part of Raft and Multi-Paxos, respectively.
-The other possible direction for storage efficiency improvement is cite:[ErasureCodedRaft] which again allows storing the equivalent of 3 copies spread across 5 replicas, thus achieving 33% storage efficiency a different way.
+The other possible direction for storage efficiency improvement is cite:[ErasureCodedRaft] which again allows between a 33% and 60% storage efficiency depending on replica availability.
 As 99% of the Raft implementations one might ever encounter have a storage efficiency of 1/5th, that is the value that will be used for storage efficiency for the rest of the analysis.
 
 Naive Raft has the leader serve all reads, yielding 1/5th read throughput at 1RTT{nospace}sidenote:ref[].  cite:[LinearizableQuorumReads] pitches the idea that one can also perform linearizable reads by reading from a majority quorum of the non-leader replicas, and implementing this brings Raft to 2/5ths read throughput (1/5th from the leader + 1/5th aggregate across the followers). cite:[PaxosQuorumLeases]{nospace}sidenote:ref[] pitches the idea of electing a leader and two more replicas to which the leader must replicate all commits, thus enabling those required followers to serve reads to clients with no further coordination, which brings Raft to 3/5ths read throughput (1/5th for each leader and lease holder) at the cost of some tail latency on writes and increased risk of unavailability on failure. cite:[ConsistentFollowerReads]{nospace}sidenote:ref[]{nospace}sidenote:ref[] allows any follower to serve read requests by first checking with the leader for the most recently applied position in the replication log, allowing for 5/5ths read throughput at the cost of read latency increasing to 2RTTs.  Each has their own set of trade-offs, but we'll use 5/5ths as Raft's optimal read throughput, which is realistic given that follower reads have been implemented in production systems such as {uri-spanner-follower-reads}[Spanner] and {uri-tikv-follower-reads}[TiKV].
@@ -449,7 +449,7 @@ a| cite:[ConsistentFollowerReads]
 | 2RTT
 
 a| cite:[ErasureCodedRaft]
-| 33%
+| 33% - 60%
 | 20%
 | 8.3%
 | 20%
@@ -457,7 +457,7 @@ a| cite:[ErasureCodedRaft]
 | 2RTT
 
 | Throughput Optimized Raft
-| 33%
+| 33% - 60%
 | 100%
 | 33%
 | 20%
@@ -593,9 +593,18 @@ For our throughput-optimized and storage-optimized variant analysis, our choices
 | 1-3RTT
 | 2.5RTT
 
+| Erasure Coded CRAQ
+| 5
+| 60%
+| 100%
+| 20%
+| 100%
+| 1-5RTT
+| 3.5RTT
+
 | Throughput Optimized Raft
 | 5
-| 33%
+| 33% - 60%
 | 100%
 | 33%
 | 20%
@@ -603,7 +612,7 @@ For our throughput-optimized and storage-optimized variant analysis, our choices
 | 3.5RTT
 |===
 
-We see that erasure coding just brings each quorum-based algorithm to the resource efficacy of the reconfiguration-based algorithm, but still requires 66% more replicas than a reconfiguration-based algorithm.  This leaves reconfiguration-based replication algorithms and Throughput Optimized Raft as the most cost-effective to deploy for use cases bottlenecked on storage or throughput.  Throughput Optimized Raft gives a lower chance of unavailability on failure, whereas reconfiguration-based replication is significantly less complex to implement and has a lower minimum number of replicas.
+We see that erasure coding just brings each quorum-based algorithm to the resource efficacy of the reconfiguration-based algorithm in its worst case, but still requires 66% more replicas than a reconfiguration-based algorithm.  A 5-replica erasure coded variant of CRAQ permits always being able to obtain the 60% storage efficiency.  This leaves reconfiguration-based replication algorithms and Throughput Optimized Raft as the most cost-effective to deploy for use cases bottlenecked on storage or throughput.  Throughput Optimized Raft gives a lower chance of unavailability on failure, whereas reconfiguration-based replication is significantly less complex to implement and has a lower minimum number of replicas.
 
 There are a number of other resources to consider in a real environment other than what was presented in this post.  CPU, memory, disk IOPS, etc., are all finite resources, which were not discussed, but if those become the limiting factor for performance, then that is the bottleneck and efficiency metric to be mindful of. As one example, cite:[ScalableButWasteful] notes that constrained CPU usage can lead cite:[MultiPaxos] (and probably cite:[PacificA]) to have 2x more throughput than cite:[EPaxos].  If throughput is what determines the amount of hardware you need to buy/rent for your database deployment, _and_ the hardware is CPU constrained, then this is a more impactful efficiency to keep in mind than anything discussed above.
 
