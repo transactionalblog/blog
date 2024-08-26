@@ -276,6 +276,13 @@ sidenote:def[] bibitem:[STAR] +
 
 Otherwise and more generally, a form of Reed-Solomon coding is used.  The encoding/decoding matrix is either a stem:[k \times n] Vandermonde{nospace}sidenote:ref[] matrix with the upper stem:[k \times k] of it Gaussian eliminated to form an identity matrix, or an stem:[k \times k] identity matrix with a stem:[k \times m] Cauchy{nospace}sidenote:ref[] matrix glued onto the bottom.  In both cases, the goal is to form a matrix where the top stem:[k \times k] is an identity matrix (so that each data chunk is preserved), and any deletion of stem:[m] rows yields an invertible matrix.  Encoding is multiplying by this matrix, and decoding deletes the rows corresponding to erased chunks, and then solves the matrix as a system of linear equations for the missing data.
 
+////
+[.aside]
+****
+Shachaf says: The "Vandermonde matrix with Gaussian elimination applied to the top square" is doing polynomial interpolation, which is an alternative way to think about Reed-Solomon codes.  It's fitting a degree-(k-1) polynomial to the data points, and then evaluating it at extra points to get the parity points, since you can get the polynomial from any subset of k points.  You can also do the polynomial interpolation directly, and get the same matrix as what the Gaussian elimination produces.
+****
+////
+
 Gaussian elimination, as used in ISA-L, is the simplest method of decoding, but also the slowest.  For Cauchy matrixes, this can be improved{nospace}sidenote:ref[], as done in github:catid/cm256[].  The current fastest methods appear to be implemented in github:catid/leopard[], which uses Fast Fourier Transforms{nospace}sidenote:ref[]{nospace}sidenote:ref[] for encoding and decoding.
 
 ****
