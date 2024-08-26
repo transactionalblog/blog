@@ -211,7 +211,6 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://authzed.com[AuthZed] (2020) -- Authorization
 * https://evitadb.io/[EvitaDB] (2020) -- E-commerce
 * https://dolthub.com/[Dolthub] (2018) -- Git-like MySQL
-* https://aperturedata.io[ApertureData] (2018) -- Vector & Image/Video/Document
 * https://codenotary.com/[CodeNotary] (2018) -- https://immudb.io/[ImmuDB] immutable database
 * https://edgedb.com/[EdgeDB] (2018) -- Object
 ** MagicStack founded in 2008.  Developed Caos ORM.  Database first released in 2018.
@@ -229,9 +228,6 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 ** Contributes heavily to Cassandra, which is wide column with its own CQL.
 * https://aerospike.com/[Aerospike] (2009) -- Key-Value
 * https://hazelcast.org/[Hazelcast] (2008) -- Key-Value
-
-////
-////
 
 == Queues
 
@@ -278,6 +274,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://spice.ai/[Spice AI] (2021)
 * https://weaviate.io/[Weaviate] (2019)
 * https://pinecone.io/[Pinecone] (2019)
+* https://aperturedata.io[ApertureData] (2018) -- Vectors & Image/Video/Document
 * https://featureform.com/[FeatureForm] (2017)
 * https://zilliz.com[Zilliz] (2017) -- github:milvus-io/milvus[]
 //* Vald
