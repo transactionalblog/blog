@@ -1,6 +1,5 @@
 = Erasure Coding for Distributed Systems
-:revdate: 2024-08-25
-:draft: true
+:revdate: 2024-08-26
 :stem: latexmath
 :page-features: stem, alpine
 :toc: right
