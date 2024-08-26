@@ -13,7 +13,7 @@ And also be alive, or their product still supported if acquired. If it's an OSS 
 
 The categorizations are clearly subjective.  I'm aware that some companies fit into more than one category, some companies belong in their own category, etc.  This mostly exists as dbdb.io doesn't give a similarly easy way to filter and sort by some arbitrary sense of category, and has a narrower definition of database than what I'm interested in.  Some companies pivoted to a database offering, and so the data is either their founding as a database company, or the first release of their database product.
 
-== RDBMS Server / Hosted / Serverless
+== OLTP/RDBMS Server/Hosted/Serverless
 
 * https://crystaldb.cloud/[CrystalDB] (2022)
 * https://thenile.dev/[Nile] (2022)
@@ -23,12 +23,16 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://supabase.com/[Supabase] (2020)
 * https://planetscale.com/[Planetscale] (2018)
 ** Develops and commercializes Vitess, which was started in YouTube in 2010.
+* https://hopsworks.ai/[Hopsworks] (2017)
+** Develops and offers hosted https://www.rondb.com/[RonDB]
+* https://proxysql.com/[ProxySQL] (2016)
 * https://crunchydata.com/[Crunchy Data] (2012)
 * https://citusdata.com/[Citus] (2010) -- Acquired by Microsoft in 2019
 * https://mariadb.org/[MariaDB] (2010)
 ** Develops and supports MariaDB, which forked from MySQL in 2009.
 * https://sap.com/[SAP] (2010)
 ** SAP was founded in 1972.  SAP HANA is their database, released in 2010.
+* https://voltactivedata.com/[Volt Active Data] (2009) -- formerly VoltDB
 * https://vistadb.com/[VistaDB] (2007)
 * https://percona.com/[Percona] (2006)
 * https://enterprisedb.com/[EnterpriseDB] (2004)
@@ -89,11 +93,15 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 ** Develops and commercializes Apache Druid
 * https://dremio.com/[Dremio] (2015)
 * https://yellowbrick.com/[Yellowbrick] (2014)
+* https://vitessedata.com[Vitesse Data] (2014) -- Fork of Greenplum
 * https://brytlyt.io/[Brytlyt] (2013)
+* https://heavy.ai/[HEAVY.AI] (2013) -- Formerly MapD
 ** Acquired by Opensignal in 2024
 * https://databricks.com/[Databricks] (2013)
 //* https://kylin.apache.org/[Apache Kylin] (2013)
 * https://snowflake.com[Snowflake] (2012)
+* https://sqream.com/[SQream Technologies] (2010)
+* https://kinetica.com/[Kinetica] (2009)
 * https://cloudera.com/[Cloudera] (2008)
 ** Originally offered commercial Hadoop, and later Impala and Kudu.
 * https://xtremedata.com/[XtremeData] (2005)
@@ -203,6 +211,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://authzed.com[AuthZed] (2020) -- Authorization
 * https://evitadb.io/[EvitaDB] (2020) -- E-commerce
 * https://dolthub.com/[Dolthub] (2018) -- Git-like MySQL
+* https://aperturedata.io[ApertureData] (2018) -- Vector & Image/Video/Document
 * https://codenotary.com/[CodeNotary] (2018) -- https://immudb.io/[ImmuDB] immutable database
 * https://edgedb.com/[EdgeDB] (2018) -- Object
 ** MagicStack founded in 2008.  Developed Caos ORM.  Database first released in 2018.
@@ -220,6 +229,9 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 ** Contributes heavily to Cassandra, which is wide column with its own CQL.
 * https://aerospike.com/[Aerospike] (2009) -- Key-Value
 * https://hazelcast.org/[Hazelcast] (2008) -- Key-Value
+
+////
+////
 
 == Queues
 
