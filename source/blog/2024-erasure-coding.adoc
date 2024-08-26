@@ -304,7 +304,7 @@ This provides the most straightforward and most portable implementation, at acce
 +
 github:google/highway[] and github:xtensor-stack/xsimd[] appear to be reasonably commonly used libraries that try to use the best available SIMD instructions to accomplish general tasks.  There is also the upcoming {uri-std-experimental-simd}[`std::experimental::simd`].  C/C++ compilers also offer {uri-compiler-builtins}[builtins] for vectorization support.
 +
-The core of the encoding and decoding is galois field multiply and addition.  Optimized libraries for this can be found at github:catid/gf256[] and {uri-plan-fast-galois}[James Plank's Fast Galois Field Arithmetic Library].
+The core of encoding and decoding is Galois field multiply and addition.  Optimized libraries for this can be found at github:catid/gf256[] and {uri-plan-fast-galois}[James Plank's Fast Galois Field Arithmetic Library].
 
 . Handwrite a vectorized implementation of the core encoding and decoding functions.
 +
