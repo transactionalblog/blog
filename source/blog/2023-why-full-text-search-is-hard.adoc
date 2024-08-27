@@ -1,6 +1,6 @@
 = Why Full Text Search is Hard
 :revdate: 2023-09-20
-:page-preamble-hook: false
+:page-hook-preamble: false
 
 It's easy to find documents containing "large" and "elephant".
 It's hard to find documents in German which have "large" and "elephant" together in a sentence, or words with similar meanings to large, and provide only the 10 most relevant documents.
