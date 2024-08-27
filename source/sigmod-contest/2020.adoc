@@ -1,0 +1,113 @@
+= Entity Resolution (2020)
+:revdate: 2024-08-27
+:page-order: 89
+
+== Archival Note
+:uri-contest: https://www.inf.uniroma3.it/db/sigmod2020contest/index.html
+:uri-contest-archive: https://web.archive.org/web/20240225080829/https://www.inf.uniroma3.it/db/sigmod2020contest/index.html
+:uri-contest-original-code: https://github.com/transactionalblog/sigmod-contest-2020/commit/d8ee77123acbb2547bf52d7dd1f58c6ad8bff245
+:uri-contest-leaderboard: https://www.inf.uniroma3.it/db/sigmod2020contest/leaders.html
+
+The {uri-contest}[original contest site] is still available!
+If it's unavailable in the future, it can be found on an {uri-contest-archive}[Archive.org mirror] instead.
+
+The provided code for this contest is available at github:transactionalblog/sigmod-contest-2020[].  The exact provided code is preserved as {uri-contest-original-code}[commit d8ee7712].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.
+
+This contest was organized by the Database Research Group of the Roma Tre University.
+The winner of this contest was Mark Blacher, Julien Klaus, and Matthias Mitterreiter from Friedrich-Schiller-University Jena.
+The {uri-contest-leaderboard}[leaderboard] has the posters and submission from the five finalists. 
+
+'''
+
+== Task Details
+
+The task consists of identifying which product specifications (in short, specs) from multiple e-commerce websites represent the same real-world product.
+
+You are provided with a dataset including ~30k specs in JSON format, each spec containing a list of (attribute_name, attribute_value) pairs extracted from a different web page, collected across 24 different web sources. We will refer to this dataset as dataset *X*.
+
+Each spec is stored as a file, and files are organized into directories, each directory corresponding to a different web source (e.g., www.alibaba.com).
+All specs refer to cameras and include information about the camera model (e.g. Canon EOS 5D Mark II) and, possibly, accessories (e.g. lens kit, bag, tripod). Accessories do not contribute to product identification: for instance, a Canon EOS 5D Mark II that is sold as a bundle with a bag represents the same core product as a Canon EOS 5D Mark II that is sold alone.
+
+.Example of product specification in JSON format
+[source, json]
+----
+{
+  "<page title>": "Samsung Smart WB50F Digital Camera White Price in India with Offers & Full Specifications | PriceDekho.com",
+  "brand": "Samsung",
+  "dimension": "101 x 68 x 27.1 mm",
+  "display": "LCD 3 Inches",
+  "pixels": "Optical Sensor Resolution (in MegaPixel)\n16.2 MP",
+  "battery": "Li-Ion"
+}
+----
+
+Note that, while the page title attribute is always present, all other attribute names can vary (even within the same web source). Note also that two attributes with the same name (homonyms) might have different semantics (e.g. "battery" that can refer to "battery type", like "AAA", or "battery chemistry", like "Li-Ion"), and that two attributes with the same semantics (synonyms) might have different names (e.g., "resolution" and "pixels").
+
+You are also provided with a *labelled dataset in CSV format*, containing three columns: "left_spec_id", "right_spec_id" and "label". We will refer to this dataset as dataset *W* (which includes the previously released labelled dataset, referred to as dataset *Y*).
+
+The "spec_id" is a global identifier for a spec and consists of a relative path of the spec file. Note that instead of "/" the spec_id uses a special character "//" and that there is no extension. For instance, the spec_id "www.ebay.com//1000" refers to the 1000.json file inside the www.ebay.com directory. All "spec_id" in the labelled dataset *W* refer to product specs in dataset *X*. Thus, the dataset *W* provides labels for a subset of the product pairs in the Cartersian product of the specs dataset *X* with itself.
+Each row of the labelled dataset represents a pair of specifications. Label=1 means that the left spec and the right spec refer to the same real-world product (in short, that they are matching). Label=0 means that the left spec and the right spec refer to different real-world products (in short, that they are non-matching).
+
+.Example of labelled dataset in CSV format
+----
+left_spec_id, right_spec_id, label
+www.ebay.com//1, www.ebay.com//2, 1
+www.ebay.com//3, buy.net//10, 0
+----
+
+Note that there might be matching pairs even within the same web source, and that the labelled dataset *W* is transitively closed (i.e., if A matches with B and B matches with C, then A matches with C).
+
+More details about the datasets can be found in the dedicated "Datasets" section.
+
+Your goal is to find all pairs of product specs in dataset X that match, that is, refer to the same real-world product. Your output must be stored in a CSV file containing only the matching spec pairs found by your system. The CSV file must have two columns: "left_spec_id" and "right_spec_id": each row in this CSV file consists of just two ids, separated by comma.
+
+.Example of output CSV file
+----
+left_spec_id, right_spec_id
+www.ebay.com//10, www.ebay.com//20
+www.ebay.com//10, buy.net//100
+----
+            
+An example CSV file is also included in the Quick Start Package (see "Submitting" section).
+
+== Datasets
+
+|===
+| Dataset *X*  |Specs Dataset               |8.5 Mb (compressed)
+| Dataset *Y*  |Labelled Dataset (Medium)	|2.1 Mb
+| Dataset *W*  |Labelled Dataset (Large)	|13.0 Mb
+|===
+
+Note that the labelled dataset *W* (which includes the previously released labelled dataset, referred to as dataset Y) provided to participants is disjoint from the held-out dataset used in the evaluation process. More details about the evaluation process can be found in the dedicated "Evaluation Process" section.
+
+== Evaluation Process
+
+Submitted solutions are ranked on the basis of F-measure (the harmonic mean of precision and recall), rounded up to two decimal places. Precision and recall are computed w.r.t. a secret evaluation dataset. We will refer to this dataset as dataset *Z*.
+
+For clarity purposes, the two graphs below represent a sample submitted solution and the evaluation dataset *Z* respectively. In the graphs, nodes represent specs and edges represent matching relationships.
+
+image::sigmod20-evaluation-1.png[]
+
+Precision and recall of the submitted solution will be evaluated only on the edges in which both nodes are included in the evaluation dataset *Z*, as illustrated in the figure below.
+
+Note that edges in the evaluation dataset *Z* are disjoint from the edges in the labelled datasets *W* (which includes *Y*). Specifically, the labelled dataset *W* includes a random selection of camera models from the evaluation dataset *Z* and, for each camera model, a random selection of specs referring to it.
+
+image::sigmod20-evaluation-2.png[]
+
+We assume that a submission may have a training step and a resolution step. In order to break down training time and resolution time fairly, the reproduction process for both steps will follow the schema below.
+
+* *Training step (optional)*
++
+[horizontal]
+Admitted Input:: the W dataset, the specs in the X dataset whose spec_id appears in the W dataset, publicly available auxiliary data (e.g. a list of camera manufacturer), hyperparameters.
+Time Limit:: 12h
+Required Output:: a text or a binary file F with the result of the training process.
+
+* *Resolution step (mandatory)*
++
+[horizontal]
+Admitted Input:: the X dataset, the file F (if needed).
+Time Limit:: 12h
+Required Output:: the output CSV file C.
+
+A submission is considered reproduced if the file C obtained by running the training step (if needed) and the resolution step has comparable F-measure (± 0.05 difference) as the submitted solution.
