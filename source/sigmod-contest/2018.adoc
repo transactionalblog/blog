@@ -3,7 +3,6 @@
 :page-order: 91
 
 == Archival Note
-
 :uri-contest: https://db.in.tum.de/sigmod18contest/task.shtml
 :uri-contest-archive: https://web.archive.org/web/20240309072532/https://db.in.tum.de/sigmod18contest/task.shtml
 :uri-contest-original-code: https://github.com/transactionalblog/sigmod-contest-2018/commit/e825ec2b4e1ef4688e9dc53893ddd078e1034833
