@@ -45,6 +45,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 * https://cedardb.com/[CedarDB] (2023)
 * https://matrixorigin.io/[MatrixOrigin] (2021)
+* https://timescale.com/[Timescale] (2017)
 * https://yugabyte.com/[YugabyteDB] (2016)
 * https://pingcap.com/[PingCAP] (2015)
 * https://cockroachlabs.com/[CockroachDB] (2014)
@@ -56,6 +57,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 == OLAP SQL
 
 * https://tablespace.com/[TableSpace] (2024)
+* https://pola.rs/[Polars] (2023)
 * https://paradedb.com/[ParadeDB] (2023)
 ** DuckDB-in-Postgres via github:paradedb/pg_analytics[]
 * https://motherduck.com/[MotherDuck] (2022)
@@ -74,10 +76,12 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://en.selectdb.com/[SelectDB] (2021) -- Built on Apache Doris
 * https://databend.com/[Databend] (2021)
 * https://oxla.com/[Oxla] (2020)
+* https://coiled.io/[Coiled] (2020) -- https://dask.org/[Dask]
 * https://startree.ai/[StarTree] (2020)
 ** Develops and commercializes Apache Pinot
 * https://e6data.com/[e6data] (2020)
 //* https://docs.ahana.cloud/docs/[Ahana] (2020)
+* https://bodo.ai/[Bodo.ai] (2019)
 * https://tinybird.co/[Tinybird] (2019) -- Hosted++ ClickHouse
 * https://firebolt.io/[Firebolt] (2019)
 * https://cheetahds.com/[CheetahDB] (2018)
@@ -179,7 +183,6 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 //* Apache HoraeDB
 * https://dolphindb.com/[DolphinDB] (2018)
 * https://victoriametrics.com/[VictoriaMetrics] (2018)
-* https://timescale.com/[Timescale] (2017)
 * https://siridb.net/[SiriDB] (2016)
 * https://grafana.com/[Grafana Labs] (2014)
 ** Largely working on visualizations, but also develop github:grafana/mimir[]
@@ -234,6 +237,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://hatchet.run/[Hatchet] (2023)
 * https://s2.dev/[S2] (2023)
 * https://warpstream.com/[WarpStream] (2023)
+* https://automq.com/[AutoMQ] (2022)
 * https://gomomento.com/[Momento] (2021)
 * https://redpanda.com/[Redpanda] (2019)
 * https://synadia.com/[Synadia] (2017) -- https://nats.io[NATS.io]
@@ -243,7 +247,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://rabbitmq.com/[RabbitMQ] (2007)
 ** Rabbit Technologies Ltd. was acquired by Spring Source/VMWare in 2010, then by Pivotal in 2013, which itself was acquired by VMWare in 2019.
 
-== Stateful Streaming
+== (Stateful) Streaming
 
 * https://risingwave.com/[RisingWave] (2023)
 * https://denormalized.io/[Denormalized] (2022)
@@ -255,6 +259,8 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://materialize.com/[Materialize] (2019)
 * https://readyset.co/[ReadySet] (2019)
 * https://eventstore.com/[EventStoreDB] (2019)
+* https://veverica.com/[Veverica] (2014)
+** Develops and commercializes Apache Flink.  Acquired by Alibaba in 2019.
 
 == AI and Vectors
 
@@ -278,3 +284,9 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://featureform.com/[FeatureForm] (2017)
 * https://zilliz.com[Zilliz] (2017) -- github:milvus-io/milvus[]
 //* Vald
+
+////
+== Durable Workflow
+* https://temporal.io/
+* https://restate.dev/
+////
