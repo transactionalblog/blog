@@ -1,0 +1,116 @@
+= Entity Resolution (2021)
+:revdate: 2024-09-01
+:stem: latexmath
+:page-features: stem
+:page-order: 88
+
+== Archival Note
+:uri-contest: https://dbgroup.ing.unimo.it/sigmod21contest/
+:uri-contest-archive: https://web.archive.org/web/20240609230957/https://dbgroup.ing.unimo.it/sigmod21contest/
+:uri-contest-leaderboard: https://dbgroup.ing.unimo.it/sigmod21contest/leaders.shtml
+
+The {uri-contest}[original contest site] is still available!
+If it's unavailable in the future, it can be found on an {uri-contest-archive}[Archive.org mirror] instead.
+
+There was no provided starter code for this programming contest.  The provided datasets have been saved into github:transactionalblog/sigmod-contest-2021[].
+
+This contest was organized by the Database Research Group of the Roma Tre University.
+The winner of this contest was Weibao Fu, Peiqi Yin, and Lan Lu from Southern University of Science and Technology.
+The {uri-contest-leaderboard}[leaderboard] has the posters and submission from the five finalists. 
+
+'''
+
+== Task Details
+
+The task consists of identifying which instances, described by properties (i.e., attributes), represent the same real-world entity.
+
+Participants are asked to solve the task among several datasets of different types (e.g., products, people, etc.) that will be released progressively. Each dataset is made of a list of instances (rows) and a list of properties describing them (columns); we will refer to each of these datasets as stem:[D_i].
+
+For each dataset stem:[D_i], participants will be provided with the following resources:
+
+* stem:[X_i] : a subset of the instances in stem:[D_i]
+* stem:[Y_i] : matching/non-matching labels for pairs in stem:[X_i \times X_i]
+* stem:[D_i] metadata : (e.g., how many instances it contains, what are the main characteristics)
+
+Note that Y datasets are *transitively closed* (i.e., if A matches with B and B matches with C, then A matches with C).
+
+Solutions will be evaluated over stem:[Z_i = D_i \ X_i]. Note that the instances in stem:[Z_i] will not be provided to participants. More details are available in the Evaluation Process section.
+
+Both stem:[X_i] and stem:[Y_i] are in CSV format.
+
+.Example of dataset stem:[X_i]
+[cols="2,2,2,1,2"]
+|===
+h|instance_id   h|attr_name_1   h|attr_name_2  h|...  h|attr_name_k
+|00001         |value_1       |null         |...  |value_k
+|00002         |null          |value_2      |...  |value_k
+|...           |...           |...	        |...  |...
+|===
+
+.Example of dataset stem:[Y_i]
+[cols="2,2,1"]
+|===
+h|left_instance_id	h|right_instance_id	 h|label
+|00001	|00002	|1
+|00001	|00003	|0
+|...	|...	|...
+|===
+
+More details about the datasets can be found in the dedicated Datasets section.
+
+Your goal is to find, for each stem:[X_i] dataset, all pairs of instances that match (i.e., refer to the same real-world entity). The output must be stored in a CSV file containing only the matching instance pairs found by your system. The CSV file must have two columns: "left_instance_id" and "right_instance_id" and the file must be named "output.csv". The separator must be the comma.
+
+.Example of output.csv
+[cols="1,1"]
+|===
+|left_instance_id |right_instance_id
+|00001 |00002
+|00001 |00004
+|... |...
+|===
+
+== Datasets
+:uri-snowman: https://hpi-information-systems.github.io/snowman/sigmod2021/
+:uri-snowman-download: https://github.com/HPI-Information-Systems/snowman/releases
+
+[cols="5%,20%,35%,20%,20%"]
+|===
+h|# h|Name h|Description h|Metadata h|Download
+|1	|NotebookToy |Sample notebook specifications
+a| 128 instances +
+16 attributes +
+40 entities +
+a| https://github.com/transactionalblog/sigmod-contest-2021/blob/main/dataset/X1.csv[Dataset X1] +
+https://github.com/transactionalblog/sigmod-contest-2021/blob/main/dataset/Y1.csv[Dataset Y1]
+
+|2 |Notebook |Notebook specifications
+a|538 instances +
+14 attributes +
+100 entities
+a| https://github.com/transactionalblog/sigmod-contest-2021/blob/main/dataset/X2.csv[Dataset X2] +
+https://github.com/transactionalblog/sigmod-contest-2021/blob/main/dataset/Y2.csv[Dataset Y2]
+
+|3 |NotebookLarge |Notebook specifications
+a|605 instances +
+14 attributes +
+158 entities
+a| https://github.com/transactionalblog/sigmod-contest-2021/blob/main/dataset/X3.csv[Dataset X3] +
+https://github.com/transactionalblog/sigmod-contest-2021/blob/main/dataset/Y3.csv[Dataset Y3]
+
+|4 |Altosight logo
+a|Product specifications +
+Kindly provided by Altosight
+a|1356 instances +
+5 attributes +
+193 entities
+a| https://github.com/transactionalblog/sigmod-contest-2021/blob/main/dataset/X4.csv[Dataset X4] +
+https://github.com/transactionalblog/sigmod-contest-2021/blob/main/dataset/Y4.csv[Dataset Y4]
+|===
+
+You can also download these datasets together with {uri-snowman}[Snowman].
+
+Snowman helps you to compare and evaluate your data matching solutions. You can upload experiment results from your data matching solution and then compare it easily with a gold standard, compare two experiment runs with each other or calculate binary metrics like precision or recall. Snowman is developed as part of a bachelor's project at the Hasso Plattner Insitute, Potsdam, in collaboration with SAP SE.
+
+You can {uri-snowman-download}[download] the latest release, which already includes the datasets provided for the contest.
+
+For each dataset stem:[D_i] we will compute resulting F-measure with respect to Zi x Zi. Submitted solutions will be ranked on average F-measure over all datasets.

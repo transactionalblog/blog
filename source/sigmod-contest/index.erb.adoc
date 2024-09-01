@@ -13,8 +13,6 @@ SIGMOD hosts a yearly competition to design a system which performs a set of que
 
 === https://dbgroup.ing.unimore.it/sigmod22contest/[Blocking System for Entity Resolution (2022)]
 
-=== https://dbgroup.ing.unimo.it/sigmod21contest/[Entity Resolution (2021)]
-
 == Archived Contests
 
 Unfortunately, the programming contest sites have been dropping off the internet as old year-specific SIGMOD domains are released or universities revamp their sites and drop old pages.  The challenges have generally been quite interesting projects, and every year someone puts good effort into providing a starting framework and testing harness for each challenge.  So to ensure these challenges remain easily accessible and available, I've located the original task description and source for each year, and copied them into the pages below to preserve the content.
