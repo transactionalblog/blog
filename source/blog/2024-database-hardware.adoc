@@ -1,0 +1,103 @@
+= Modern Hardware for Databases
+:revdate: 2024-09-19
+:draft: true
+:page-hook-preamble: false
+
+We're in an exciting era for databases where there's advancements coming along each major resource front, each of which has the potential to shape what an optimal database architecture would be.  All combined, I'm hopeful that we'll see some interesting shifts in databases over the next decade.
+
+== Networking
+
+:uri-murat-hpts: https://muratbuffalo.blogspot.com/2024/09/hpts24-day-1-part-1.html
+:uri-ousterhout-homa: https://networking.harshkapadia.me/files/homa/research-papers/its-time-to-replace-tcp-in-the-datacenter-v2.pdf
+:uri-dpdk: https://www.dpdk.org/
+
+From a recent {uri-murat-hpts}[talk by Stonebraker in HPTS 2024], some benchmarking with VoltDB saw that ~60% of their server-side cycles went to the TCP/IP stack.  VoltDB is already a database architecture whose goal was to remove as much ancillary processing from serving requests as possible, so this is the extreme case, however it still makes a valid point that the computational overhead of TCP is not small.
+
+There's a few directions to go with this sort of argument.  One is that the issue is with the kernel-side processing, and removing the kernel "middleware" leads to higher efficiency.  And this is true. The {uri-dpdk}[Data Plane Development Kit] has been around for a while, and has been the 
+
+Kernel Bypass
+
+
+RDMA
+
+TCP offload is a dumb idea whose time has come (2003!)
+https://scholar.google.com/scholar?cluster=4106138525527042387&hl=en&as_sdt=0,5
+
+
+
+DPDPU: Data Processing with DPUs
+https://scholar.google.com/scholar?cluster=14622696590036176289&hl=en&as_sdt=0,5
+
+Dds: Dpu-optimized disaggregated storage
+https://scholar.google.com/scholar?cluster=7458502514326203137&hl=en&as_sdt=0,5
+
+
+
+== Storage
+
+=== LSM Trees
+
+LSMs have seemingly dominated storage engine research for some time.
+The traditional arguments are those of storage and write amplification
+But I'm arguing for a completely different reason
+I think they fit perfectly with current trends.
+
+Disaggregated storage is all the rage
+disaggregated storage survey paper
+log as a service paper delos guy
+RocksDB cloud S3 LSM
+
+The unique thing that LSMs make really easy is offloading compaction.
+Compaction management in distributed key-value datastores
+Hailstorm: Disaggregated Compute and Storage for Distributed LSM-based Databases
+two different takes on the idea of moving compaction from your online serving nodes to cheaper, faster nodes.
+One could use spot instances for compaction, reserved instances for serving.
+
+=== B-Tree
+
+leanstore
+bf-tree
+
+ScaleFlux papers
+
+B-tree transparent compression
+
+At the far end, there's KV-SSD.  Previous efforts, like SMR, haven't graduated from enterprise-only drives into anything consumer grade.
+
+=== Learned Indexes
+
+Learned storage!
+A topic which I've originally rolled my eyes at due to
+- dbmsarchitects blog
+- hist-tree
+But there exist use cases which I'm becoming increasingly motivated by:
+
+ROLEX
+https://scholar.google.com/scholar?cluster=15568285688413674245&hl=en&as_sdt=0,5
+
+A similar structure is presented in treeline
+
+== Compute
+
+If DataFusion becomes the de-factor execution engine in the same way that RocksDB has for storage, what reason would one have to write a new execution engine?
+
+I think the answer would be targeting different architectures.
+
+GPU databases have been picking up steam.
+
+FPGA.
+
+ADMS is the place to go to find papers on this.
+
+
+== Cloud Availability
+
+And now to address the elephant in the room, none of these hardware advancements really matter if they're not accessible.  For today's systems, that means in the cloud, and the cloud doesn't offer the forefront of hardware advancements to its customers.
+
+AWS offers F1 instances.  Swarm64 tried (and failed?) at this market.  AWS did their own effort as Redshift AQUA.  One would ideally like peer-to-peer DMA support on AWS hosts to be able to read from disk straight into the FPGA, and F1 can't.
+
+Alibaba is shockingly great though.
+eRDMA is real RDMA, not AWS's SRD half-RDMA (DaMoN paper)
+PolarDB cooperation with ScaleFlux.
+Still offer apachepass and optane.
+I'm surprised I don't see alibaba being frequently used for benchmarking in academic papers.

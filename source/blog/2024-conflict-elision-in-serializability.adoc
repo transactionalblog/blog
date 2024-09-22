@@ -1,9 +1,64 @@
 = Conflict Elision in Serializability
-:revdate: 2024-06-10
+:revdate: 2024-08-26
 :draft: true
 :stem: latexmath
 :page-features: stem, stem-inline
 :toc: right
+
+////
+
+Classic database courses (link to pavlo) teach you about conflict serializability.  You're given a history of operations:
+
+$$ T1.W(X) T1.W(Y) T2.R(X) T3.R(Y) T2.W(X) T3.W(Y) $$
+
+And asked, "is it serializable?"  And what you're taught is to form the precendence graph, by:
+
+1. If T_x reads a value written by T_y, add to the graph that T_x must have committed after T_y
+2. If T_a _writes_ a value that had been previously read by T_a, 
+3. writes previously writes
+
+And then with our graph completed, we check for a cycle.  T_a -> T_b -> T_c -> T_a, so these operations are not serializable.
+
+But then one graduates and moves onto applying this to the real world, and every serializable database seems to break the rules...
+
+- Spanner has shared writer locks
+- FoundationDB only checks read-write conflicts
+- Cockroach only checks read
+
+Database courses teach serializability with the most pessimistic assumptions about the database.  So instead, let's cover the rules of 
+
+== When do you need to check conflicts
+
+
+
+== How do you elide checking conflicts?
+
+Key optimizations:
+
+Read Snapshots
+Write Snapshots
+
+* Check nothing -> no concurrency 
+* RAW -> Write snapshot, commit writes at read version
+* WAR -> Write snapshot, but no Commit reads at write version.  Also see SSI.
+* WAW -> Read Committed is WAW.  Read Snapshots makes it Snapshot Isolation.  No serializability except when it is by accident.  Alan Fekete papers.
+* RAW & WAW -> Commit at a write version
+* RAW & WAR -> Serailizability with Constraints
+* WAR & WAW -> commit at a write version
+* RAW & WAR & WAW -> single version database
+
+== Not all serializability is equal
+
+serializability classes
+
+history vs scheduler
+
+2PL restrictive
+SSI less
+serializable safety net
+
+////
+
 
 == Write-After-Write Conflicts
 
@@ -19,10 +74,10 @@ You *do not* need to check write-after-write conflicts if:
 
 The informal argument here is reasonably simple: given two transactions $T_1$ and $T_2$, which each perform a write to $X$ and a write to $Y$, the only way for the result to not be serializable is transaction atomicity is broken.  We can only break atomicity by allowing writes from the two transactions to be interleaved:
 
-Not Serializable: $T_1.W(X) T_2.W(X) T_2.W(Y) T_1.W(Y)$
+Not Serializable: $T_1.W(X)$  $T_2.W(X)$  $T_2.W(Y)$ $T_1.W(Y)$ +
 Ending state: $T_2$'s $X$.  $T_1$'s $Y$.
 
-Serializable: $T_1.W(X) T_1.W(Y) T_2.W(X) T_2.W(Y)$
+Serializable: $T_1.W(X) T_1.W(Y) T_2.W(X) T_2.W(Y)$ +
 Ending state: $T_2$'s $X$.  $T_2$'s $Y$.
 
 When all writes appear atomically in the same version, it's impossible to have interleaving.  If one of $T_1$'s writes happens before one of $T_2$'s writes, then _all_ writes from $T_1$ must happen before those in $T_2$.
@@ -52,9 +107,6 @@ It's _very_ common for reads to be serialized later than when they were performe
 
 == Conflict Serializability
 
-Serializability is
-Database classes teach us serializability as conflict serializability.  There are. Three types of conflicts that are examined They are plugged intoNice.  
-
 Conflict serializability
 
  - Read-After-Write (RAW) conflicts: T2 reads a value written by T1.  T2 must commit after T1.
@@ -67,14 +119,14 @@ This post is about when we can not record or check certain types of these confli
 ----
 graph G {
     rankdir="BT";
-    bot [label="{} (1)"];
-    A [label="{RAW} (2)"];
-    B [label="{WAW} (3)"];
-    C [label="{WAR} (4)"];
-    AB [label="{RAW,WAW} (5)"];
-    AC [label="{RAW,WAR} (6)"];
-    BC [label="{WAW,WAR} (7)"];
-    ABC [label="{RAW,WAW,WAR} (8)"];
+    bot [label="{} (8)"];
+    A [label="{RAW} (7)"];
+    B [label="{WAW} (6)"];
+    C [label="{WAR} (5)"];
+    AB [label="{RAW,WAW} (4)"];
+    AC [label="{RAW,WAR} (3)"];
+    BC [label="{WAW,WAR} (2)"];
+    ABC [label="{RAW,WAW,WAR} (1)"];
     bot -- {A,B,C};
     A -- {AB, AC};
     B -- {AB, BC};
