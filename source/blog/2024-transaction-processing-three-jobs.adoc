@@ -1,0 +1,41 @@
+= The Three Jobs of Transactional Systems
+:revdate: 2024-08-02
+:draft: true
+:toc: right
+
+== outline
+
+Three things you must do:
+
+1. Order
+2. Check for conflicts
+3. Durable
+
+Can be done in any order
+Can be done concurrently
+Must be done before you can tell a client "I accept your commit".
+
+Durable: You must have the transaction recorded durably on disk.
+
+Order: you must decide what transactions this one is before and after.  This doesn't _have_ to be a strict ordering, and some systems work with just a weak ordering, but _some_ ordering must exist to be able to resolve conflicts.
+
+Commit: Decide if the outcome of the transaction is to commit or abort.
+
+----
+Raft: Order -> Commit -> Durable
+Calvin: Order -> Durable -> Commit
+CURP: Durable -> Commit -> Order
+
+Order -> Check -> Durable: FoundationDB
+Order -> Durable -> Check: Calvin
+Check -> Order -> Durable:
+Check -> Durable -> Order: CURP
+Durable -> Check -> Order:
+Durable -> Order -> Check:
+
+[Order,Durable] -> Check:
+[Order,Check] -> Durable:
+[Durable,Check] -> Order:
+
+[Durable,Order,Check]: 
+----
