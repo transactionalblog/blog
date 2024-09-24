@@ -8,6 +8,7 @@ A B-Tree tutorial series implementing an ABI-compatible BerkeleyDB clone.
 [.display-none]
 == Introduction
 
+
 ++++
 <%= partial("partials/index_section", :locals => {:tagged => 'intro'}) %>
 ++++
@@ -18,10 +19,24 @@ A B-Tree tutorial series implementing an ABI-compatible BerkeleyDB clone.
 <%= partial("partials/index_section", :locals => {:tagged => 'reading'}) %>
 ++++
 
+I'll return to this series at some point, but it's on temporary hold while I type out other posts.  The likely future posts in this series are:
+
+* Range Reads
+* Page Cache
+
 == Writing
 
+* Modifying Existing Pages
+* Splitting
+* Merging
 
 == Recovery
+
+* WAL Format
+* Replaying WAL
+* Writing a WAL
+
+And then transaction management needs to go somewhere.
 
 ////
 == Optimizations
