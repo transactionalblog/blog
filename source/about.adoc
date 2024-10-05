@@ -1,7 +1,12 @@
 = About
 :revdate: 2024-08-22
 :page-layout: index
+:page-features: font-awesome
 
 == Contact
 
-Email `domain of this website including .TLD`@gmail.com.
+[horizontal]
+icon:linkedin[set=fab]:: https://www.linkedin.com/in/alexmillerdb/[AlexMillerDB]
+icon:twitter[set=fab]:: https://twitter.com/AlexMillerDB[@AlexMillerDB]
+icon:mastodon[set=fab]:: https://fosstodon.org/@AlexMillerDB[@AlexMilerDB@fosstodon.org]
+icon:envelope[]:: `domain of this website including .TLD`@gmail.com.
