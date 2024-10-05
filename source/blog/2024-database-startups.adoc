@@ -113,13 +113,14 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 ** Acquired by HP in 2011, Micro Focus in 2017, then OpenText in 2023.
 * https://greenplum.org[Greenplum] (2003)
 * https://exasol.com/[Exasol] (2000)
-* https://teradata.com/[Teradata] (1979)
+* https://www.teradata.com/[Teradata] (1979)
 
 == Document
 
 * https://endatabas.com[Endatabas] (2023)
 * https://fireproof.storage/[Fireproof Storage] (2022)
 * https://sneller.ai/[Sneller] (2021)
+* https://stately.cloud/[Stately] (2021)
 * https://ferretdb.com/[FerretDB] (2021)
 * https://xtdb.com/[XTDB] (2018)
 * https://jsonbin.io/[JSONBIN.io] (2017)
