@@ -49,6 +49,7 @@ category_heading = if up_title.nil? || up_title == 'Blog' then '' else up_title 
     <%= stylesheet_link_tag "code-highlighting" %>
     <% if page_features.include? 'font-awesome' %>
       <%= stylesheet_link_tag "font-awesome.css" %>
+      <%= stylesheet_link_tag "font-awesome-v4-shims.css" %>
     <% end %>
     <%= javascript_include_tag "mq.genie.min" %>
     <%= javascript_include_tag "aside-positioning" %>

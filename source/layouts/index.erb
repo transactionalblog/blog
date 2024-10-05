@@ -1,5 +1,6 @@
 <!doctype html>
 <% category = current_path.delete_suffix '/index.html' %>
+<% page_features = if current_page.data.features then current_page.data.features.split(/, */) else [] end %>
 <html>
   <head>
     <meta charset="utf-8">
@@ -14,6 +15,10 @@
     <link rel="icon" type="image/x-icon" href="<%= add_http_prefix "/favicon.ico"%>"/>
     <%= stylesheet_link_tag "bamboo/main.css" %>
     <%= stylesheet_link_tag (current_page.data.style || "index") %>
+    <% if page_features.include? 'font-awesome' %>
+      <%= stylesheet_link_tag "font-awesome.css" %>
+      <%= stylesheet_link_tag "font-awesome-v4-shims.css" %>
+    <% end %>
     <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/feed.xml" />
   </head>
   <body>
