@@ -315,6 +315,22 @@ const cost_data = {
     "writes": [{"price": 0}],
     "ingress": [{"price": 0}],
   },
+  "Tigris Data": {
+    "storage": [
+      {"until": "5GB", "price": 0},
+      {"after": "5GB", "price": 0.02}
+    ],
+    "reads": [
+      {"until": "100K", "price": 0},
+      {"after": "100K", "price": 0.5}
+    ],
+    "egress": [{"price": 0}],
+    "writes": [
+      {"until": "10K", "price": 0},
+      {"after": "10K", "price": 5}
+    ],
+    "ingress": [{"price": 0}]
+  }
 };
 
 const template_costmodel = `
