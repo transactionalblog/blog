@@ -21,7 +21,8 @@ activate :asciidoc do |asciidoc|
     'source-highlighter=rouge',
     'toc-title=',
     'nospace=',
-    'hook-preamble=true'
+    'hook-preamble=true',
+    'table-caption!='
   ]
   asciidoc.promoted_attributes = [
     'draft',
