@@ -81,7 +81,6 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 ** Develops and commercializes Apache Pinot
 * https://e6data.com/[e6data] (2020)
 //* https://docs.ahana.cloud/docs/[Ahana] (2020)
-* https://bodo.ai/[Bodo.ai] (2019)
 * https://tinybird.co/[Tinybird] (2019) -- Hosted++ ClickHouse
 * https://firebolt.io/[Firebolt] (2019)
 * https://cheetahds.com/[CheetahDB] (2018)
@@ -207,7 +206,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == Other/Multi-Models
 
-* https://spiraldb.com/[SpiralDB] (2023) -- Arrays?  (still in stealth)
+* https://spiraldb.com/[SpiralDB] (2023) -- Multi-model analytics
 * https://polypheny.com/[Polypheny] (2022) -- Multi-model
 * https://tigerbeetle.com/[TigerBeetle] (2022) -- Financial
 * https://dragonflydb.io/[Dragonfly] (2021) -- Redis
