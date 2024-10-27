@@ -1,0 +1,60 @@
+= Approximate K-nearest-neighbor Graph Construction (2023)
+:revdate: 2024-10-27
+:page-order: 86
+
+== Archival Note
+:uri-contest: https://people.cs.rutgers.edu/~dd903/sigmodpc2023/index.html
+:uri-contest-archive: https://web.archive.org/web/20240902223606/https://people.cs.rutgers.edu/~dd903/sigmodpc2023/index.html
+:uri-contest-original-code: https://github.com/transactionalblog/sigmod-contest-2023/commit/2a2893f525d2620f982093df28273c8bd34f92e7
+:uri-contest-leaderboard: https://people.cs.rutgers.edu/~dd903/sigmodpc2023/leader2023_final.html
+
+The {uri-contest}[original contest site] is still available!
+If it's unavailable in the future, it can be found on an {uri-contest-archive}[Archive.org mirror] instead.
+
+The provided code for this contest is available at github:transactionalblog/sigmod-contest-2023[].  The exact provided code is preserved as {uri-contest-original-code}[commit d8ee7712].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.
+
+This contest was organized by the DB Group at Rutgers University and the Chu Data Lab at Georgia Tech.
+The winner of this contest was Jiayi Wang from Tsinghua University.
+The {uri-contest-leaderboard}[leaderboard] has the posters and submission from the five finalists.
+
+'''
+
+== Task Details
+
+:uri-github-io-h: https://github.com/transactionalblog/sigmod-contest-2023/blob/main/io.h
+:uri-github-baseline: https://github.com/transactionalblog/sigmod-contest-2023/blob/main/knn-construction.cc
+
+The task is to build an approximate K-NN Graph for a set of vectors. i.e., for each vector, find its approximate k nearest neighbors in a limited time. For this year's task, k is set to be 100.
+
+A sample dataset will be provided. It contains millions of high-dimensional vectors. We will refer to it as D.
+
+The data in Dataset D is in a binary format that starts with a 4-byte integer, `num_vectors(uint32_t)`, followed by `num_vectors x 100 (num_dimension) x sizeof(float32)` bytes of data stored one vector after another.
+
+We provide both the reading function(ReadBin) to load the dataset and the writing function(SaveKNNG) to generate the output file in the {uri-github-io-h}[io.h] file.
+
+Your goal is to design an efficient algorithm for approximate K-NN Graph construction. For each vector, your output must contain k consecutive ids of the nearest neighbors determined by your algorithm. These neighbor lists are stored one by one and stored in a binary file.
+
+During evaluation, we will replace the sample dataset D with a hidden test dataset. The hidden test dataset is randomly drew from the same dataset where D was sampled from. We will evaluate your algorithms using the hidden test dataset.
+
+output.bin format: The evaluation process expects "output.bin" to be a binary file containing `|S| x 100 x id(uint32_t)`. `|S|` is the number of random sample vectors in dataset `S`, `100` is the number of nearest neighbors and `id` is the index of 100-nearest neighbors in the given dataset `S`.
+
+Please format "output.bin" accordingly. You can check out our provided {uri-github-baseline}[baseline solution] on how to produce a valid "output.bin".
+
+== Datasets
+
+All of our datasets (released and evaluation dataset) are sampled from the same billion-scale vector dataset, which consists of Bing queries encoded by Turing AGI v5 that trains Transformers to capture similarity of intent in web search queries.
+
+[.aside]
+****
+contest-data-release-*.bin were datasets released for testing, but were removed from azure blob store before I archived the challenge.  If you have a copy, please reach out.
+****
+
+[cols="5%,20%,65%,10%"]
+|===
+h|#	h|Name	h|Description	h|Size
+|1	|https://github.com/transactionalblog/sigmod-contest-2023/raw/refs/heads/main/dummy-data.bin[dummy-data.bin] |dummy data for packing submission in reprozip	|10^4
+|2	|contest-data-release-1m.bin	|medium scale released data	|10^6
+|3	|contest-data-release-10m.bin	|large scale released data	|10^7
+|4	|secret-1m.bin	|medium scale data, used for evaluation before March 10	|10^6
+|5	|secret-10m.bin	|large scale data, used for evaluation after March 10	|10^7
+|===
