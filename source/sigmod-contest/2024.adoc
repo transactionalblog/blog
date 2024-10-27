@@ -1,0 +1,136 @@
+= Hybrid Vector Search (2024)
+:revdate: 2024-10-27
+:page-order: 85
+:stem: latexmath
+:page-features: stem
+
+== Archival Note
+
+:uri-contest-2024: https://dbgroup.cs.tsinghua.edu.cn/sigmod2024/index.shtml
+:uri-contest-2024-archive: https://archive.is/cRItl
+:uri-contest-original-code: https://github.com/transactionalblog/sigmod-contest-2024/commit/b1c0533b0d5204fe2465504702a9b82e6fc9ccea
+:uri-contest-leaderboard: https://people.cs.rutgers.edu/~dd903/sigmodpc2023/leader2023_final.html
+
+// TODO: visit https://web.archive.org/save/https://dbgroup.cs.tsinghua.edu.cn/sigmod2024/index.shtml
+
+The {uri-contest-2024}[original contest site] is still available!
+If it's unavailable in the future, it can be found on an {uri-contest-2024-archive}[Archive.is mirror] instead.
+
+The provided code for this contest is available at github:transactionalblog/sigmod-contest-2024[].  The exact provided code is preserved as {uri-contest-original-code}[commit b1c0533b].  The `main` branch contains changes make to fix build issues, improve the build system, update instructions, etc. Links to code in the copied text below have been changed to point to the GitHub repo.
+
+This contest was organized by the https://dbgroup.cs.tsinghua.edu.cn/ligl/index.html[DB Group at Tsinghua University] and the https://people.cs.rutgers.edu/~dd903/[DB Group at Rutgers University].
+The {uri-contest-leaderboard}[leaderboard] has the submissions from the five finalists.
+
+'''
+
+== Task Description
+
+Given a set of vectors with additional attributes, the task is to answer hybrid vector search queries over the data accurately in limited time. A hybrid vector query is to find the approximate k nearest neighbors of a given query vector under one given similarity measure, such as Euclidean distance, with some constraints on non-vector attributes. For each query, your output should be the ids of the k nearest neighbors determined by your algorithm. For this year's task, k is set to be 100 and the vectors have a dimension of 100.
+
+A sample dataset and a sample query set will be provided. The dataset contains millions of high-dimensional vectors, each also having a discretized categorical attribute (denoted as *C*) and a normalized timestamp attribute (denoted as *T*). We will refer to the dataset as *D*. The query set contains millions of hybrid vector queries. We will refer to it as *Q*.
+
+Note: It is prohibited to use query vectors during the indexing phase. Any submission that uses query information to create the index will result in the team being banned. After the contest, we will also conduct manual checks on the submissions of finalists.
+
+=== Dataset Structure
+
+Dataset *D* is in a binary format, beginning with a 4-byte integer `num_vectors (uint32_t)` indicating the number of vectors. This is followed by data for each vector, stored consecutively, with each vector occupying `102 (2 + vector_num_dimension) x sizeof(float32)` bytes, summing up to `num_vectors x 102 (2 + vector_num_dimension) x sizeof(float32)` bytes in total. Specifically, for the 102 dimensions of each vector: the first dimension denotes the discretized categorical attribute *C* and the second dimension denotes the normalized timestamp attribute *T*. The rest 100 dimensions are the vector.
+
+=== Query Set Structure
+
+Query set *Q* is in a binary format, beginning with a 4-byte integer `num_queries (uint32_t)` indicating the number of queries. This is followed by data for each query, stored consecutively, with each query occupying `104 (4 + vector_num_dimension) x sizeof(float32)` bytes, summing up to `num_queries x 104 (4 + vector_num_dimension) x sizeof(float32)` bytes in total.
+The 104-dimensional representation for a query is organized as follows:
+
+* The first dimension denotes query_type (takes values from 0, 1, 2, 3).
+* The second dimension denotes the specific query value v for the categorical attribute (if not queried, takes -1).
+* The third dimension denotes the specific query value l for the timestamp attribute (if not queried, takes -1).
+* The fourth dimension denotes the specific query value r for the timestamp attribute (if not queried, takes -1).
+* The rest 100 dimensions are the query vector.
+
+There are four types of queries, i.e., the query_type takes values from 0, 1, 2 and 3. The 4 types of queries correspond to:
+
+* If query_type=0: Vector-only query, i.e., the conventional approximate nearest neighbor (ANN) search query.
+* If query_type=1: Vector query with categorical attribute constraint, i.e., ANN search for data points satisfying *C*=v.
+* If query_type=2: Vector query with timestamp attribute constraint, i.e., ANN search for data points satisfying l≤*T*≤r.
+* If query_type=3: Vector query with both categorical and timestamp attribute constraints, i.e. ANN search for data points satisfying *C*=v and l≤*T*≤r.
+
+The predicate for the categorical attribute is an equality predicate, i.e., *C*=v. And the predicate for the timestamp attribute is a range predicate, i.e., l≤*T*≤r.
+
+=== I/O Instruction
+
+:uri-github-baseline: https://github.com/transactionalblog/sigmod-contest-2024/blob/main/baseline.cpp
+
+We provide both the reading function(ReadBin) to load the dataset and the query set and the writing function(SaveBin) to generate the output file in the io.h file.
+
+Your goal is to design an efficient algorithm for answering hybrid vector search queries. For each query, your output should be the ids of the k nearest neighbors determined by your algorithm. These neighbor lists are stored one by one and stored in a binary file.
+
+During evaluation, we will replace the sample dataset D and sample query set Q with a hidden test set. The hidden test set is randomly drawn from the same distributions where D and Q were sampled from. We will evaluate your algorithms using the hidden test set. More details are available in the Evaluation section.
+
+More details about the datasets can be found in the dedicated Datasets section.
+
+output.bin format: The evaluation process expects "output.bin" to be a binary file containing |*Q*| x 100 x id (uint32_t). |*Q*| is the number of queries in query set *Q*, 100 is the number of nearest neighbors and id is the index of 100-nearest neighbors in the given dataset *D*.
+
+Please format "output.bin" accordingly. You can check out our provided {uri-github-baseline}[baseline solution] on how to produce a valid "output.bin".
+
+== Datasets
+:uri-dataset-zenodo: https://zenodo.org/records/13998879
+
+Our datasets, both released and evaluation set, are derived from the YFCC100M Dataset. Each dataset comprises vectors encoded from images using the CLIP model, which are then reduced to 100 dimensions using Principal Component Analysis (PCA). Additionally, categorical and timestamp attributes are selected from the metadata of the images. The categorical attribute is discretized into integers starting from 0, and the timestamp attribute is normalized into floats between 0 and 1.
+
+For each query, a query type is randomly selected from four possible types, denoted by the numbers 0 to 3. Then, we randomly choose two data points from dataset *D*, utilizing their categorical attribute (*C*) timestamp attribute (*T*), and vectors, to determine the values of the query. Specifically:
+
+* Randomly sample two data points from *D*.
+* Use the categorical value of the first data point as v for the equality predicate over the categorical attribute *C*.
+* Use the timestamp attribute values of the two sampled data points for the range predicate. Designate l as the smaller timestamp value and r as the larger. The range predicate is thus defined as l≤*T*≤r.
+* Use the vector of the first data point as the query vector.
+* If the query type does not involve v, l, or r, their values are set to -1.
+
+We assure that at least 100 data points in *D* meet the query limit.
+
+[cols="2%,40%,37%,5%,15%"]
+|===
+| #
+| Name
+| Description
+| Dataset Size
+| Query set Size
+
+| 1	
+a| dummy-data.bin +
+dummy-queries.bin
+| dummy data and queries for packing submission in reprozip
+| 10^4
+| 10^2
+
+| 2	
+a| contest-data-release-1m.bin +
+contest-queries-release-1m.bin
+| medium scale released data and queries
+| 10^6
+| 10^4
+
+| 3	
+a| contest-data-release-10m.bin +
+contest-queries-release-10m.bin
+| large-scale released data and queries
+| 10^7
+| 4 * 10^6
+
+| 5	
+a| secret-data-10m.bin +
+secret-queries-10m.bin
+| secret large-scale data and queries, used for evaluation
+|10^7
+|4 * 10^6
+|===
+
+The dummy dataset is included in github:transactionalblog/sigmod-contest-2024[].
+For the contest datasets, please {uri-dataset-zenodo}[download them from Zenodo].
+
+== Evaluation
+
+We will compute the resulting average recall score on evaluation queries. The recall of one query will be computed as follows:
+
+[stem]
+++++
+Recall = \frac{number\ of\ true\ top\ 100\ nearest\ neighbors}{100}
+++++

@@ -5,9 +5,8 @@
 
 SIGMOD hosts a yearly competition to design a system which performs a set of queries as quickly as possible.  The contests provide a starting framework and test harness.  They make great intermediate database projects for learning.
 
+[.display-none]
 == Recent Contests
-
-=== http://sigmodcontest2024.eastus.cloudapp.azure.com/index.shtml[Hybrid Vector Search (2024)]
 
 == Archived Contests
 
