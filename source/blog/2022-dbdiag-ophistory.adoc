@@ -37,14 +37,14 @@ async function ops_to_svg(ops, embed) {
 <div x-data="{ ops: 'Actor: Start A\nActor: End A', embed: false }">
 <table>
   <colgroup>
-    <col style="width: 50%">
-    <col style="width: 50%">
+    <col style="width: 40%">
+    <col style="width: 60%">
   </colgroup>
   <tr>
     <td>
       <textarea x-model.debounce="ops" rows=10 cols=20 x-bind:placeholder="ops">
       </textarea>
-      <span>
+      <span style="display: block">
         <input x-model="embed" type="checkbox" id="embed" />
         <label style="display: inline" for="embed">Force px for older browsers</label>
       </span>
