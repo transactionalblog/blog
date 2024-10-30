@@ -53,7 +53,7 @@ jobs:
       run: |
         mkdir dbdiag
         cd dbdiag
-        wget https://github.com/thisismiller/dbdiag/releases/download/latest/dbdiag-0.0.0-py3-none-any.whl -O dbdiag.whl
+        wget https://github.com/thisismiller/dbdiag/releases/latest/download/dbdiag-0.0.0-py3-none-any.whl -O dbdiag.whl
         pip install ./dbdiag.whl
 
     - name: Build Middleman
