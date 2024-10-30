@@ -52,13 +52,17 @@ jobs:
     - name: Install dbdiag
       run: |
         mkdir dbdiag
-        curl https://raw.githubusercontent.com/thisismiller/dbdiag/main/ophistory.py -o dbdiag/ophistory
         cd dbdiag
-        chmod +x ophistory
-        echo "$(pwd)" >> $GITHUB_PATH
+        wget https://github.com/thisismiller/dbdiag/releases/download/latest/dbdiag-0.0.0-py3-none-any.whl -O dbdiag.whl
+        pip install ./dbdiag.whl
 
     - name: Build Middleman
       run: bundle exec middleman build --verbose --environment=${{ inputs.middleman-environment }}
+
+    - name: Sideload extra artifacts
+      run: |
+        mkdir build/static
+        cp dbdiag/dbdiag.whl build/static
 
     - name: Upload Site Artifact
       uses: actions/upload-artifact@v3

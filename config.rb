@@ -10,7 +10,7 @@ end
 require 'asciidoctor-diagram'
 require_relative 'asciidoc_extensions/asciidoctor-bibtex'
 require_relative 'asciidoc_extensions/inline_macros'
-require_relative 'asciidoc_extensions/ophistory_diagram'
+require_relative 'asciidoc_extensions/dbdiag_diagram'
 require_relative 'asciidoc_extensions/postprocessors'
 require_relative 'asciidoc_extensions/reading_time'
 activate :asciidoc do |asciidoc|
