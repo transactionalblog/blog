@@ -1,6 +1,6 @@
 = Database Startups
 :revdate: 2024-08-13
-:updated: 2024-08-15
+:updated: 2024-10-31
 :page-hook-preamble: false
 :toc: right
 
@@ -21,6 +21,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://turso.tech/[Turso] (2021)
 * https://xata.io/[Xata] (2020)
 * https://supabase.com/[Supabase] (2020)
+** Acquired Oriole, itself also founded 2020
 * https://planetscale.com/[Planetscale] (2018)
 ** Develops and commercializes Vitess, which was started in YouTube in 2010.
 * https://hopsworks.ai/[Hopsworks] (2017)
@@ -56,6 +57,8 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == OLAP SQL
 
+* https://mooncake.dev/[Mooncake Labs] (2024)
+** DuckDB-in-Postgres via github:Mooncake-Labs/pg_mooncake[]
 * https://tablespace.com/[TableSpace] (2024)
 * https://pola.rs/[Polars] (2023)
 * https://paradedb.com/[ParadeDB] (2023)
