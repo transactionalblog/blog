@@ -116,6 +116,7 @@ end
 require 'terser'
 
 config[:domain] = "http://localhost:4567"
+config[:asset_extensions] << '.whl'
 
 configure :ghpages do
   config[:domain] = "https://draft.transactional.blog"
