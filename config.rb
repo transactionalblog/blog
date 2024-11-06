@@ -62,12 +62,12 @@ activate :blog do |blog|
   blog.default_extension = ".adoc"
   blog.summary_length = nil
   blog.summary_generator = Proc.new { |article, rendered, length, ellipsis|
-    if article.data.hook_preamble == false
-      next ''
-    end
+    puts "title=#{article.title} hook=#{article.data.hook}"
     page_hook = article.data.hook
     if page_hook
-      '<div>' + page_hook + '</div>'
+      next '<div>' + page_hook + '</div>'
+    elsif article.data.hook_preamble == false
+      next ''
     else
       noko = Nokogiri::HTML5(rendered)
       if f = noko.at('#chosen_preamble')
