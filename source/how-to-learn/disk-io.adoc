@@ -5,7 +5,7 @@
 :page-hook-preamble: false
 :page-hook: Filesystems, file IO, and durability.
 
-[.white-bg]
+[.text-center.white-bg]
 --
 image::mental-model.svg[]
 --
@@ -15,11 +15,13 @@ image::mental-model.svg[]
 :uri-linus-on-odirect: https://yarchive.net/comp/linux/o_direct.html
 :uri-lkml-block-atomic-writes: https://lore.kernel.org/all/20240620125359.2684798-1-john.g.garry@oracle.com/
 :uri-libeio: http://software.schmorp.de/pkg/libeio.html
+:uri-gist-nvme-ctrl: https://gist.github.com/thisismiller/203a3c622c8779cf2f73b86e7d31a650#file-nvme-id-ctrl-h-L210-L211
 
 In database land, most databases man:open[2] their WAL and data files with `O_DIRECT` so that man:write[2]/man:writev[2]/man:pwritev[2] perform unbuffered IO, maintain their own page cache, and utilize `fdatasync()` for durability.  Doing so gives the most control over what data maintained in the page cache, allows directly modifying cached data, and using `O_DIRECT` then skips the kernel's page cache when reading and writing data from or to disk.  `O_SYNC/O_DSYNC` allow a single `write()` with `O_DIRECT` to be equivalent to a `write()` followed by a `fsync()`/`fdatasync()`.  In the Linux world, the existence of `O_DIRECT` is surprisingly controversial, and Linus has some {uri-linus-on-odirect}[famous rants on the subject] illustrating the OS/DB world view mismatch.
 
 There are some notable examples of databases that rely on buffered IO and the kernel page cache (e.g. RocksDB, LMDB).  Relying on the kernel's page cache can be polite in the context of an embedded database meant to be used within another application and co-exist with many other applications on a user's computer.  Leaving the caching decisions to the kernel means that more memory for the page cache can be easily granted when the system has the memory to spare, and can be reclaimed when more available memory is needed.
-If using buffered IO, {uri-preadv2-pwritev2}[preadv2/prwritev2's flags] can be helpful.  `pwritev2()` has also gained support for {uri-lkml-block-atomic-writes}[multi-block atomic writes], which is conditional on filesystem support.
+If using buffered IO, {uri-preadv2-pwritev2}[preadv2/prwritev2's flags] can be helpful.  `pwritev2()` has also gained support for {uri-lkml-block-atomic-writes}[multi-block atomic writes], which is conditional on filesystem and drive support{nospace}sidenote:ref[].
+[.aside]#sidenote:def[] Drive support means a drive for which Atomic Write Unit Power Fail (awupf) in {uri-gist-nvme-ctrl}[`nvme-cli id-ctrl`] returns something greater than zero.  I've never actually seen a drive support this though.#
 
 Directly invoking `write()` performs synchronous IO.  Event-driven non-blocking IO is increasingly popular for concurrency and due to thread-per-core architectures, and there's a number of different ways to do asynchronous IO in linux.  Prefer them in the following order: man:io_uring[7] > man:aio[7] > man:epoll[7] > man:select[2].  Support for the number of operations one can issue asynchronously decreases rapidly the further one gets from io_uring.  For example, io_uring supports an async man:fallocate[2], but aio doesn't; aio supports async `fsync()`, and epoll doesn't.  A library which issues synchronous filesystems calls on background threads, like {uri-libeio}[libeio], will be needed to fill in support where it's missing.  For the utmost performance, one can use SPDK, but its usage is particularly not friendly.  _Understanding Modern Storage APIs_{nospace}sidenote:ref[] has a nice comparison of SPDK vs io_uring vs aio.
 [.aside]#sidenote:def[] bibitem:[ModernStorageAPIs]#
