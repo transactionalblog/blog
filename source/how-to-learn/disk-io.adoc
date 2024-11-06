@@ -1,29 +1,95 @@
-= Kernel and Userland Disk I/O
-:revdate: 2023-05-07
-:draft: true
+= Userland Disk I/O
+:revdate: 2024-11-06
 :page-order: 3
+:bibtex-file: disk-io.bib
+:page-hook-preamble: false
+:page-hook: Filesystems, file IO, and durability.
 
-Filesystems, async file IO, and durability.
+[.white-bg]
+--
+image::mental-model.svg[]
+--
+
+== File I/O
+:uri-preadv2-pwritev2: https://man.archlinux.org/man/pwritev2.2.en#preadv2()_and_pwritev2()
+:uri-linus-on-odirect: https://yarchive.net/comp/linux/o_direct.html
+:uri-lkml-block-atomic-writes: https://lore.kernel.org/all/20240620125359.2684798-1-john.g.garry@oracle.com/
+:uri-libeio: http://software.schmorp.de/pkg/libeio.html
+
+In database land, most databases man:open[2] their WAL and data files with `O_DIRECT` so that man:write[2]/man:writev[2]/man:pwritev[2] perform unbuffered IO, maintain their own page cache, and utilize `fdatasync()` for durability.  Doing so gives the most control over what data maintained in the page cache, allows directly modifying cached data, and using `O_DIRECT` then skips the kernel's page cache when reading and writing data from or to disk.  `O_SYNC/O_DSYNC` allow a single `write()` with `O_DIRECT` to be equivalent to a `write()` followed by a `fsync()`/`fdatasync()`.  In the Linux world, the existence of `O_DIRECT` is surprisingly controversial, and Linus has some {uri-linus-on-odirect}[famous rants on the subject] illustrating the OS/DB world view mismatch.
+
+There are some notable examples of databases that rely on buffered IO and the kernel page cache (e.g. RocksDB, LMDB).  Relying on the kernel's page cache can be polite in the context of an embedded database meant to be used within another application and co-exist with many other applications on a user's computer.  Leaving the caching decisions to the kernel means that more memory for the page cache can be easily granted when the system has the memory to spare, and can be reclaimed when more available memory is needed.
+If using buffered IO, {uri-preadv2-pwritev2}[preadv2/prwritev2's flags] can be helpful.  `pwritev2()` has also gained support for {uri-lkml-block-atomic-writes}[multi-block atomic writes], which is conditional on filesystem support.
+
+Directly invoking `write()` performs synchronous IO.  Event-driven non-blocking IO is increasingly popular for concurrency and due to thread-per-core architectures, and there's a number of different ways to do asynchronous IO in linux.  Prefer them in the following order: man:io_uring[7] > man:aio[7] > man:epoll[7] > man:select[2].  Support for the number of operations one can issue asynchronously decreases rapidly the further one gets from io_uring.  For example, io_uring supports an async man:fallocate[2], but aio doesn't; aio supports async `fsync()`, and epoll doesn't.  A library which issues synchronous filesystems calls on background threads, like {uri-libeio}[libeio], will be needed to fill in support where it's missing.  For the utmost performance, one can use SPDK, but its usage is particularly not friendly.  _Understanding Modern Storage APIs_{nospace}sidenote:ref[] has a nice comparison of SPDK vs io_uring vs aio.
+[.aside]#sidenote:def[] bibitem:[ModernStorageAPIs]#
+
+For commentary on each of these asynchronous IO frameworks, the libev source code is a treasure which catalogs all the caveats in a leading rant comment in each source file:
+
+* http://cvs.schmorp.de/libev/ev_epoll.c?view=markup#l41[libev/ev_epoll.c]
+* http://cvs.schmorp.de/libev/ev_linuxaio.c?view=markup#l41[libev/ev_linuxaio.c] -- highly recommended reading
+* http://cvs.schmorp.de/libev/ev_iouring.c?view=markup#l41[libev/ev_iouring.c] -- "overall, the _API_ itself is, I dare to say, not a total trainwreck."
+
+== Durability
+:uri-luu-file-consistency: https://danluu.com/file-consistency/
+:uri-fsyncgate: https://danluu.com/fsyncgate/
+:uri-bonsaidb-sync-file-range: https://bonsaidb.io/blog/durable-writes/
+:uri-sled-sync-file-range: https://github.com/spacejam/sled/issues/1351
+:uri-rocksdb-sync-file-range: https://github.com/facebook/rocksdb/blob/bed40e7266b55349ce9d2dce27aeb2055813a5fe/env/io_posix.cc#L160-L166
+
+man:fsync[2] is the core primitive for making data durable, by which we mean "writes completed before fsync() begun will continue to exist on disk even if you rip out the power cable after fsync() completes".  `fsync()` is the beloved function because the alternatives have caveats.  man:sync[2] applies _all_ buffered writes to _all_ disks, not just the ones performed as part of the database's operations.  man:sync_file_range[2] allows only ranges of a file to have their buffered changes forced to disk, but is non-standard, and only provides durability on ext4 and xfs{nospace}sidenote:ref[].
+[.aside]#sidenote:def[] The `sync_file_range()` manpage states "This system call does not flush disk write caches and thus does not provide any data integrity on systems with volatile disk write caches."  However, {uri-bonsaidb-sync-file-range}[testing done by the BonsaiDB author] confirmed that FUA bits are set only on ext4 and xfs, but not btrfs or zfs.  See discussion within {uri-sled-sync-file-range}[Sled] and {uri-rocksdb-sync-file-range}[RocksDB] for further reasons to be cautious.#
+
+For each method of ensuring data durably reaches disk, there's a split between the methods that ensure _File Integrity_ (`fsync()` and `O_SYNC`) and those that ensure _Data Integrity_ (`fdatasync()` and `O_DSYNC`).  For their definitions, we look to the man pages:
+
+[quote,'man:open[2]']
+____
+O_SYNC provides synchronized I/O file integrity completion,
+meaning write operations will flush data and all associated
+metadata to the underlying hardware.  O_DSYNC provides
+synchronized I/O data integrity completion, meaning write
+operations will flush data to the underlying hardware, but will
+only flush metadata updates that are required to allow a
+subsequent read operation to complete successfully.  Data
+integrity completion can reduce the number of disk operations
+that are required for applications that don't need the guarantees
+of file integrity completion.
+
+To understand the difference between the two types of completion,
+consider two pieces of file metadata: the file last modification
+timestamp (st_mtime) and the file length.  All write operations
+will update the last file modification timestamp, but only writes
+that add data to the end of the file will change the file length.
+The last modification timestamp is not needed to ensure that a
+read completes successfully, but the file length is.  Thus,
+O_DSYNC would only guarantee to flush updates to the file length
+metadata (whereas O_SYNC would also always flush the last
+modification timestamp metadata).
+____
+
+To reiterate, if you issue a write to a file using `O_DIRECT` which appends to the file, and then call `fdatasync()`, the appended data _will_ be durable and readable once `fdatasync()` returns, as the filesystem metadata change to increase the length of the file is required to have also been made durable.
+
+However, using `fsync()` correctly and minimally is still not easy.
+{uri-luu-file-consistency}[Dan Luu's File Consistency page] and links therein provide a nice overview of some of the challenges. _On the Complexity of Crafting Crash-Consistent Applications_{nospace}sidenote:ref[] takes an even deeper look. The general rules to be aware of are:
+[.aside]#sidenote:def[] bibitem:[CraftingCrashConsistency]#
+
+* To write into a new file, first `fsync()` the file, then `fsync()` the containing directory.
+* If using the `rename()`-is-atomic trick, again first `fsync()` the file, then `rename()`,then `fsync()` the directory.
+* On the first open of a mutable file, call `fsync()`, as a previous incarnation of the process might have crashed and left non-durable changes in the file.
+
+`fsync()` can fail, and improperly handling that error started {uri-fsyncgate}[fsyncgate] as folk noticed PostgreSQL among other databases had incorrect handling of it.  This received further examination in _Can Applications Recover from fsync Failures?_{nospace}sidenote:ref[].
+[.aside]#sidenote:def[] bibitem:[FsyncFailures]#
+
+Lastly, note that the functions and promises to enforce durability on macOS are different than those on Unix platforms, because macOS intentionally violated the standards.  See link:/blog/2022-darwins-deceptive-durability.html[Darwin's Deceptive Durability] for the overview.
 
 == Filesystems
 
 :uri-phoronix-fs-bench: https://www.phoronix.com/review/linux-58-filesystems/
 :uri-scylladb-qual-fs: https://www.scylladb.com/2016/02/09/qualifying-filesystems/
+:uri-xnvme: https://xnvme.io/
 
 Prefer XFS if you can.  It {uri-phoronix-fs-bench}[benchmarks overall well].
 It handles a bunch of special cases well that are {uri-scylladb-qual-fs}[important for databases].
-
-It's possible to open a raw block device and entirely bypass the filesystem.
-Doing so requires that all reads and writes be 4k aligned and a multiple of 4k
-in size. It also requires reimplementing everything that comes for free with a
-filesystem: free block tracking, disk space usage reporting, snapshot-based
-backup/restore, application logging, drive health testing.  Anecdotally, I've
-heard that the advantage of all of this is an ~10% speedup, so not a tradeoff
-that's often worth the cost.  But for easy experimentation and testing of direct
-block storage access, a loopback device (man:losetup[8]) allows mounting a file
-as a block device.
-
-== Don't Use FS Wrong
 
 Filesystems maintain metadata about how blocks are associated with files, and
 optimizing around this will lead to lower latency.  Ext4 and XFS both can
@@ -32,7 +98,7 @@ metadata overhead.  This encourages appending to files in large chunks at a time
 (or using fallocate to extend the file before performing a series of small
 appends).  Maintaining large extents also potentially discourages excessive use
 of some filesystem metadata calls, as e.g. fine-grained use of
-FALLOC_FL_PUNCH_HOLE would be an easy way to continuously fragment extents.
+`FALLOC_FL_PUNCH_HOLE` would be an easy way to continuously fragment extents.
 Large files incur large metadata, and so it's often a good idea to incrementally
 truncate down a large file before unlinking it, otherwise the entire metadata
 traversal and deleting will be performed synchronously with the unlink.
@@ -45,45 +111,24 @@ man:ionice[1] and man:ioprio_set[2] offer some control over how requests are
 prioritized in that queue, but I've never really noticed ionice make a
 difference.
 
-== Use Fsync Right
-
-https://danluu.com/file-consistency/[Dan Luu's File Consistency page] and links therein provide a nice overview of 
-
-Top rules:
-
-1. Write new file => fsync file.  fsync directory.
-2. First open of mutable file => fsync.
-3. Write into file: fdatasync.
-
-== (Un)Buffered IO
-
-:uri-preadv2-prwitev2: https://man.archlinux.org/man/pwritev2.2.en#preadv2()_and_pwritev2()
-:uri-linux-on-odirect: https://yarchive.net/comp/linux/o_direct.html
-
-Most databases do unbuffered (O_DIRECT) IO, and maintain their own page cache.
-Some notable examples (e.g. rocksdb) don't. 
-There are advantages both ways.  Direct control over the page cache allows for better caching decisions (e.g. don't evict the root node of the btree).  Using the system page cache notably offers an easy, elastic cache that's trivially shared with other processes on same machine.
-
-If using buffered IO, {uri-preadv2-pwritev2}[preadv2/prwritev2's flags] can be helpful. 
-
-{uri-linus-on-odirect}[Linus on O_DIRECT] is informative for the OS/DB world view mismatch.
-
-
-== How to do IO
-
-:uri-libeio: http://software.schmorp.de/pkg/libeio.html
-
-There's a number of different ways to do asychronous IO in linux.  Prefer them in the following order: io_uring > aio > epoll > select.  Support for doing more than asynchronous reading and writing decreases rapidly the further one gets from io_uring.  For example, io_uring supports an async fallocate, but aio doesn't; aio supports async fsync, and epoll doesn't.  A library which issues synchronous filesystems calls on background threads, like {uri-libeo}[libeio], will be needed to fill in support where it's missing.
-
-For commentary on each of these, the libev source code is a treasure which catalogs all the caveats in a starting rant:
-
-* http://cvs.schmorp.de/libev/ev_epoll.c?view=markup#l41[libev/ev_epoll.c]
-* http://cvs.schmorp.de/libev/ev_linuxaio.c?view=markup#l41[libev/ev_linuxaio.c] -- highly recommended reading
-* http://cvs.schmorp.de/libev/ev_iouring.c?view=markup#l41[libev/ev_iouring.c] -- "overall, the _API_ itself is, I dare to say, not a total trainwreck."
-
+It's possible to open a raw block device and entirely bypass the filesystem.
+Doing so requires that all reads and writes be 4k aligned and a multiple of 4k
+in size. It also requires reimplementing everything that comes for free with a
+filesystem: free block tracking, disk space usage reporting, snapshot-based
+backup/restore, application logging, drive health testing.  Anecdotally, I've
+heard that the advantage of all of this is an ~10% speedup, so not a tradeoff
+that's often worth the cost.  But for easy experimentation and testing of direct
+block storage access, a loopback device (man:losetup[8]) allows mounting a file
+as a block device.  I'd highly recommend using {uri-xnvme}[xNVMe] if you're looking
+to directly interact with NVMe block storage.
 
 == Kernel Things
 
-* Be aware of IO scheduler https://wiki.ubuntu.com/Kernel/Reference/IOSchedulers
-* You can periodically scrape /proc/diskstats to self-report on disk metrics
-* If using buffered io, be aware of vm.dirty_ratio https://docs.kernel.org/admin-guide/sysctl/vm.html#dirty-ratio
+Be aware of https://wiki.ubuntu.com/Kernel/Reference/IOSchedulers[IO
+schedulers].  The general advice is to prefer `mq-deadline` or `none` for SSDs
+(SATA or NVME), as the drives are fast enough that excessive scheduling overhead
+generally isn't worthwhile.
+
+If using buffered io, https://docs.kernel.org/admin-guide/sysctl/vm.html#dirty-ratio[vm.dirty_ratio] controls when Linux will start writing modified pages to disk.
+
+You can periodically scrape `/proc/diskstats` to self-report on disk metrics.
