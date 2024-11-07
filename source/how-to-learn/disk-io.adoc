@@ -100,6 +100,8 @@ On macOS, note that the functions and promises to enforce durability are differe
 On Windows, `FlushFileBuffers()`{nospace}sidenote:ref[] is equivalent to `fsync()`, and `NtFlushBuffersFileEx(FLUSH_FLAGS_FILE_DATA_SYNC_ONLY)` is equivalent to `fdatasync()`.  For files opened with `_open()`, call `_commit()` instead.
 [.aside]#sidenote:def[] Except this {uri-flushfilebuffers-reliability}[terrifying note on the reliability of FlushBuffersFile] saying "Fortunately, nearly all drivers in the Windows 7 era respect [the command to force changes to disk]. (There are a few stragglers that still ignore it.)"#
 
+Lastly, _Force Unit Access_ (commonly abbreviated as FUA) is the term that the SCSI/SATA/NVMe specifications use for "please force this data to be on non-volatile storage", so if you're ever trying to google durability related things, adding "FUA" will get you better answers.
+
 == Filesystems
 
 :uri-phoronix-fs-bench: https://www.phoronix.com/review/linux-58-filesystems/
