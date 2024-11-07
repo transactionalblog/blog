@@ -2,8 +2,12 @@
 :revdate: 2024-11-06
 :page-order: 3
 :bibtex-file: disk-io.bib
+:page-aside: With thanks to Thomas Munro for the Windows corrections.
 :page-hook-preamble: false
 :page-hook: Filesystems, file IO, and durability.
+
+[.display-none]
+== APIs
 
 [.text-center.white-bg]
 --
@@ -15,7 +19,9 @@ image::mental-model.svg[]
 :uri-linus-on-odirect: https://yarchive.net/comp/linux/o_direct.html
 :uri-lkml-block-atomic-writes: https://lore.kernel.org/all/20240620125359.2684798-1-john.g.garry@oracle.com/
 :uri-libeio: http://software.schmorp.de/pkg/libeio.html
+:uri-spdk: https://spdk.io/
 :uri-gist-nvme-ctrl: https://gist.github.com/thisismiller/203a3c622c8779cf2f73b86e7d31a650#file-nvme-id-ctrl-h-L210-L211
+:uri-iocp: https://learn.microsoft.com/en-us/windows/win32/fileio/i-o-completion-ports
 
 In database land, most databases man:open[2] their WAL and data files with `O_DIRECT` so that man:write[2]/man:writev[2]/man:pwritev[2] perform unbuffered IO, maintain their own page cache, and utilize `fdatasync()` for durability.  Doing so gives the most control over what data maintained in the page cache, allows directly modifying cached data, and using `O_DIRECT` then skips the kernel's page cache when reading and writing data from or to disk.  `O_SYNC/O_DSYNC` allow a single `write()` with `O_DIRECT` to be equivalent to a `write()` followed by a `fsync()`/`fdatasync()`.  In the Linux world, the existence of `O_DIRECT` is surprisingly controversial, and Linus has some {uri-linus-on-odirect}[famous rants on the subject] illustrating the OS/DB world view mismatch.
 
@@ -23,7 +29,7 @@ There are some notable examples of databases that rely on buffered IO and the ke
 If using buffered IO, {uri-preadv2-pwritev2}[preadv2/prwritev2's flags] can be helpful.  `pwritev2()` has also gained support for {uri-lkml-block-atomic-writes}[multi-block atomic writes], which is conditional on filesystem and drive support{nospace}sidenote:ref[].
 [.aside]#sidenote:def[] Drive support means a drive for which Atomic Write Unit Power Fail (awupf) in {uri-gist-nvme-ctrl}[`nvme-cli id-ctrl`] returns something greater than zero.  I've never actually seen a drive support this though.#
 
-Directly invoking `write()` performs synchronous IO.  Event-driven non-blocking IO is increasingly popular for concurrency and due to thread-per-core architectures, and there's a number of different ways to do asynchronous IO in linux.  Prefer them in the following order: man:io_uring[7] > man:aio[7] > man:epoll[7] > man:select[2].  Support for the number of operations one can issue asynchronously decreases rapidly the further one gets from io_uring.  For example, io_uring supports an async man:fallocate[2], but aio doesn't; aio supports async `fsync()`, and epoll doesn't.  A library which issues synchronous filesystems calls on background threads, like {uri-libeio}[libeio], will be needed to fill in support where it's missing.  For the utmost performance, one can use SPDK, but its usage is particularly not friendly.  _Understanding Modern Storage APIs_{nospace}sidenote:ref[] has a nice comparison of SPDK vs io_uring vs aio.
+Directly invoking `write()` performs synchronous IO.  Event-driven non-blocking IO is increasingly popular for concurrency and due to thread-per-core architectures, and there's a number of different ways to do asynchronous IO in linux.  Prefer them in the following order: man:io_uring[7] > man:io_submit[2] > man:aio[7] > man:epoll[7] > man:select[2].  Support for the number of operations one can issue asynchronously decreases rapidly the further one gets from io_uring.  For example, io_uring supports an async man:fallocate[2], but aio doesn't; aio supports async `fsync()`, and epoll doesn't.  A library which issues synchronous filesystem calls on background threads, like {uri-libeio}[libeio], will be needed to fill in support where it's missing.  For the utmost performance, one can use SPDK, but its usage is particularly not friendly.  _Understanding Modern Storage APIs_{nospace}sidenote:ref[] has a nice comparison of SPDK vs io_uring vs aio.
 [.aside]#sidenote:def[] bibitem:[ModernStorageAPIs]#
 
 For commentary on each of these asynchronous IO frameworks, the libev source code is a treasure which catalogs all the caveats in a leading rant comment in each source file:
@@ -32,12 +38,18 @@ For commentary on each of these asynchronous IO frameworks, the libev source cod
 * http://cvs.schmorp.de/libev/ev_linuxaio.c?view=markup#l41[libev/ev_linuxaio.c] -- highly recommended reading
 * http://cvs.schmorp.de/libev/ev_iouring.c?view=markup#l41[libev/ev_iouring.c] -- "overall, the _API_ itself is, I dare to say, not a total trainwreck."
 
+On macOS, the options for asynchronous IO are incredibly limited.  The `aio_*` calls from man:aio[7] will work, but the `io_*` ones are linux-specific.  Otherwise, use of {uri-libeio}[libeio] or a similar threadpool-based asynchronous IO framework is recommended.
+
+On Windows, {uri-iocp}[I/O Completion Ports] is the canonical way to perform asynchronous IO.
+
 == Durability
 :uri-luu-file-consistency: https://danluu.com/file-consistency/
 :uri-fsyncgate: https://danluu.com/fsyncgate/
 :uri-bonsaidb-sync-file-range: https://bonsaidb.io/blog/durable-writes/
 :uri-sled-sync-file-range: https://github.com/spacejam/sled/issues/1351
 :uri-rocksdb-sync-file-range: https://github.com/facebook/rocksdb/blob/bed40e7266b55349ce9d2dce27aeb2055813a5fe/env/io_posix.cc#L160-L166
+:uri-wsl-rename: https://toot.cat/@zkat/109973167110793372
+:uri-flushfilebuffers-reliability: https://devblogs.microsoft.com/oldnewthing/20170510-00/?p=95505
 
 man:fsync[2] is the core primitive for making data durable, by which we mean "writes completed before fsync() begun will continue to exist on disk even if you rip out the power cable after fsync() completes".  `fsync()` is the beloved function because the alternatives have caveats.  man:sync[2] applies _all_ buffered writes to _all_ disks, not just the ones performed as part of the database's operations.  man:sync_file_range[2] allows only ranges of a file to have their buffered changes forced to disk, but is non-standard, and only provides durability on ext4 and xfs{nospace}sidenote:ref[].
 [.aside]#sidenote:def[] The `sync_file_range()` manpage states "This system call does not flush disk write caches and thus does not provide any data integrity on systems with volatile disk write caches."  However, {uri-bonsaidb-sync-file-range}[testing done by the BonsaiDB author] confirmed that FUA bits are set only on ext4 and xfs, but not btrfs or zfs.  See discussion within {uri-sled-sync-file-range}[Sled] and {uri-rocksdb-sync-file-range}[RocksDB] for further reasons to be cautious.#
@@ -76,13 +88,17 @@ However, using `fsync()` correctly and minimally is still not easy.
 [.aside]#sidenote:def[] bibitem:[CraftingCrashConsistency]#
 
 * To write into a new file, first `fsync()` the file, then `fsync()` the containing directory.
-* If using the `rename()`-is-atomic trick, again first `fsync()` the file, then `rename()`,then `fsync()` the directory.
+* If using the `rename()`-is-atomic trick, again first `fsync()` the file, then `rename()`,then `fsync()` the directory.{nospace}sidenote:ref[]
+[.aside]#sidenote:def[] Except there's this {uri-wsl-rename}[one report] of rename() not being atomic on the Windows Subsystem for Linux, so who knows.#
 * On the first open of a mutable file, call `fsync()`, as a previous incarnation of the process might have crashed and left non-durable changes in the file.
 
 `fsync()` can fail, and improperly handling that error started {uri-fsyncgate}[fsyncgate] as folk noticed PostgreSQL among other databases had incorrect handling of it.  This received further examination in _Can Applications Recover from fsync Failures?_{nospace}sidenote:ref[].
 [.aside]#sidenote:def[] bibitem:[FsyncFailures]#
 
-Lastly, note that the functions and promises to enforce durability on macOS are different than those on Unix platforms, because macOS intentionally violated the standards.  See link:/blog/2022-darwins-deceptive-durability.html[Darwin's Deceptive Durability] for the overview.
+On macOS, note that the functions and promises to enforce durability are different than those on Unix platforms, because macOS intentionally violated the standards.  See link:/blog/2022-darwins-deceptive-durability.html[Darwin's Deceptive Durability] for the overview.
+
+On Windows, `FlushFileBuffers()`{nospace}sidenote:ref[] is equivalent to `fsync()`, and `NtFlushBuffersFileEx(FLUSH_FLAGS_FILE_DATA_SYNC_ONLY)` is equivalent to `fdatasync()`.  For files opened with `_open()`, call `_commit()` instead.
+[.aside]#sidenote:def[] Except this {uri-flushfilebuffers-reliability}[terrifying note on the reliability of FlushBuffersFile] saying "Fortunately, nearly all drivers in the Windows 7 era respect [the command to force changes to disk]. (There are a few stragglers that still ignore it.)"#
 
 == Filesystems
 
@@ -108,10 +124,10 @@ traversal and deleting will be performed synchronously with the unlink.
 How the storage device is attached to the system changes the number of parallel
 operations it can possibly support.  (And the range is wide: SATA NCQ supports
 32 concurrent requests, NVMe supports 65k.)  If you submit more than this,
-there's implicit queuing that happens in the kernel.  Theoretically
-man:ionice[1] and man:ioprio_set[2] offer some control over how requests are
-prioritized in that queue, but I've never really noticed ionice make a
-difference.
+there's implicit queuing that happens in the kernel and userspace only sees
+increased latencies.  Theoretically man:ionice[1] and man:ioprio_set[2] offer
+some control over how requests are prioritized in that queue, but I've never
+really noticed ionice make a difference.
 
 It's possible to open a raw block device and entirely bypass the filesystem.
 Doing so requires that all reads and writes be 4k aligned and a multiple of 4k
