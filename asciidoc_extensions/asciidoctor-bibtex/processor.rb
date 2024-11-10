@@ -12,6 +12,7 @@ require 'set'
 require_relative 'citation_macro'
 require_relative 'citation_utils'
 require_relative 'bibitem_macro'
+require_relative 'biblink_macro'
 require_relative 'string_utils'
 require_relative 'style_utils'
 
@@ -36,6 +37,7 @@ module AsciidoctorBibtex
       @throw_on_unknown = throw_on_unknown
       @bibtex_ob = '['
       @bibtex_cb = ']'
+      @bibliographied = {}
       match = custom_citation_template.match(/^(.+?)\$id(.+)$/)
       unless match.nil?
         @bibtex_ob = match[1]
@@ -98,7 +100,17 @@ module AsciidoctorBibtex
     # Return new text with all macros replaced.
     def replace_bibitem_macros(line)
       BibitemMacro.extract_macros(line).each do |item|
-        line = line.gsub(item.text, build_bibitem_text(item.key))
+        line = line.gsub(item.text, build_bibitem_text(item.key, item.arg))
+      end
+      line
+    end
+
+    # Replace biblink macros with rendered biblink.
+    #
+    # Return new text with all macros replaced.
+    def replace_biblink_macros(line)
+      BiblinkMacro.extract_macros(line).each do |link|
+        line = line.gsub(link.text, build_biblink_text(link.key, link.arg))
       end
       line
     end
@@ -109,7 +121,9 @@ module AsciidoctorBibtex
     def build_bibliography_list
       result = []
       @citations.each_with_index do |ref, index|
-        result << '- ' + build_bibliography_item(ref, index)
+        if @bibliographied[ref].nil?
+          result << '- ' + build_bibliography_item(ref, index)
+        end
       end
       result
     end
@@ -119,7 +133,7 @@ module AsciidoctorBibtex
     #
 
     # Build the asciidoc text for a single bibliography item
-    def build_bibitem_text(key)
+    def build_bibitem_text(key, arg)
       begin
         if @biblio[key].nil?
           puts "Unknown reference: #{key}"
@@ -132,7 +146,18 @@ module AsciidoctorBibtex
         puts "Failed to render #{key}: #{e}"
         cptext = key
       end
-      result = StringUtils.html_to_asciidoc(cptext)
+      result = ''
+      result << "[[#{key}]]" if @links
+      if arg == 'keyed'
+        if StyleUtils.is_numeric? @style
+          result << "#{@bibtex_ob}#{index}#{@bibtex_cb} "
+        elsif @biblio[key].has_field? 'refname'
+          result << "#{@bibtex_ob}#{@biblio[key].refname.to_s}#{@bibtex_cb} "
+        else
+          result << "#{@bibtex_ob}#{key}#{@bibtex_cb} "
+        end
+      end
+      result << StringUtils.html_to_asciidoc(cptext)
 
       if @biblio[key]&.has_field? 'note'
         result << " #{@biblio[key].note}."
@@ -146,6 +171,37 @@ module AsciidoctorBibtex
         result << " https://arxiv.org/abs/#{@biblio[key].arxiv}[[arXiv\\]]"
       end
 
+      if @biblio[key]&.has_field? 'pdf'
+        result << " https://docs.google.com/viewer?url=#{@biblio[key].pdf}[[pdf\\]]"
+      end
+      @bibliographied[key] = true
+      result
+    end
+
+    # Build the asciidoc text for a single bibliography item
+    def build_biblink_text(key, arg)
+      begin
+        if @biblio[key].nil?
+          puts "Unknown reference: #{key}"
+          cptext = key
+        else
+          cptext = @citeproc.render :bibliography, id: key
+          cptext = cptext.first
+        end
+      rescue Exception => e
+        puts "Failed to render #{key}: #{e}"
+        cptext = key
+      end
+      refname = if @biblio[key].has_field? 'refname' then @biblio[key].refname.to_s else @biblio[key].title.to_s end
+      result = ''
+
+      if @biblio[key]&.has_field? 'scholarcluster'
+        result << " https://scholar.google.com/scholar?cluster=#{@biblio[key].scholarcluster}[_#{refname}_]"
+      elsif @biblio[key]&.has_field? 'arxiv'
+        result << " https://arxiv.org/abs/#{@biblio[key].arxiv}[_#{refname}_]"
+      elsif @biblio[key]&.has_field? 'pdf'
+        result << " https://docs.google.com/viewer?url=#{@biblio[key].pdf}[_#{refname}_]"
+      end
       result
     end
 
@@ -190,6 +246,11 @@ module AsciidoctorBibtex
         result << " https://arxiv.org/abs/#{@biblio[key].arxiv}[[arXiv\\]]"
       end
 
+      if @biblio[key]&.has_field? 'pdf'
+        result << " https://docs.google.com/viewer?url=#{@biblio[key].pdf}[[pdf\\]]"
+      end
+
+      @bibliographied[key] = true
       StringUtils.html_to_asciidoc(result)
     end
 

@@ -23,7 +23,7 @@ module AsciidoctorBibtex
     # matches a bibitem key
     BIBITEM_KEY = /[^\s\]]+/.freeze
     # matches the full macro
-    BIBITEM_MACRO = /bibitem:\[(#{BIBITEM_KEY})\]/.freeze
+    BIBITEM_MACRO = /bibitem:(\w*)\[(#{BIBITEM_KEY})\]/.freeze
 
     # Given a line, return a list of BibitemMacro instances
     def self.extract_macros(line)
@@ -31,22 +31,25 @@ module AsciidoctorBibtex
       full = BIBITEM_MACRO.match line
       while full
         text = full[0]
-        key = full[1]
-        result << BibitemMacro.new(text, key)
+        arg = full[1]
+        key = full[2]
+        result << BibitemMacro.new(text, arg, key)
         # look for next citation on line
         full = BIBITEM_MACRO.match full.post_match
       end
       result
     end
 
-    attr_reader :text, :key
+    attr_reader :text, :arg, :key
 
     # Create a BibitemMacro object
     #
     # text: the full macro text matched by BIBITEM_MACRO
+    # arg: an optional argument to control behavior
     # key: bibitem key
-    def initialize(text, key)
+    def initialize(text, arg, key)
       @text = text
+      @arg = arg
       @key = key
     end
   end

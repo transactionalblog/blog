@@ -62,7 +62,6 @@ activate :blog do |blog|
   blog.default_extension = ".adoc"
   blog.summary_length = nil
   blog.summary_generator = Proc.new { |article, rendered, length, ellipsis|
-    puts "title=#{article.title} hook=#{article.data.hook}"
     page_hook = article.data.hook
     if page_hook
       next '<div>' + page_hook + '</div>'

@@ -119,6 +119,7 @@ module AsciidoctorBibtex
               line_orig = line
               line = processor.replace_citation_macros(line)
               line = processor.replace_bibitem_macros(line)
+              line = processor.replace_biblink_macros(line)
               block.text = line if line != line_orig
             end
           elsif block.content_model == :simple
@@ -126,6 +127,7 @@ module AsciidoctorBibtex
               line_orig = line
               line = processor.replace_citation_macros(line)
               line = processor.replace_bibitem_macros(line)
+              line = processor.replace_biblink_macros(line)
               block.lines[index] = line if line != line_orig
             end
           else
@@ -134,6 +136,7 @@ module AsciidoctorBibtex
             line_orig = line
             line = processor.replace_citation_macros(line)
             line = processor.replace_bibitem_macros(line)
+            line = processor.replace_biblink_macros(line)
             block.title = line if line != line_orig
           end
         end
