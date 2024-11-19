@@ -1,0 +1,186 @@
+= Modern Hardware for Future Databases
+:revdate: 2024-11-19
+:page-hook-preamble: false
+
+We're in an exciting era for databases where advancements are coming along each major resource front, each of which has the potential to shape what an optimal database architecture would be.  All combined, I'm hopeful that we'll see some interesting architectural shifts in databases over the next decade, but I'm uncertain if the necessary hardware will be accessible.
+
+== Networking
+
+:uri-murat-hpts: https://muratbuffalo.blogspot.com/2024/09/hpts24-day-1-part-1.html
+:uri-ousterhout-homa: https://networking.harshkapadia.me/files/homa/research-papers/its-time-to-replace-tcp-in-the-datacenter-v2.pdf
+:uri-dpdk: https://www.dpdk.org/
+
+From a recent {uri-murat-hpts}[talk by Stonebraker in HPTS 2024], some benchmarking with VoltDB saw that ~60% of their server-side cycles went to the TCP/IP stack. VoltDB is already a database architecture whose goal was to remove as much not-query-processing work from serving requests as possible, so this is the extreme case, however, it still makes a valid point that the computational overhead of TCP is not small, and will become ever more noticeable as network bandwidth increases.  This isn't a new observation though, and there's an escalating series of proposed solutions.
+
+:uri-quic-apnic: https://blog.apnic.net/2022/11/03/comparing-tcp-and-quic/
+:uri-quic-cpu: https://www.fastly.com/blog/measuring-quic-vs-tcp-computational-efficiency
+
+One proposed solution is to replace TCP with another protocol that runs over UDP instead.  QUIC is the frequently chosen example.  However, this is mislead{nospace}sidenote:ref[].  {uri-quic-apnic}["It is a grossly inaccurate simplification, but at its simplest level, QUIC is simply TCP encapsulated and encrypted in a User Datagram Protocol (UDP) payload."]  The CPU overhead of TCP and QUIC is {uri-quic-cpu}[also remarkably similar].  Diverging further from TCP and specializing in specific environments would be needed to materialize notable improvements, and there's papers like {uri-ousterhout-homa}[Homa] showing some improvements in datacenter environments.  But even with a better protocol, the better optimization potential lies in reducing the overhead of the kernel networking stack.
+[.aside]#sidenote:def[] If you're reading this wondering why QUIC is catching a stray here, it's because I've gotten into several debates over time when TCP or TLS gets blamed for some issue and moving to QUIC comes up as a suggested outcome.  There are some problems QUIC can help with, and there are problems it doesn't improve or possibly makes worse. It's good to understand that steady-state latency and bandwidth is in the latter category.#
+
+:uri-segmentation-offloading: https://docs.kernel.org/networking/segmentation-offloads.html
+:uri-ktls: https://www.kernel.org/doc/html/v5.2/networking/tls-offload.html
+:uri-linux-toe: https://wiki.linuxfoundation.org/networking/toe
+
+One way to reduce the amount of work the kernel has to do is by moving the computationally intensive but simple parts to the hardware.  This has been happening incrementally over time with enhancements to {uri-segmentation-offloading}[offload both segmentation and checksumming to the NIC]. A more recent enhancement of {uri-ktls}[KTLS] allows offloading packet encryption in TLS to the NIC as well.  Attempts at offloading all of TCP to the hardware, in the form of a {uri-linux-toe}[TCP Offload Engine (TOE)], have been systematically rejected by Linux maintainers.  So these have been nice enhancements, but significant parts of the TCP stack still remain a responsibility of the kernel.
+
+:uri-dpdk-benchmark: https://talawah.io/blog/linux-kernel-vs-dpdk-http-performance-showdown/
+
+Thus another solution is to remove the reliance on the kernel TCP stack entirely.  Frameworks such as {uri-dpdk}[Data Plane Development Kit (DPDK)] have gained popularity as they permit nearly entirely removing the kernel from the packet processing flow.  Userspace can poll the network card for packets, to remove the overhead of interrupts, and keeping all the processing in userspace means no transitions into and out of the kernel.  DPDK has also seen struggles in adoption, as it requires exclusive control of a NIC.  One thus needs to have 2 NICs per host, one for DPDK and one for the OS and every other process.  Marc Richards put together a nice {uri-dpdk-benchmark}[Linux Kernel vs DPDK benchmark], that ends with DPDK offering a 50% increase in performance, followed by an enumeration of the slew of drawbacks one accepts to gain that 50%.  It seems to be a tradeoff most databases aren't interested in, and even ScyllaDB has mostly dropped its investment into it.
+
+:uri-rdma: https://www.naddod.com/blog/easily-understand-rdma-technology
+:uri-transactions-can-scale: https://www.vldb.org/pvldb/vol10/p685-zamanian.pdf/
+:uri-scaleable-oltp: https://www.cidrdb.org/cidr2023/papers/p50-ziegler.pdf
+:uri-bigquery-shuffle: https://cloud.google.com/blog/products/bigquery/in-memory-query-execution-in-google-bigquery
+:uri-libfabric: https://ofiwg.github.io/libfabric/
+:uri-rdmamojo: https://rdmamojo.com/
+
+Newer hardware presents an interesting new option: removing the CPU from the networking path.  {uri-rdma}[RDMA (Remove Direct Memory Access)] offers _verbs_, a limited set of operations (essentially read, write, and 8-byte CAS) that can be performed entirely from within the NIC, with no CPU interaction.  Cutting out the CPU means close to 1us of latency for a remote read, versus the >100us latency of TCP.  As part of RDMA, the responsibility of packet loss and flow control is also pushed down entirely to the NIC{nospace}sidenote:ref[].  Cutting out the CPU also means large volumes of data can be transferred without the CPU becoming the bottleneck.
+[.aside]#sidenote:def[] Why is it acceptable to push loss detection and flow control into the hardware for RDMA, but Linux maintainers keep rejecting it for TCP?  Because it's a different, and much more limited API, which reduces the NIC<->Host complexity. https://scholar.google.com/scholar?cluster=4106138525527042387[TCP offload is a dumb idea whose time has come] is a fun read in this area. (From 2003!)#
+
+Having RDMA as a low latency and high throughput networking primitive changes how one can design databases. {uri-transactions-can-scale}[The End of a Myth: Distributed Transactions Can Scale] shows that RDMA's low latency lets the classic 2PL+2PC scale to large clusters. {uri-scaleable-oltp}[Is Scalable OLTP in the Cloud a Solved Problem?] pitches the idea of having shared writeable page cache across nodes, because low latency means tighter coupling of components becomes feasible.  RDMA isn't just for OLTP databases either; BigQuery uses an {uri-bigquery-shuffle}[RDMA shuffle-based join], because of the high throughput.  Changing the basic numbers on latency and CPU utilization at a given throughput changes what design is the best, or unblocks new designs that previously weren't considered feasible.{nospace}sidenote:ref[]
+[.aside]#sidenote:def[] For using RDMA, I'd strongly suggest using {uri-libfabric}[libfabric] as it abstracts over all the different RDMA vendors and libraries.  The {uri-rdmamojo}[RDMAmojo blog] has years worth of RDMA-specific content and is one of the best places to learn about all aspects of RDMA.#
+
+:uri-dpu-overview: https://scholar.google.com/scholar?cluster=14622696590036176289
+:uri-dds: https://scholar.google.com/scholar?cluster=12305794631120951674
+:uri-azure-smartnics: https://www.microsoft.com/en-us/research/uploads/prod/2018/03/Azure_SmartNIC_NSDI_2018.pdf
+
+Lastly, there's a class of even newer hardware that finishes the trend of placing even more computing power in the NIC itself, in the form of SmartNICs or Data Processing Units (DPUs).  They permit arbitrary processing to be pushed down to the NIC, and potentially invoked in response to requests from other NICs.  These are rather recent, and I'd suggest looking at {uri-dpu-overview}[DPDPU: Data Processing with DPUs] for an overview, {uri-dds}[DDS: DPU-Optimized Disaggregated Storage] for how to integrate them into a database, and {uri-azure-smartnics}[Azure Accelerated Networking: SmartNICs in the Public Cloud] for details about deploying them.  In general, I expect SmartNICs to extend RDMA from simple reads and writes to allowing CPU-bypass general RPCs (for computationally cheap to reply to requests).
+
+== Storage
+
+:uri-smr: https://www.storagereview.com/news/what-is-shingled-magnetic-recording-smr
+:uri-libzbc: https://github.com/westerndigitalcorporation/libzbc
+:uri-zonal-ssd: https://zonedstorage.io/docs/introduction/zoned-storage
+:uri-dropbox-smr: https://dropbox.tech/infrastructure/four-years-of-smr-storage-what-we-love-and-whats-next
+:uri-split-zns: https://scholar.google.com/scholar?cluster=17379606248569225336
+:uri-xnvme-zns: https://xnvme.io/api/c/nvme/xnvme_znd.html#functions
+:uri-fdp: https://www.micron.com/about/blog/storage/innovations/eliminating-the-io-blender-promise-of-flexible-data-placement
+
+There are advances in storage devices that aim to improve the total cost of ownership for storage devices in specialized use cases. Manufacturers cleverly noted that one can read smaller width stripes of magnetized HDD platters than the stripe width that writing produces, and so one can overlap tracks to leave the minimal width.  Thus, we gained {uri-smr}[Shingled Magnetic Recording] HDDs, which introduced the concept of storage being split into _zones_ which only supported being appended to or erased.  SMR HDDs are targeted at use cases like {uri-dropbox-smr}[object storage] where access is infrequent but large volumes of data must be stored.
+
+Similar ideas have been applied to SSDs, and {uri-zonal-ssd}[Zonal SSDs] also exist.
+Exposing zones within an SSD means that the drive doesn't need to offer a Flash Translation Layer (FTL) or a complex garbage collection process.  Similar to SMR, this reduces the cost of a ZNS SSD as compared to a "regular" SSD, but there's an additional focus on application-driven{nospace}sidenote:ref[] garbage collection being more efficient, thus decreasing total write amplification and increasing drive lifetime.  Consider LSMs on SSDs, which already operate via incremental appending and large erase blocks.  Removing the FTL between an LSM and the SSD opens {uri-split-zns}[opportunity for optimizations].
+More recently, Google and Meta have collaborated on a proposal for {uri-fdp}[Flexible Data Placement (FDP)], which acts as more of a hint for grouping writes with related lifetimes than strictly enforcing the partitioning as ZNS does.  The goal is to enable an easier upgrade path where an SSD could ignore the FDP part of the write request and still be semantically correct, just have worse performance or write amplification.  
+[.aside]#sidenote:def[] See {uri-libzbc}[libzbc] for SMR HDD usage, and {uri-xnvme-zns}[xNVMe] for ZNS SSDs usage.#
+
+
+:uri-libpmem: https://pmem.io/pmdk/libpmem/
+:uri-optane: https://en.wikipedia.org/wiki/3D_XPoint
+:uri-pmem-kioxia: https://americas.kioxia.com/en-ca/business/news/2021/memory-20210913-1.html
+:uri-pmem-everspin: https://investor.everspin.com/news-releases/news-release-details/everspin-technologies-unveils-persyst-simplifying-persistent
+
+[.aside]#sidenote:def[] If you were expecting a discussion of {uri-libpmem}[persistent memory], but Intel killed off {uri-optane}[Optane], so that's a dead end for now. It seems that there are a few companies, like {uri-pmem-kioxia}[Kioxia] or {uri-pmem-everspin}[Everspin] continuing on, but I haven't heard anything about their usage.#
+
+:uri-nvme-copy: https://www.snia.org/educational-library/towards-copy-offload-linux-nvme-2021
+:uri-nvme-fused: https://files.futurememorystorage.com/proceedings/2013/20130812_PreConfD_Marks.pdf#page=46
+:uri-optimistic-lock-coupling: https://scholar.google.com/scholar?cluster=7804091931900436017
+:uri-nvme-dif: https://lwn.net/Articles/548294/
+:uri-nvme-dix: https://oss.oracle.com/~mkp/docs/dix.pdf
+:uri-kvssd: https://blocksandfiles.com/2019/09/05/samsungs-potentially-groundbreaking-keyvalue-ssd/
+
+Other improvements target not cost efficiency{nospace}sidenote:ref[], but improving the set of features that storage devices support.  Focusing on NVMe in particular, NVMe added a {uri-nvme-copy}[copy command], to remove the waste in reading and writing the same data.  {uri-nvme-fused}[Fused compare-and-write commands] allow a CAS operation to be pushed down to the drive itself allowing for crazy designs like pushing {uri-optimistic-lock-coupling}[Optimistic Lock Coupling] down into the drive itself. NVMe inherited the {uri-nvme-dif}[Data Integrity Field (DIF)] / {uri-nvme-dix}[Data Integrity Extensions (DIX)] support from SCSI which allows pushing page checksums down into the drive. (Notably used by Oracle.)  There are projects like {uri-kvssd}[KV-SSD] which change the entire data model from storing blocks by index to storing objects by key, and head towards replacing software storage engines entirely.  SSD manufacturers continue to make SSDs more capable of more operations over time.
+
+:uri-smartssd-qp-survey: http://pages.cs.wisc.edu/~yxy/cs764-f20/papers/SmartSSD.pdf
+:uri-pushdowndb: https://marcoserafini.github.io/assets/pdf/pushdown.pdf
+:uri-alibaba-scaleflux: https://www.usenix.org/conference/fast20/presentation/cao-wei
+:uri-s3select-unlaunch: https://aws.amazon.com/blogs/storage/how-to-optimize-querying-your-data-in-amazon-s3/
+:uri-s3-object-lambda: https://aws.amazon.com/s3/features/object-lambda/
+:uri-btree-compression: https://www.usenix.org/conference/fast22/presentation/qiao
+
+As the penultimate step in SSD capabilities, SmartSSDs are coming into existence which allow for putting arbitrary compute into an SSD.  {uri-smartssd-qp-survey}[Query processing on SmartSSDs: Opportunities and challenges] surveys their application to query processing tasks.  Pushing filters to storage is always advantageous; I've regularly linked previous work like {uri-pushdowndb}[PushdownDB] leveraging S3 Select{nospace}sidenote:ref[] as a great example on the analytics side.  With SmartSSDs we get papers like {uri-alibaba-scaleflux}[POLARDB Meets Computational Storage].  Even without specialized integration, there are arguments to be made that even transparent, in-drive compression can {uri-btree-compression}[close the gap between B+ trees and LSMs in write amplification]. Leveraging SmartSSDs is still a young field of research, but there's incredible potential for impact.
+[.aside]#sidenote:def[] AWS {uri-s3select-unlaunch}[un-launched S3 Select] as of July 25th, 2024, presumably in favor of {uri-s3-object-lambda}[S3 Object Lambda].#
+
+== Compute
+
+=== Transaction Processing
+
+:uri-unikernel-vldb: https://www.vldb.org/pvldb/vol17/p2115-leis.pdf
+:uri-akira-kurogane: https://jp.linkedin.com/in/akira-kurogane
+:uri-unikraft-mongodb: https://www.linkedin.com/pulse/mongodb-booted-unikernel-os-akira-kurogane-vdf7c/
+:uri-unikraft: https://unikraft.org/
+:uri-vmcache: https://scholar.google.com/scholar?cluster=7903866005464261403
+:uri-leanstore: https://db.in.tum.de/~leis/papers/leanstore.pdf
+
+In a recent VLDB, two powerhouses of database research put forth a position paper of {uri-unikernel-vldb}[Cloud-Native Database Systems and Unikernels: Reimagining OS Abstractions for Modern Hardware], arguing that unikernels allow databases to specialize an OS for its exact needs.  The early work on {uri-vmcache}[VMCache] highlights the struggle in efficient database buffer management in particular, where one either accepts the complexity of {uri-leanstore}[pointer swizzling], or one hooks into the kernel and invokes `mmap()`-related syscalls frequently.  Neither option is appealing, and unikernels instead offer direct access to virtual memory primitives. The effort required to develop unikernels is lowering as the area is getting more attention, and {uri-akira-kurogane}[Akira Kurogane] got {uri-unikraft-mongodb}[MongoDB running as a unikernel] via {uri-unikraft}[Unikraft] with little effort, and subsequent posts showed a bit of performance improvement without any MongoDB-internal changes.  There's been an endless joke that databases want to become the OS as the desire for performance improvements would require more control over networking, filesystems, disk I/O, memory, etc., and unikernel databases offer exactly that as a tangible possibility.
+
+:uri-enclavedb: https://blog.acolyer.org/2018/07/05/enclavedb-a-secure-database-using-sgx/
+:uri-tpm: https://learn.microsoft.com/en-us/windows/security/hardware-security/tpm/tpm-fundamentals
+:uri-enclave-native: https://vldb.org/pvldb/vol14/p1019-sun.pdf
+:uri-sqlserver-alwaysencrypted: https://learn.microsoft.com/en-us/sql/relational-databases/security/encryption/always-encrypted-enclaves?view=sql-server-ver16
+:uri-regulatory-compliance: https://www.fortanix.com/faq/confidential-computing/how-does-confidential-computing-help-with-regulatory-compliance-requirements
+
+For data confidentiality beyond just TLS or disk encryption, secure envclaves allow execution of verifyably untampered code such that the data operated on is protected from even a compromised operating system.  Whereas a {uri-tpm}[Trusted Platform Module (TPM)] allowed keys to be held securely with a machine, secure enclaves extend to arbitrary code and data.  This permits building databases which are tremendously more resilient to malicious compromise but with several constraints on their design.  Microsoft has published on integrating {uri-enclavedb}[secure enclaves into Hekaton], and has released the work as part of {uri-sqlserver-alwaysencrypted}[SQL Server Always Encrypted].  Alibaba has also published about their efforts in building {uri-enclave-native}[enclave-native storage engines] for enterprise customers worried about data confidentiality.  Databases have a history of being able to sell security improvements through the vehicle of {uri-regulatory-compliance}[regulatory compliance], and secure enclaves are a meaningful improvement in data confidentiality.
+
+:uri-truetime: https://sookocheff.com/post/time/truetime/
+:uri-gcp-ntp: https://developers.google.com/time/faq#whatis
+:uri-aws-ntp: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/set-time.html
+:uri-azure-ntp: https://learn.microsoft.com/en-us/azure/virtual-machines/linux/time-sync#overview
+:uri-aurora-limitless: https://www.youtube.com/watch?v=a9FfjuVJ9d8&t=29m25s
+
+After Spanner's introduction of {uri-truetime}[TrueTime], clock synchronization has become of notable interest for transaction ordering in geo-distributed databases.  Each of the major cloud providers has an NTP offering that is tied to atomic clocks or GPS satellites ({uri-aws-ntp}[AWS], {uri-azure-ntp}[Azure], {uri-gcp-ntp}[GCP]).  This is of great utility to any similar design, like CockroachDB or Yugabyte, for which clock synchronization is important for correctness.  AWS's recent Aurora Limitless also {uri-aurora-limitless}[uses a TrueTime-like design].  This is the only mention of cloud-specific not-quite-hardware because it is major cloud vendors exposing expensive hardware (atomic clocks) that users otherwise wouldn't have considered buying for themselves.
+
+:uri-tsx-bug: http://techreport.com/news/26911/errata-prompts-intel-to-disable-tsx-in-haswell-early-broadwell-cpus
+:uri-tsx-sidechannel: https://www.blackhat.com/docs/us-16/materials/us-16-Jang-Breaking-Kernel-Address-Space-Layout-Randomization-KASLR-With-Intel-TSX-wp.pdf
+:uri-tsx-speculation: https://blog.ret2.io/2019/06/26/attacking-intel-tsx/
+:uri-sun-rock: https://www.theregister.com/2007/08/21/sun_transactional_memory_rock/
+:uri-htm-db: https://15721.courses.cs.cmu.edu/spring2019/papers/leis-icde2014.pdf
+Hardware transactional memory has had a rather ill-fated history.  {uri-sun-rock}[Sun's Rock processor] featured hardware transactional memory right up until Sun was bought and Rock was shut down. Intel made two attempts at releasing it, and had to disable it both times{nospace}sidenote:ref[]. There was some interesting work on the subject of {uri-htm-db}[applying hardware transactional memory to in-memory databases], but other than finding some old CPUs for experimentation, we all must wait until a CPU manufacturer says they're planning to make another attempt at it.
+[.aside]#sidenote:def[] The first time due to {uri-tsx-bug}[a bug], and the second time due to a {uri-tsx-sidechannel}[side-channel attack breaking KASLR].  There was also a speculative execution timing attack discovered via {uri-tsx-speculation}[misunderstanding the intention of a CTF challenge].#
+
+=== Query Processing
+
+:uri-voltron: https://voltrondata.com/theseus.html
+:uri-heavy-ai: https://www.heavy.ai/
+:uri-brytlyt: https://brytlyt.io/
+
+There have consistently been companies founded that are looking to leverage specialized hardware to accelerate query processing and achieve better performance and cost efficiency than their CPU-only competitors. GPU-powered databases, like {uri-voltron}[Voltron], {uri-heavy-ai}[HEAVY.ai], and {uri-brytlyt}[Brytlyt], are the first step in this direction.  I wouldn't be overly surprised if Intel or AMD integrated graphics gained OpenCL support{nospace}sidenote:ref[] sometime in the future, which would open the door to all databases being able to assume some amount of GPU capabilities on a much wider set of hardware configurations.
+[.aside]#sidenote:def[] OpenGL Compute Shaders are the most generic and portable form of using GPUs for arbitrary compute, and those are supported by integrated graphics chipsets already.  I can't find any database-related papers looking into using them though?#
+
+:uri-swarm64: https://dbdb.io/db/swarm64
+:uri-redshift-aqua: https://aws.amazon.com/blogs/aws/new-aqua-advanced-query-accelerator-for-amazon-redshift/
+:uri-tcudb: https://dl.acm.org/doi/pdf/10.1145/3514221.3517869
+:uri-oracle-sparc: https://www.hpcwire.com/2017/09/07/oracle-layoffs-reportedly-hit-sparc-solaris-hard/
+:uri-adms: https://adms-conf.org/
+
+There are also opportunities for using even more power-efficient hardware. The newest Neural Processing Units/Tensor Processing Units have already been shown to be adaptable into query processing in work like {uri-tcudb}[TCUDB: Accelerating Database with Tensor Processors]. A few companies have attempted to utilize FPGAs. {uri-swarm64}[Swarm64] tried (and failed?) at this market.  AWS did their own effort as {uri-redshift-aqua}[Redshift AQUA].  Going as far as ASICs seems to not be worth it for even the largest companies, as even Oracle {uri-oracle-sparc}[stopped their SPARC development in 2017].  I'm not overly optimistic about FPGAs through ASICs as memory bandwidth will be the primary bottleneck at some point anyway, but {uri-adms}[ADMS] is the conference{nospace}sidenote:ref[] to follow for papers in this overall area.
+[.aside]#sidenote:def[] Okay, technically ADMS is a workshop attached onto VLDB, but I don't know the word which generalizes over conferences, journals, and workshops.#
+
+== Cloud Availability
+
+To finally address the depressing elephant in the room, none of these hardware advancements matter if they're not accessible.  For today's systems, that means in the cloud, and the cloud doesn't offer the forefront of hardware advancements to its customers.
+
+:uri-aws-srd: https://scholar.google.com/scholar?cluster=7115577907027624509
+:uri-damon-efa: https://scholar.google.com/scholar?cluster=9445549416525532418
+:uri-alibaba-erdma: https://www.alibabacloud.com/help/en/ecs/user-guide/erdma-overview
+
+:uri-microsoft-rdma: https://scholar.google.com/scholar?cluster=12305794631120951674
+:uri-microsoft-dcqcn: https://scholar.google.com/scholar?cluster=2434531805096404846
+:uri-microsoft-rdma-storage: https://scholar.google.com/scholar?cluster=6986943445603020796
+
+For networking, the situation isn't fantastic.
+DPDK is the most advanced networking technology that's somewhat easily accessible, as most clouds allow some types of instances to have more than one NIC.
+AWS offers pseudo-RDMA in the form of {uri-aws-srd}[Secure Reliable Datagrams], which {uri-damon-efa}[was benchmarked] to be about halfway between TCP and RDMA.  Real RDMA is only available on the High Performance Computing instances within Azure, GCP, and OCI. Only Alibaba offers {uri-alibaba-erdma}[RDMA on general-purpose compute instances]{nospace}sidenote:ref[]. SmartNICs are not available anywhere publicly.  Some of this is for good reason: Microsoft has published papers that {uri-microsoft-rdma}[deploying RDMA is hard].  In fact, it's {uri-microsoft-dcqcn}[really hard]. Even their papers about {uri-microsoft-rdma-storage}[actually succeeding in using RDMA] emphasize that it's really hard.  We're nearing a full decade after Microsoft started using RDMA internally and it's still not available in their cloud.  I have no guesses as to if or when it will be.
+[.aside]#sidenote:def[] Though there's likely a bit of a latency hit similar to how SRDs are worse.  Alibaba deployed RDMA via iWARP, which should be a bit slower, but I haven't seen any benchmarks.#
+
+:uri-smr-device: https://arstechnica.com/gadgets/2020/04/caveat-emptor-smr-disks-are-being-submarined-into-unexpected-channels/
+:uri-alibaba-pmem: https://www.alibabacloud.com/help/en/tair/product-overview/persistent-memory-optimized-instances
+:uri-sparecores: https://sparecores.com/
+:uri-torn-page: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/storage-twp.html
+
+For storage, the situation isn't really any better.
+The few times that SMR HDDs did reach consumers, it was as a drive that still presented itself as supporting a block storage API, and {uri-smr-device}[consumers hated it].  ZNS SSDs seem similarly locked behind enterprise-only purchasing agreements.  One might think that Intel discontinuing Optane-branded persistent memory and SSDs would mean that they're not accessible on the cloud, but Alibaba still offers {uri-alibaba-pmem}[persistent memory optimized instances].
+The wonderful folk at {uri-sparecores}[Spare Cores] actually provided me with `nvme id-ctrl` output from each cloud vendor, and none of the NVMe devices they pulled present themself as supporting nearly any optional features: copy, fused compare and write, data integrity extensions, nor multi-block atomic writes{nospace}sidenote:ref[].  Alibaba is also the only cloud vendor which has invested into SmartSSDs with their {uri-alibaba-scaleflux}[collaboration with ScaleFlux on PolarDB].  This still means SmartSSDs are not accessible to the general public, but even the paper acknowledges it's "the first real-world deployment of cloud-native databases with computational storage drives ever reported in the open literature".
+[.aside]#sidenote:def[] Even though AWS supports {uri-torn-page}[torn write prevention] and GCP used to have similar docs.#
+
+:uri-aws-fpga-p2pdma: https://github.com/aws/aws-fpga/blob/master/FAQs.md#f1-instance-and-runtime-tools-faqs
+:uri-sgx-aws: https://aws.amazon.com/ec2/nitro/nitro-enclaves/
+:uri-sgx-azure: https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-computing-enclaves
+
+On the compute side, the state finally gets a bit better.  The cloud fully permits unikernels, TPMs are widely accessible, but only {uri-sgx-aws}[AWS] and {uri-sgx-azure}[Azure] support secure enclaves as far as I can tell.  Time synchronization is made available, but without promised error bounds that make it possible to critically rely on. (Hardware transactional memory isn't available, but it's hard to blame the clouds on that one.)  The explosion of AI means there's good money behind making more efficient compute available.  GPUs are available in all clouds.  AWS{nospace}sidenote:ref[], Azure, IBM, and Alibaba offer FPGA instances.  (GCP and OCI don't.)  The unfortunate reality is also that faster compute only matters when compute is the bottleneck.  Both GPUs and FPGAs suffer from having limited memory, and so one cannot maintain the database in their local memory.  Instead, one relies on streaming data in and out of them, which means being limited by PCIe speeds.  All of this would encourage thoughtful motherboard layout and bus design in an on-premise appliance, but that's not feasible in the cloud.
+[.aside]#sidenote:def[] One would ideally like peer-to-peer DMA support to be able to read from disk straight into the FPGA, and at least {uri-aws-fpga-p2pdma}[AWS's F1 cannot].#
+
+Thus we end with my bleak view on the next generation of databases: no one{nospace}sidenote:ref[] can build databases that critically depend on new hardware advancements until they're made available, but no cloud vendor wants to deploy hardware that can't be immediately used.  The next generation of databases are being held hostage by the cyclic dependency that they don't yet exist.
+[.aside]#sidenote:def[] Except for the cloud vendors themselves. Most notably, Microsoft and Google already have RDMA internally and leverage it extensively in their database offerings, while not permitting public use of it. There's been a post outline trapped in my drafts for a long time now titled "The Competitive Advantage of RDMA for Cloud Vendors".#
+
+Alibaba is shockingly great though. They're consistently at the forefront of making hardware advances available for everything.  I'm surprised I don't see Alibaba being frequently used for benchmarking in academia and industry correspondingly.
