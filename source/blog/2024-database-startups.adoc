@@ -19,6 +19,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://thenile.dev/[Nile] (2022)
 * https://neon.tech[Neon] (2021)
 * https://turso.tech/[Turso] (2021)
+* https://sqlitecloud.io/[SQLite Cloud] (2021)
 * https://xata.io/[Xata] (2020)
 * https://supabase.com/[Supabase] (2020)
 ** Acquired Oriole, itself also founded 2020
