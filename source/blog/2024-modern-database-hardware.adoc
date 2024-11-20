@@ -1,6 +1,6 @@
 = Modern Hardware for Future Databases
 :revdate: 2024-11-19
-:page-aside: With thanks to Phil Eaton for early review.
+:page-aside: With thanks to Phil Eaton for early review, and Shikar Bandar for the pointer to AWS's ClockBound.
 :page-hook-preamble: false
 
 We're in an exciting era for databases where advancements are coming along each major resource front, each of which has the potential to shape what an optimal database architecture would be.  All combined, I'm hopeful that we'll see some interesting architectural shifts in databases over the next decade, but I'm uncertain if the necessary hardware will be accessible.
@@ -177,9 +177,11 @@ The wonderful folk at {uri-sparecores}[Spare Cores] actually provided me with `n
 :uri-aws-fpga-p2pdma: https://github.com/aws/aws-fpga/blob/master/FAQs.md#f1-instance-and-runtime-tools-faqs
 :uri-sgx-aws: https://aws.amazon.com/ec2/nitro/nitro-enclaves/
 :uri-sgx-azure: https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-computing-enclaves
+:uri-aws-ptp: https://aws.amazon.com/blogs/compute/its-about-time-microsecond-accurate-clocks-on-amazon-ec2-instances/
+:uri-aws-clockbound: https://github.com/aws/clock-bound
 
 On the compute side, the state finally gets a bit better.  The cloud fully permits unikernels, TPMs are widely accessible, but only {uri-sgx-aws}[AWS] and {uri-sgx-azure}[Azure] support secure enclaves as far as I can tell.
-Time synchronization is made available, but without promised error bounds that make it possible to critically rely on.
+NTP servers with atomic or GPS clocks are made available, but only {uri-aws-ptp}[AWS makes efforts] of {uri-aws-clockbound}[promising error bounds]. without promised error bounds that make it possible to critically rely on.
 (Hardware transactional memory isn't available, but it's hard to blame the clouds on that one.)  The explosion of AI means there's good money behind making more efficient compute available.  GPUs are available in all clouds.  AWS{nospace}sidenote:ref[], Azure, IBM, and Alibaba offer FPGA instances.  (GCP and OCI don't.)  The unfortunate reality is also that faster compute only matters when compute is the bottleneck.  Both GPUs and FPGAs suffer from having limited memory, and so one cannot maintain the database in their local memory.  Instead, one relies on streaming data in and out of them, which means being limited by PCIe speeds.  All of this would encourage thoughtful motherboard layout and bus design in an on-premise appliance, but that's not feasible in the cloud.
 [.aside]#sidenote:def[] One would ideally like peer-to-peer DMA support to be able to read from disk straight into the FPGA, and at least {uri-aws-fpga-p2pdma}[AWS's F1 cannot].#
 
