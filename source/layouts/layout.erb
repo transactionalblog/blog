@@ -117,7 +117,7 @@ category_heading = if up_title.nil? || up_title == 'Blog' then '' else up_title 
       metadata = []
       if current_page.data.draft then metadata.append("Draft") end
       if current_page.data.date then metadata.append("Posted " + current_page.data.date.strftime("%Y-%m-%d")) end
-      if current_page.data.updated then metadata.append("Updated " + current_page.data.updated.strftime("%Y-%m-%d")) end
+      if current_page.data.updated then metadata.append("Updated " + Date.parse(current_page.data.updated).strftime("%Y-%m-%d")) end
       metadata.append(reading_time(current_page) + " minute reading time")
       metadata = metadata.join '<br>'
       if metadata then '<p>' + metadata + '</p>' end
