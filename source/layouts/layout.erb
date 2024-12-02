@@ -119,12 +119,15 @@ category_heading = if up_title.nil? || up_title == 'Blog' then '' else up_title 
       if current_page.data.date then metadata.append("Posted " + current_page.data.date.strftime("%Y-%m-%d")) end
       if current_page.data.updated then metadata.append("Updated " + Date.parse(current_page.data.updated).strftime("%Y-%m-%d")) end
       metadata.append(reading_time(current_page) + " minute reading time")
+      metadata.append("<br/>Mandatory Legal Disclaimer:<br/>Opinions expressed are solely<br/>my own and do not express the<br/>views or opinions of my employer.")
       metadata = metadata.join '<br>'
       if metadata then '<p>' + metadata + '</p>' end
       %>
     </aside>
     <% end %>
-    <%= if current_page.data.aside then '<aside class="postaside"><p>' + current_page.data.aside + "</p></aside>" end %>
+    <aside class="postaside">
+      <%= if current_page.data.aside then '<p>' + current_page.data.aside + "</p>" end %>
+    </aside>
     <%= yield %>
     <!-- TODO: consider https://utteranc.es/ for in-page comments. -->
     <% if !current_page.data.nofooter %>
