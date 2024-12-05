@@ -1,0 +1,12 @@
+= Notes On
+:revdate: 2024-09-29
+:page-layout: index
+:page-hook-preamble: false
+:page-hook: Notes, context, and commentary on papers and books.
+
+[.display-none]
+== Posts
+
+++++
+<%= partial("partials/index_section", :locals => {}) %>
+++++
