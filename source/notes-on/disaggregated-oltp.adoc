@@ -1,0 +1,182 @@
+= Disaggregated OLTP Systems
+:revdate: 2024-12-05
+:page-hook-preamble: false
+:page-hook: Aurora, Socrates, PolarDB, and Taurus.
+:bibtex-file: disaggregated-oltp.bib
+
+These are notes prepared from an informal presentation on the various cloud-native disaggregated OLTP RDBMS designs that have been getting published.
+
+== Amazon Aurora
+
+Read these two papers together, and don't try to stop to understand all the fine details about log consistency across replicas and commit or recovery protocols in the first paper.  That material is covered in more detail (and with diagrams!) in the second paper.  I'd almost suggest reading the second paper first.
+
+[.gray-bg]
+====
+bibitem:[AuroraDesign] +
+bibitem:[AuroraAvoiding]
+====
+
+image::AuroraArchitecture.png[]
+
+Aurora introduces using the write-ahead log as the protocol between the compute and the storage in a disaggregated system.  The papers we're looking at all reference this _the log is the database_ phrase in some form as part of their design.
+The major idea they present is that the network is then the bottleneck in the system, and the smart storage is able to meaningfully offload work of processing WAL updates into page modifications, handle MVCC cleanup, checkpointing, etc.
+
+So I think the easiest way to get started is to zoom in on a single storage node:
+
+image::AuroraStorageNode.png[]
+
+[quote]
+____
+It involves the following steps:
+
+1. receive log record and add to an in-memory queue,
+2. persist record on disk and acknowledge,
+3. organize records and identify gaps in the log since some batches may be lost,
+4. gossip with peers to fill in gaps,
+5. coalesce log records into new data pages,
+6. periodically stage log and new pages to S3,
+7. periodically garbage collect old versions, and finally
+8. periodically validate CRC codes on pages.
+____
+
+Storage nodes are used as part of a quorum, and the classic "tolerate loss of 1 AZ + 1 machine" means 6-node quorums with |W|=4 and |R|=3.
+The quorum means that transient single node failures (either accidental network blips or intentional node upgrades) are handled seamlessly.  However, this isn't traditional majority quorums.  The Primary is an elected sole writer, which transforms majority quorums into something more consistent.  Page server quorums are also reconfigured on suspected failure.  This is a replication design that doesn't even fit cleanly into my link:blog/2024-data-replication-design-spectrum.html[Data Replication Design Spectrum] blog post.
+
+Each log write contains its LSN, and also includes the last PSN sent to the storage group.  Not every write is a transaction commit.  There's a whole discussion of Storage Consistency Points in the second paper to dig into the exact relationships between the Volume Complete LSN and the Consistency Point LSN and the Segment Complete LSN and a Protection Group Complete LSN.  The overall point to get here is that trying to recover a consistent snapshot from a highly partitioned log is hard.
+
+There's a recovery flow to follow when the primary fails.  A new primary must contact every storage group to find what's the highest LSN below which all log records are known, and then recover to min(max LSN per group), but again, that's a summary, because the reality seems complicated.
+
+As there's only one nominated writer for the quorum of nodes, the writer knows which nodes in the quorum have accepted writes up to what version.  This means that reads don't need to be quorum reads, the primary is free to send read requests _only_ to one of the at-least-four nodes that it knows should have the correct data.
+
+Read-only replicas consume the binlog from the primary, and apply to cached pages only.  Uncached data comes from storage groups.  S3 is used for backups.
+
+== Microsoft Socrates
+
+[.gray-bg]
+====
+bibitem:[Socrates]
+====
+
+The paper spends some time talking about the previous DR architecture, its relevant behavior and features, and its shared nothing design.
+There's also a decent amount of discussion around about adapting a pre-existing RDBMS to the new architecture.
+It's overall a very realistic discussion of making major architectural changes to a large, pre-existing product, but I'm not going to focus on either as that's not what my focus is.
+
+The architecture of Socrates is well illustrated in the paper:
+
+.Socrates Architecture
+image::SocratesArchitecture.png[]
+
+.Socrates XLOG Service
+image::SocratesXLOG.png[]
+
+Their major design decisions are:
+
+* All processes have a local disk-based cache. (More on this below.)
+* Azure Premium Storage is used as a LandingZone (LZ) for low latency and high durability.
+* A router XLOG process for availability of WAL entries and for dissemination to page servers.
+* XStore is long term storage for log blocks, and is Azure standard storage.
+
+The primary has a recoverable buffer pool to minimize impact from failures by modeling the buffer pool as a table in an in-memory storage engine.  A buffer pool on SSD might seem silly, but otherwise a cold start means dumping gigabytes worth of page fetches at Page Servers, with terrible performance until the working set is back in cache.  This is implemented by implementing the extended buffer pool as an in-memory table in Hekaton.
+
+There is a separate XLOG service which is responsible for the WAL.  The primary sends log to LZ and XLOG in parallel.  XLOG buffers received WAL segments until the primary informs it the segments are durable in the LZ, at which point they're forwarded onto the page servers.  It also has a local cache, and moves log segments to blob storage over time.
+
+Page servers don't store _all_ pages.  They have a large (and persistent) cache, but some pages live only on XStore.
+They're working on offloading bulk loading, index creation, DB reorgs, deep page repair, and table scans to Page Servers as well.
+
+The `GetPage@LSN` RPC serves the page at a version that's _at least_ the specified LSN.
+Page servers thus aren't required to materialize pages at any version, and can keep only the most recent.
+B-tree traversals from replicas sometimes need to restart if a leaf page is a newer LSN than the parent.
+
+What's the major difference between Socrates and Aurora?  Aurora partitions the WAL across page servers.  Socrates has a centralized WAL service.
+
+== Alibaba PolarDB
+
+[.gray-bg]
+====
+bibitem:[PolarDBServerless]
+====
+
+Consider also reading the PolarFS paper, as it is referenced a bit.  TL;DR, it used RDMA and fast SSDs to make a fast filesystem which shards blocks across raft instances optimized for being block storage.
+
+As broad context, Alibaba is really about spending money on fancy hardware.  I had talked about this a bit in link:blog/2024-modern-database-hardware.html[Modern Database Hardware], but Alibaba seems to be more than happy to solve difficult
+software problems by spending money hardware.  Notably, Alibaba has RDMA deployed out internally, seemingly to the same
+extent that Microsoft does, except Microsoft seems to keep a fallback-to-TCP option for most of their stack, and Alibaba
+seems comfortable building services that critically depend on RDMA's primitives.
+
+Thus, much of the PolarDB Serverless paper is about leveraging a multi-tenant scale-out memory pool, built via RDMA.
+This makes them also a disaggregated memory database!  As a direct consequence, memory and CPU can be scaled independently, and the evaluation shows elastically changing the amount of memory allocated to a PolarDB tenant.
+
+However, implementing a page cache over RDMA isn't trivial, and a solid portion of the paper is spent talking about the exact details of managing latches on remote memory pages and navigating b-tree traversals.  Specifically, B-tree operations which change the structure of the tree required significant care.  Recovery also has to deal with that the remote buffer cache has all the partial execution state from the failed RW node, so the new RW node has to release latches in the shared memory pool and throw away pages which were partially modified.
+
+They offer an architecture diagram:
+
+.PolarDB Serverless Architecture
+image::PolarDBArchitecture.png[]
+
+However, there's a few things I think it doesn't represent well:
+
+* PolarFS was extended to support separate log chunks and page chunks.  The WAL is committed into log chunks, and they directly state the design is closer to the Socrates XLOG than Aurora.
+* Due to the use of ParallelRaft, logs are sent only to the leader node of the page chunk, who will materialize pages and propagate updates to other replicas.
+* There's also a timestamp service which, which uses RDMA to quickly and cheaply serve timestamps that's not included in the diagram.
+
+There's a couple optimizations that they specifically call out. Read-only nodes don't acquire latches in the buffer pool unless the RW node says it modified the B-tree structure since the Read-only node's last access.  They also implement a specific optimization for indexes: a prefetching index probe operation.  Fetching keys from the index will generate prefetches to load the pointed-to data pages from the page servers, under the assumption that they'll be immediately requested as part of SQL execution anyway.
+
+What's the major difference between PolarDB and Socrates?  Socrates has SSD persisted caches.  PolarDB has a persistent distributed memory cache.
+
+== Huawei Taurus
+
+[.gray-bg]
+====
+bibitem:[TaurusDB]
+====
+
+The entire "Background and Related Work" section is a great read.  They set up excellent and concise comparisons against the same systems we've discussed above.  In very short summary: PolarFS (not PolarDB Serverless) uses a filesystem abstraction without smart storage and thus loses efficiency, Aurora uses 6-node quorums for both logs and pages which over-promises on durability and availability respective, and Socrates added too much complexity with its four teir Compute/XLOG/Page Server/XSTORE architecture.
+
+.Taurus Architecture
+image::TaurusArchitecture.png[]
+
+In Taurus's Log Store, WAL segments are sent to a fixed-size append-only synchronously replication storage object called a PLog (Part of a Log?).  In a deployment, there's hundreds of Log Servers.  Three are chosen to form a PLog.  All three must ack the write, otherwise a new PLog is allocated.  (It's reconfiguation-based replication!)  The database WAL is an ordered collection of PLogs, itself stored in a PLog.  Metadata PLogs are chained as a linked list.
+
+The Page Stores behave roughly the same, they accept logs and serve versioned pages.  Page Stores are notified of the oldest LSN which still might be requested, and must be able to answer what the hightest LSN they can serve is.
+
+Taurus abstracts most of the logic of dealing with Log Stores and Page Stores into a Storage Abstraction Layer, which manages the mapping of WAL segments to PLogs and slices to Page Stores.  The paper describes the read and write flow in detail, but it didn't feel notably different from any of the previously discussed systems.
+
+image::TaurusWritePath.png[]
+
+For anyone who is against reconfiguration-based replication because of the "unavailability" while reconfiguring to a new set of available replicas, you'll hate the "comparison with quorum replication".  They argue that their probability of write unavailability is effectively zero as all Log Stores or Page Stores from their global pool of nodes would have to be unavailable for a new shard to be un-allocatable.  This argument both is and isn't true.
+
+Both recovery and replication to read-only replicas is discussed in decent detail, but neither felt notably different.  I do appreciate the level of detail though in illustrating how recovery works, as it was more pleasant to go through here than in some other papers.  Replication to read-only has just been about applying log records to cached pages in every system thus far.  They do mention separating notifying replicas that there were WAL changes published (and where to find them), from actually serving that data from Log Servers, so that the primary isn't responsible for the network bandwidth of broadcasting WAL changes.
+
+Page stores are append-only on disk, with a lock-free hashtable mapping (page,version) to slot in log.  The hashtable is periodically saved to storage to bound recovery time.  Page Stores have their own buffer pool, which is mostly to avoid IO during the lookup of the previous page to apply a WAL entry.  There's an interesting tidbit that LFU is a better cache replacement policy for second-level caches.
+
+What's the major difference between Taurus and others?  Reconfiguration-based replication!
+
+== Huawei Taurus Multi-Master
+
+[.gray-bg]
+====
+bibitem:[TaurusMM]
+====
+
+This is, admittedly, mostly an excuse to discuss multi-master designs within disaggregated OLTP.
+Aurora had multi-master implemented, which they've since reverted.
+Socrates was against multi-master.
+PolarDB mentioned the global page cache means they could support it, but such work was out of scope for the paper.
+So TaurusDB is our chance to look at this design.
+
+.Taurus Multi-Master Architecture
+image::TaurusMMArchitecture.png[]
+
+Multi-master means concurrent modifications, and naively that means LSN is now a vector clock.
+Introduces a clock type that's a hybrid between a vector clock and a scalar lamport clock.
+Basically, for server 3, clock[3]=lamport clock and the rest of the indexes are a vector clock.
+This has the effect of advancing the server's clock faster, as it's effectively a counter of causally related global events rather than local events.
+Times when causality is already known, like operations serialized by contending on a lock, Taurus uses the scalar clock.
+Logs and pages are locally recorded with a scalar clock, and sent to the Log Service with a vector clock. Page reads are done with a scalar clock.
+
+The other side of concurrent modifications is that page locking can no longer be done locally in RAM on one primary replica. So the paper next discusses locking.  Locks are held globally in a Global Lock Manager at page granularity with the usual Shared/eXclusive locking scheme.  Once a master has a page lock, it can grant equal or lesser row locks.  Pages can be unlocked and returned to the GLM if another master requests the page, but the rows will stay locked.  (Imagine wanting exclusive locks on different rows in the same page.)
+The Global Lock Manager would also be responsible for deadlock detection.
+
+Note the introduction of another component: the Global Slice Manager.  Sharding pages across servers is a decision that no master is allowed to make locally, so the responsibility of sharding data was moved to a global component.
+
+In comparison against Aurora Multi-Master, it's noted that Aurora pushed resolving conflicts between masters to the storage layer.  In the evaluation, the two designs perform similarly when there's no data sharing, but the Taurus design performs much better as data sharing increases.
