@@ -24,6 +24,9 @@ jobs:
         npm install
         echo $(npm bin) >> $GITHUB_PATH
 
+    - name: Install Bytefield
+      run: npm install --location=global bytefield-svg
+
     - name: Setup Ruby
       uses: ruby/setup-ruby@v1
       with:
