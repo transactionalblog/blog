@@ -72,8 +72,20 @@ pre, code, textarea
   font-family: $code-font
   font-variant-ligatures: none
 
+code
+  white-space: pre-wrap
+
 textarea
   resize: both
+
+fieldset
+  padding: 0 0 0 0
+  border: none
+  border-radius: 0
+  margin-bottom: 0
+
+label
+  display: inline
 
 aside, .aside
   font-size: 80%
@@ -101,6 +113,9 @@ svg
 .white-bg
   background-color: var(--b-bg-light)
 
+.gray-bg
+  background-color: var(--b-bg-2)
+
 .text-center
   text-align: center
 
@@ -119,8 +134,13 @@ svg
 .fit-content
   max-width: fit-content
 
-main > .imageblock
-  margin-bottom: 1.5em
+main
+  .imageblock
+    margin-bottom: 1.5em
+
+div.openblock
+  .title
+    margin-bottom: 0.75em
 
 div.nav_footer, div.nav_header
   grid-column: 1 / 3
