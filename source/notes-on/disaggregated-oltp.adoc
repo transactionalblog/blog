@@ -16,13 +16,21 @@ bibitem:[AuroraDesign] +
 bibitem:[AuroraAvoiding]
 ====
 
+As the first of the disaggregated OLTP papers, they introduce the motivation for wanting to build a system like Aurora.  Previously, one would just run an unmodified MySQL on top of EBS, and when looking at the amount of data transferred, the same data was being sent in different forms multiple times.  A log, a binlog, a page write, and the double-write buffer write, are all essentially doing the same work of sending a tuple from MySQL to storage.
+
+.MySQL on EBS
+image::RDSArchitecture.png[]
+
+Thus, Aurora introduces using the write-ahead log as the protocol between the compute and the storage in a disaggregated system.  The page writes, double-write buffer, etc. are all removed and made the responsibility of the storage after receiving the write-ahead log.  The papers we're looking at all reference this model with the phrase _the log is the database_ in some form as part of their design.
+
+.Aurora Architecture
 image::AuroraArchitecture.png[]
 
-Aurora introduces using the write-ahead log as the protocol between the compute and the storage in a disaggregated system.  The papers we're looking at all reference this _the log is the database_ phrase in some form as part of their design.
 The major idea they present is that the network is then the bottleneck in the system, and the smart storage is able to meaningfully offload work of processing WAL updates into page modifications, handle MVCC cleanup, checkpointing, etc.
 
 So I think the easiest way to get started is to zoom in on a single storage node:
 
+.Aurora Storage Node
 image::AuroraStorageNode.png[]
 
 [quote]
@@ -44,11 +52,15 @@ The quorum means that transient single node failures (either accidental network 
 
 Each log write contains its LSN, and also includes the last PSN sent to the storage group.  Not every write is a transaction commit.  There's a whole discussion of Storage Consistency Points in the second paper to dig into the exact relationships between the Volume Complete LSN and the Consistency Point LSN and the Segment Complete LSN and a Protection Group Complete LSN.  The overall point to get here is that trying to recover a consistent snapshot from a highly partitioned log is hard.
 
-There's a recovery flow to follow when the primary fails.  A new primary must contact every storage group to find what's the highest LSN below which all log records are known, and then recover to min(max LSN per group), but again, that's a summary, because the reality seems complicated.
+There's a recovery flow to follow when the primary fails.  A new primary must contact every storage group to find what's the highest LSN below which all log records are known, and then recover to min(max LSN per group), but again, that's a summary, because the reality seems complicated.  However, the work of then applying the redo logs to properly recover to that LSN is now parallelized across many storage nodes, leading to a faster recovery.
 
 As there's only one nominated writer for the quorum of nodes, the writer knows which nodes in the quorum have accepted writes up to what version.  This means that reads don't need to be quorum reads, the primary is free to send read requests _only_ to one of the at-least-four nodes that it knows should have the correct data.
 
 Read-only replicas consume the binlog from the primary, and apply to cached pages only.  Uncached data comes from storage groups.  S3 is used for backups.
+
+=== Discussion
+
+Is this a trade of decreasing the amount of work on writes at the cost of increasing the amount of work on reads?:: Moving the storage to over the network does add some cost, reconstructing full pages at arbitrary versions isn't cheap, and while MySQL could apply the WAL entry directly to the buffer cached page the storage node might have to fetch the old page from disk.  But much of the work is work that MySQL would otherwise be doing: finding old versions of tuples by chaining through the undo log, fuzzy checkpointing, etc.  So while fetching pages from disk over a network is slower than fetching them locally, it is a good argument that it lets MySQL focus more on the query execution and transaction processing than storage management.
 
 == Microsoft Socrates
 
@@ -89,6 +101,16 @@ B-tree traversals from replicas sometimes need to restart if a leaf page is a ne
 
 What's the major difference between Socrates and Aurora?  Aurora partitions the WAL across page servers.  Socrates has a centralized WAL service.
 
+=== Discussion
+
+Socrates feels like a very modern object storage-based database in the WarpStream or turbopuffer kind of way for it being a 2019 paper.  This architecture is the closest to Neon's as well.
+
+The extended buffer pool / "Resilient Cache" on the primary sounds like a really complicated mmap() implementation.
+
+Would VM migration keep the cache?:: Probably not?  This raised an interesting point that trying to binpack SQL Server instances across a fleet of instances seems difficult, especially with them all being tied to a persistent cache.  Azure SQL Database is sold in vCPU and DTU models, which seem to be more reservation based, so maybe there isn't an overly high degree of churn?
+
+Are the caches actually local SSD or are they Azure Managed Disks?:: Consensus was that it seemed pretty strongly implied that they were actually SSD.
+
 == Alibaba PolarDB
 
 [.gray-bg]
@@ -123,6 +145,10 @@ There's a couple optimizations that they specifically call out. Read-only nodes 
 
 What's the major difference between PolarDB and Socrates?  Socrates has SSD persisted caches.  PolarDB has a persistent distributed memory cache.
 
+=== Discussion
+
+They still undersold the RDMA difficulty.  Someone who has worked with it previously commented that there's all sorts of issues about racing reads and writes, and getting group membership and shard movement right is doubly hard.  In both cases, an uninformed client can still do one-sided RDMA reads from a server they think is still a part of a replication group and/or has the shard it wants.
+
 == Huawei Taurus
 
 [.gray-bg]
@@ -141,11 +167,12 @@ The Page Stores behave roughly the same, they accept logs and serve versioned pa
 
 Taurus abstracts most of the logic of dealing with Log Stores and Page Stores into a Storage Abstraction Layer, which manages the mapping of WAL segments to PLogs and slices to Page Stores.  The paper describes the read and write flow in detail, but it didn't feel notably different from any of the previously discussed systems.
 
+.Taurus Write Path
 image::TaurusWritePath.png[]
 
 For anyone who is against reconfiguration-based replication because of the "unavailability" while reconfiguring to a new set of available replicas, you'll hate the "comparison with quorum replication".  They argue that their probability of write unavailability is effectively zero as all Log Stores or Page Stores from their global pool of nodes would have to be unavailable for a new shard to be un-allocatable.  This argument both is and isn't true.
 
-Both recovery and replication to read-only replicas is discussed in decent detail, but neither felt notably different.  I do appreciate the level of detail though in illustrating how recovery works, as it was more pleasant to go through here than in some other papers.  Replication to read-only has just been about applying log records to cached pages in every system thus far.  They do mention separating notifying replicas that there were WAL changes published (and where to find them), from actually serving that data from Log Servers, so that the primary isn't responsible for the network bandwidth of broadcasting WAL changes.
+Both recovery and replication to read-only replicas is discussed in decent detail, but neither felt notably different.  I do appreciate the level of detail though in illustrating how recovery works, as it was more pleasant to go through here than in some other papers.  Replication to read-only has just been about applying log records to cached pages in every system thus far.  They do mention separating notifying replicas that there were WAL changes published (and where to find them), from actually serving that data from Log Servers, so that the primary isn't responsible for the network bandwidth of broadcasting WAL changes.  The Page Stores also gossip the data so that Log Servers aren't being entirely taxed for network bandwidth either.
 
 Page stores are append-only on disk, with a lock-free hashtable mapping (page,version) to slot in log.  The hashtable is periodically saved to storage to bound recovery time.  Page Stores have their own buffer pool, which is mostly to avoid IO during the lookup of the previous page to apply a WAL entry.  There's an interesting tidbit that LFU is a better cache replacement policy for second-level caches.
 
@@ -180,3 +207,11 @@ The Global Lock Manager would also be responsible for deadlock detection.
 Note the introduction of another component: the Global Slice Manager.  Sharding pages across servers is a decision that no master is allowed to make locally, so the responsibility of sharding data was moved to a global component.
 
 In comparison against Aurora Multi-Master, it's noted that Aurora pushed resolving conflicts between masters to the storage layer.  In the evaluation, the two designs perform similarly when there's no data sharing, but the Taurus design performs much better as data sharing increases.
+
+=== Discussion
+
+MariaDB Xpand actually did something similar to this, but they never wrote about it, and the project was shut down by MariaDB.
+
+Multi-master is also useful for upgrades, as it gives one a way to do a rolling upgrade to a new database binary and incrementally shift transactions over.  However, having two databases live at different versions means one also has to get upgrade/downgrade testing done well.
+
+Who needs multi-master?  Aurora dropped their own multi-master support, and rumor was it wasn't getting heavily used.  Is there actually a desire for this?  Are there enough customers topping over their disaggregated OLTP database with excessive writes that it's worthwhile to make the investment into all the complexity that multi-master brings?
