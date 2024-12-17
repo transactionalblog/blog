@@ -16,8 +16,8 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 == OLTP/RDBMS Server/Hosted/Serverless
 
 * https://crystaldb.cloud/[CrystalDB] (2022)
-* https://thenile.dev/[Nile] (2022)
-* https://neon.tech[Neon] (2021)
+* https://thenile.dev/[Nile] (2022) -- github:niledatabase/niledatabase[]
+* https://neon.tech[Neon] (2021) -- github:neondatabase/neon[]
 * https://turso.tech/[Turso] (2021)
 * https://sqlitecloud.io/[SQLite Cloud] (2021)
 * https://xata.io/[Xata] (2020)
@@ -46,11 +46,11 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 == HTAP SQL
 
 * https://cedardb.com/[CedarDB] (2023)
-* https://matrixorigin.io/[MatrixOrigin] (2021)
-* https://timescale.com/[Timescale] (2017)
-* https://yugabyte.com/[YugabyteDB] (2016)
-* https://pingcap.com/[PingCAP] (2015)
-* https://cockroachlabs.com/[CockroachDB] (2014)
+* https://matrixorigin.io/[MatrixOrigin] (2021) -- github:matrixorigin/matrixone[]
+* https://timescale.com/[Timescale] (2017) -- github:timescale/timescaledb[]
+* https://yugabyte.com/[YugabyteDB] (2016) -- github:yugabyte/yugabyte-db[]
+* https://pingcap.com/[PingCAP] (2015) -- github:pingcap/tidb[]
+* https://cockroachlabs.com/[CockroachDB] (2014) -- github:cockroachdb/cockroach[]
 * https://sequoiadb.com/[SequoiaDB] (2011)
 * https://singlestore.com/[SingleStore] (2011) -- Formerly MemSQL
 * https://doc.nuodb.com/[NuoDB] (2010) -- Acquired by 3DS
@@ -61,24 +61,24 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://mooncake.dev/[Mooncake Labs] (2024)
 ** DuckDB-in-Postgres via github:Mooncake-Labs/pg_mooncake[]
 * https://tablespace.com/[TableSpace] (2024)
-* https://pola.rs/[Polars] (2023)
+* https://pola.rs/[Polars] (2023) -- github:pola-rs/polars[]
 * https://paradedb.com/[ParadeDB] (2023)
 ** DuckDB-in-Postgres via github:paradedb/pg_analytics[]
 * https://motherduck.com/[MotherDuck] (2022)
 * https://velodb.io/[VeloDB] (2022) -- Built on Apache Doris
 * https://seafowl.io/[Splitgraph] (2022) -- Acquired by EDB
 ** Datafusion-in-Postgres via github:splitgraph/seafowl[]
-* https://starrocks.io/[StarRocks] (2021)
+* https://starrocks.io/[StarRocks] (2021) -- github:StarRocks/StarRocks[]
 * https://voltrondata.com/[VoltronData] (2021)
 * https://myscale.com/[MyScale] (2021) -- Fork of ClickHouse
-* https://clickhouse.com/[ClickHouse] (2021)
+* https://clickhouse.com/[ClickHouse] (2021) -- github:ClickHouse/ClickHouse[]
 ** ClickHouse started as a project in 2009.  The company was founded in 2021.
 * https://datapelago.io/[DataPelago] (2021)
 * https://hydra.so/[Hydra] (2021)
 ** DuckDB-in-Postgres via github:duckdb/pg_duckdb[]
 * https://openpie.com/[PieCloudDB] (2021)
 * https://en.selectdb.com/[SelectDB] (2021) -- Built on Apache Doris
-* https://databend.com/[Databend] (2021)
+* https://databend.com/[Databend] (2021) -- github:databendlabs/databend[]
 * https://oxla.com/[Oxla] (2020)
 * https://coiled.io/[Coiled] (2020) -- https://dask.org/[Dask]
 * https://startree.ai/[StarTree] (2020)
@@ -88,14 +88,13 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://tinybird.co/[Tinybird] (2019) -- Hosted++ ClickHouse
 * https://firebolt.io/[Firebolt] (2019)
 * https://cheetahds.com/[CheetahDB] (2018)
-* https://duckdb.org/[DuckDB] (2018)
+* https://duckdb.org/[DuckDB] (2018) -- github:duckdb/duckdb[]
 * https://starburst.io/[Starburst] (2017)
 ** Developers of Trino, which forked in 2019 from PrestoDB, itself released 2013.
 * https://hashdata.xyz/[HashData] (2016)
-** Open sourced as https://cloudberrydb.org/[CloudBerryDB] in 2023
+** Open sourced as https://cloudberrydb.org/[CloudBerryDB] in 2023 -- github:apache/cloudberry[]
 * https://oushu.com/en[Oushu] (2016) -- Fork of Apache HAWQ
 * https://ocient.com/[Ocient] (2016)
-* https://clickhouse.com/[Clickhouse] (2016)
 * https://imply.io/[Imply Data] (2015)
 ** Develops and commercializes Apache Druid
 * https://dremio.com/[Dremio] (2015)
@@ -135,7 +134,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://hibernatingrhinos.com/[Hibernating Rhinos] (2009) -- https://ravendb.net/[RavenDB]
 * https://cloudant.com/[Cloudant] (2008) -- https://couchdb.apache.org/[CouchDB]
 ** Acquired by IBM in 2014.
-* https://mongodb.com[MongoDB] (2007)
+* https://mongodb.com[MongoDB] (2007) -- github:mongodb/mongo[]
 * https://marklogic.com/[MarkLogic] (2001)
 * https://nexedi.com/[Nexedi] (2005)
 ** Company founded in 2005.  Develops https://neo.nexedi.com/[NEO], a fork(?) of ZODB.
@@ -243,7 +242,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://warpstream.com/[WarpStream] (2023)
 * https://automq.com/[AutoMQ] (2022)
 * https://gomomento.com/[Momento] (2021)
-* https://redpanda.com/[Redpanda] (2019)
+* https://redpanda.com/[Redpanda] (2019) -- github:redpanda-data/redpanda[]
 * https://synadia.com/[Synadia] (2017) -- https://nats.io[NATS.io]
 * https://confluent.io/[Confluent] (2014) -- Kafka, which was released in 2011
 * https://84codes.com/[84codes] (2012)
@@ -253,14 +252,14 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == (Stateful) Streaming
 
-* https://risingwave.com/[RisingWave] (2023)
-* https://denormalized.io/[Denormalized] (2022)
-* https://arroyo.dev/[Arroyo] (2022)
-* https://timeplus.com/[TimePlus] (2021)
+* https://risingwave.com/[RisingWave] (2023) -- github:risingwavelabs/risingwave[]
+* https://denormalized.io/[Denormalized] (2022) -- github:probably-nothing-labs/denormalized[]
+* https://arroyo.dev/[Arroyo] (2022) -- github:ArroyoSystems/arroyo[]
+* https://timeplus.com/[TimePlus] (2021) -- github:timeplus-io/proton[]
 * https://emqx.com/[EMQ] (2021)
 ** EMQ was founded in 2012, and released https://hstream.io/[HStreamDB] in 2021.
 * https://deltastream.io/[DeltaStream] (2020)
-* https://materialize.com/[Materialize] (2019)
+* https://materialize.com/[Materialize] (2019) -- github:MaterializeInc/materialize[]
 * https://readyset.co/[ReadySet] (2019)
 * https://eventstore.com/[EventStoreDB] (2019)
 * https://veverica.com/[Veverica] (2014)
@@ -274,15 +273,15 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://infiniflow.org/[InfiniFlow] (2023)
 * https://vespa.ai/[Vespa] (2023)
 ** Vespa was opensourced by Yahoo in 2017.  Company founded around it in 2023.
-* https://lancedb.com/[LanceDB] (2022)
+* https://lancedb.com/[LanceDB] (2022) -- github:lancedb/lancedb[]
 * https://marqo.ai/[Marqo] (2022)
 * https://featurebase.com/[FeatureBase] (2022)
 ** Founded as Molecula in 2017.  Released FeatureBase in 2022.
 * https://postgresml.org/[PostgresML] (2022)
-* https://trychroma.com/[Chroma] (2022)
-* https://qdrant.tech/[Qdrant] (2021)
+* https://trychroma.com/[Chroma] (2022) -- github:chroma-core/chroma[]
+* https://qdrant.tech/[Qdrant] (2021) -- github:qdrant/qdrant[]
 * https://spice.ai/[Spice AI] (2021)
-* https://weaviate.io/[Weaviate] (2019)
+* https://weaviate.io/[Weaviate] (2019) -- github:weaviate/weaviate[]
 * https://pinecone.io/[Pinecone] (2019)
 * https://aperturedata.io[ApertureData] (2018) -- Vectors & Image/Video/Document
 * https://featureform.com/[FeatureForm] (2017)
