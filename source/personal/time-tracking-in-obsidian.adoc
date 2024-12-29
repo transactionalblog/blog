@@ -1,0 +1,194 @@
+= Time Tracking in Obsidian
+:revdate: 2024-12-28
+:page-hook-preamble: false
+
+:uri-productivity: https://docs.google.com/viewer?url=https://raw.githubusercontent.com/thisismiller/productivity/master/whole_week.pdf
+
+When work gets busy, I've struggled with ensuring that I balance my time well when I have multiple responsibilities and projects in flight at once. I formerly relied on a {uri-productivity}[custom paper productivity planner] for that.  I've since managed to recreate a reduced but very sufficient amount of this workflow within Obsidian.
+
+== The Process
+:uri-pomodoro-timer: https://github.com/eatgrass/obsidian-pomodoro-timer?tab=readme-ov-file#pomodoro-timer-for-obsidian
+
+On Monday morning, sit down and sort through your projects' todo lists and check your calendar.  Decide how you want to allocate your time across your various projects and things you are doing during the week.
+
+I've generally started with subtracting off any time taken by meetings, making sure I've allocated time for all of the minor and supportive tasks I do, and then ensuring that at least 50% of my time remains for actually making progress on core projects.
+
+So my plan for the week might look something like:
+
+[source,markdown]
+----
+Plan:
+- [ ] (goal:: Dev Project) (estimate:: 20h)
+- [ ] (goal:: DevEx Tooling) (estimate: 5h)
+- [ ] (goal:: Meetings) (estimate:: 8h)
+- [ ] (goal:: Email) (estimate:: 2h)
+- [ ] (goal:: JIRA Maintenance) (estimate:: 2h)
+- [ ] (goal:: Learning) (estimate:: 3h)
+----
+
+(The `(goal::)` and `(estimate::)` are markup that's required for the dataview plugin to be able to pick up and process the fields. It's rendered by Obsidian as just `- Dev Project  20 hours`.)
+
+Then, we rely on {uri-pomodoro-timer}[Pomodoro Timer for Obsidian] to allow easy logging of time spent per task.  It allows logging time on any task (a list item with a checkbox), and it appends the pomodoros to your weekly note.  You can freely edit them if you need to adjust the starting time or duration.
+
+There's then some javascript which runs in obsidian and aggregates together your pomodoros and joins it against the plan to produce a table of "Actual vs Expected" time spent in each task category.
+
+== Obsidian Setup
+
+:uri-plugin-calendar: https://obsidian.md/plugins?search=Calendar
+:uri-plugin-dataview: https://obsidian.md/plugins?id=dataview
+:uri-plugin-periodic-notes: https://obsidian.md/plugins?id=periodic-notes
+:uri-plugin-pomodoro-timer: https://obsidian.md/plugins?id=pomodoro-timer
+:uri-pomodoro-timer-pr: https://github.com/eatgrass/obsidian-pomodoro-timer/pull/69
+
+Install {uri-plugin-calendar}[Calendar] and set its configuration to:
+
+Start Week On: `Monday`
+
+Install {uri-plugin-periodic-notes}[Periodic Notes], enable only Weekly Notes, and set its configuration to:
+
+Format: `gggg-ww` +
+Weekly Note Template: `Templates/Weekly Note.md` +
+Note Folder: `Work Log`
+
+Install {uri-plugin-pomodoro-timer}[Pomodoro Timer], add in {uri-pomodoro-timer-pr}[the PR to add "Continue After Zero"], and set its configuration to:
+
+Task Format: `dataview` +
+Log File: `Weekly note` +
+Log Level: `All` +
+Log Format: `Custom` +
+Log template: (see below)
+
+.Log template
+[source,javascript]
+----
+<%*
+if (log.task) {
+    const match = log.task.name.match(/\(goal:: ([^)]+)\)/);
+    const taskname = match ? match[1] : log.task.name
+    taskdata =` (taskname:: ${taskname})`;
+} else {
+    taskdata = "";
+}
+tR = `- (begin:: ${log.begin.format("YYYY-MM-DD HH:mm")}): (pomodoro:: ${log.mode})${taskdata} (duration:: ${log.duration}m)`;
+%>
+----
+
+I have a weekly template note which looks like:
+
+.Templates/Weekly Note.md
+[source,markdown]
+----
+# Weekly Note
+
+- 
+
+Plan (goal, expected):
+-
+
+---
+
+```dataviewjs
+const page = dv.current()
+
+function toRow(key, rows) {
+  const taskname = key[0] == 'WORK' ? key[1] : "Break";
+  const dursum = rows.duration.values.reduce(
+    (acc, x) => acc.plus(x), dv.duration("0 seconds"));
+  return [taskname, dursum];
+}
+// If the name of a task is [[Page Name]], it's an object
+// and not a string
+function compareKey(x, y) {
+	if (typeof(x) != typeof(y)) {
+		return false;
+	}
+	if (typeof(x) === 'object') {
+		return x.path == y.path;
+	} else {
+		return x === y;
+	}
+}
+
+const expected = page.file.lists
+  .filter(item => item.goal)
+  .map(item => [item.goal, item.expected]);
+
+const actual = page.file.lists
+  .filter(item => item.pomodoro)
+  .groupBy(item => [item.pomodoro, item.taskname])
+  .map(group => toRow(group.key, group.rows))
+  .concat(
+    page.file.lists
+	  .filter(item => item.pomodoro)
+	  .groupBy(item => 1)
+      .map(group => toRow(["WORK", "Total"], group.rows))
+    );
+
+// I want a full outer join, but that doesn't exist in
+// dataview, so do (left inner join) union (right outer join)
+const lJoin = expected
+  .map(e => {
+    var aitem = actual.find(a => compareKey(a[0], e[0]));
+    aitem = (aitem === undefined ? [e[0], '--'] : aitem);
+    return [e[0], aitem[1], e[1]];
+  });
+const rOuter = actual
+  .map(a => {
+    var eitem = expected.find(e => compareKey(e[0], a[0]));
+    if (eitem === undefined) {
+      return [a[0], a[1], '--'];
+    } else {
+      return undefined;
+    }
+  }).filter(x => x !== undefined);
+    
+dv.table(['Task', 'Actual', 'Expected'], lJoin.concat(rOuter));
+```
+
+
+Pomodoros:
+----
+
+You should now be able to click the calendar-looking "Open this week" icon in the left vertical bar to open your Weekly note, and the template should automatically be populated.  Clicking the stopwatch-looking icon in the left vertical bar will open Pomodoro Timer's widget.  Go to your todo list file, and select the item you'll be working on and start the timer.  I use the pomodoro timer not for pomodoros but more just as a time tracker, so I set the break time to 0 and check "Continue After Zero" in its settings.
+
+Out of personal curiosity, I also have one page which aggregates across all weeks:
+
+.Work Log/Total.md
+[source,markdown]
+----
+# Total
+
+
+```dataviewjs
+const pages = dv.pages('"Work Log"')
+
+function toRow(key, rows) {
+  const taskname = key[0] == 'WORK' ? key[1] : "Break";
+  const dursum = rows.duration.values.reduce(
+    (acc, x) => acc.plus(x), dv.duration("0 seconds"));
+  return [taskname, dursum];
+}
+
+let lists = dv.array(pages.array().reduce(
+    (accumulator, currentObject) => {
+        return accumulator.concat(
+            currentObject.file.lists
+                .filter(item => item.pomodoro).values);
+}, []));
+
+dv.table(['Task', 'Duration'],
+  lists
+    .filter(item => item.pomodoro)
+    .groupBy(item => [item.pomodoro, item.taskname])
+    .map(group => toRow(group.key, group.rows))
+    .concat(
+      lists
+	  .filter(item => item.pomodoro)
+	  .groupBy(item => 1)
+      .map(group => toRow(["WORK", "Total"], group.rows))
+    ))
+```
+
+----
+
+If you ever need to debug some dataviewjs, `dv.paragraph()` is your `console.log()`.

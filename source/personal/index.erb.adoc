@@ -1,0 +1,10 @@
+= Personal
+:revdate: 2024-12-28
+:page-layout: index
+
+[.display-none]
+== Posts
+
+++++
+<%= partial("partials/index_section", :locals => {}) %>
+++++
