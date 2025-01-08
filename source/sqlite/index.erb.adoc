@@ -1,0 +1,13 @@
+= SQLite
+:revdate: 2025-01-07
+:page-layout: index
+:page-aggregate: true
+
+Notes on SQLite (and Limbo) internals.
+
+[.display-none]
+== Posts
+
+++++
+<%= partial("partials/index_section", :locals => {}) %>
+++++

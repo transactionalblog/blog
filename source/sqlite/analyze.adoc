@@ -1,0 +1,305 @@
+= ANALYZE
+:revdate: 2025-01-07
+:page-features: font-awesome
+:page-hook-preamble: false
+
+== Syntax
+
+https://www.sqlite.org/lang_analyze.html[SQLite docs for ANALYZE].
+
+The following shapes of SQL statements are to be permitted:
+
+1. `ANALYZE;`
+2. `ANALYZE schema_name;`
+3. `ANALYZE table_name;`
+4. `ANALYZE schema_name.table_name;`
+
+The recommended way of running `ANALYZE` is to use `PRAGMA optimize`, which is out of scope as `ANALYZE` is strictly a pre-requisite.
+
+`ANALYZE` is affected by https://www.sqlite.org/pragma.html#pragma_analysis_limit[`PRAGMA analysis_limit`], support for which is also out of scope.
+
+== Semantics
+
+The effect of running `ANALYZE` is that the `sqlite_stat*` table(s) are populated.  https://www.sqlite.org/fileformat2.html#stat1tab[SQLite docs] describe sqlite_stat[1-4] tables, where:
+
+* sqlite_stat1 is always populated by ANALYZE
+* sqlite_stat2 was used when SQLITE_ENABLE_STAT2 was defined, but is no longer used after version 3.7.9 (2011-11-01)
+* sqlite_stat3 was used when SQLITE_ENABLE_STAT3 was defined, but is no longer used after version 3.29.0 (2019-07-10)
+* sqlite_stat4 is used when SQLITE_ENABLE_STAT4 is defined in current sqlite.
+
+`PRAGMA compile_options;` shows no `ENABLE_STAT` define in my fedora install, and `ANALYZE` only produces a sqlite_stat1, so starting there is a safe bet.
+
+The sqlite_stat1 table is defined as `CREATE TABLE sqlite_stat1(tbl,idx,stat);`, where:
+
+* `tbl` is a string of the table name
+* `idx` is the name of the index, or NULL if the row represents the base table
+* `stat` is a list of integers followed by space separated parameters, where:
+** int[0] is the approximate number of rows in the index/table
+** int[1] is the number of rows that have the same value in column 0
+** int[N] is the number of rows that have the same value in column 0..N-1
+** the optional arguments are "unordered", "sz=NNN", "noskipscan"
+
+From experimentation:
+
+* If a base table has no defined primary keys, then it is only given a single integer of how many rows are in the table.  The table is required to have primary keys to have any further entries in the list.
+* If a base table has primary keys, then only its auto-created primary index has an entry in sqlite_stat1, and not the rowid-indexed base table.
+* If a base table has primary keys and has no rowid, then the index name is the table name.
+
+== Code Gen
+
+The overall structure of each `ANALYZE` statement is:
+
+1. Create the sqlite_stat1 table if it doesn't already exist OR delete the existing row if it does.
+2. For each table within each schema:
+.. Iff there is no primary key, count the rows and insert into the stats table with a NULL idx.
+.. Iff there is a primary key, stat_init() a stats object, stat_push() each row into it, and then store stat_get() into the stats column.
+
+`ANALYZE` of a table without a primary key defined, with sqlite_stat1 pre-created:
+
+[source]
+----
+sqlite> CREATE TABLE iiftest(a int, b int, c int);
+sqlite> EXPLAIN ANALYZE iiftest;
+addr  opcode         p1    p2    p3    p4             p5  comment      
+----  -------------  ----  ----  ----  -------------  --  -------------
+0     Init           0     21    0                    0   Start at 21
+1     Null           0     1     0                    0   r[1]=NULL
+2     OpenWrite      3     4     0     3              0   root=4 iDb=0; sqlite_stat1
+3     Rewind         3     9     0                    0   
+4       Column         3     0     2                    0   r[2]= cursor 3 column 0
+5       Ne             3     8     2     BINARY-8       81  if r[2]!=r[3] goto 8
+6       Rowid          3     4     0                    0   r[4]=sqlite_stat1.rowid
+7       Delete         3     0     0     sqlite_stat1   2   
+8     Next           3     4     0                    1   
+9     OpenWrite      0     4     0     3              0   root=4 iDb=0; sqlite_stat1
+10    OpenRead       4     2     0     3              0   root=2 iDb=0; iiftest
+11    String8        0     11    0     iiftest        0   r[11]='iiftest'; iiftest
+12    Count          4     13    0                    0   r[13]=count()
+13    IfNot          13    18    0                    0   
+14    Null           0     12    0                    0   r[12]=NULL
+15    MakeRecord     11    3     9     BBB            0   r[9]=mkrec(r[11..13])
+16    NewRowid       0     5     0                    0   r[5]=rowid
+17    Insert         0     9     5                    8   intkey=r[5] data=r[9]
+18    LoadAnalysis   0     0     0                    0   
+19    Expire         0     0     0                    0   
+20    Halt           0     0     0                    0   
+21    Transaction    0     1     9     0              1   usesStmtJournal=0
+22    String8        0     3     0     iiftest        0   r[3]='iiftest'
+23    Goto           0     1     0                    0
+----
+
+{nospace} +
+
+`ANALYZE` of a table with a primary key defined, with sqlite_stat1 pre-created:
+
+[source]
+----
+sqlite> CREATE TABLE stat_test(a int, b int, c int, primary key (a,b,c));
+sqlite> EXPLAIN ANALYZE stat_test;
+addr  opcode         p1    p2    p3    p4             p5  comment      
+----  -------------  ----  ----  ----  -------------  --  -------------
+0     Init           0     45    0                    0   Start at 45
+1     Null           0     1     0                    0   r[1]=NULL
+2     OpenWrite      3     4     0     3              0   root=4 iDb=0; sqlite_stat1
+3     Rewind         3     9     0                    0   
+4       Column         3     0     2                    0   r[2]= cursor 3 column 0
+5       Ne             3     8     2     BINARY-8       81  if r[2]!=r[3] goto 8
+6       Rowid          3     4     0                    0   r[4]=sqlite_stat1.rowid
+7       Delete         3     0     0     sqlite_stat1   2   
+8     Next           3     4     0                    1   
+9     OpenWrite      0     4     0     3              0   root=4 iDb=0; sqlite_stat1
+10    OpenRead       4     5     0     3              0   root=5 iDb=0; stat_test
+11    String8        0     11    0     stat_test      0   r[11]='stat_test'
+12    String8        0     12    0     sqlite_autoindex_stat_test_1 0   r[12]='sqlite_autoindex_stat_test_1'; Analysis for stat_test.sqlite_autoindex_stat_test_1
+13    OpenRead       5     6     0     k(4,,,,)       0   root=6 iDb=0; sqlite_autoindex_stat_test_1
+14    Integer        0     10    0                    0   r[10]=0
+15    Integer        4     7     0                    0   r[7]=4
+16    Integer        3     8     0                    0   r[8]=3
+17    Count          5     9     0                    0   r[9]=count()
+18    Function       0     7     6     stat_init(4)   0   r[6]=func(r[7..10])
+19    Rewind         5     42    0                    0   
+20    Integer        0     7     0                    0   r[7]=0
+21    Goto           0     33    0                    0   
+22      Integer        0     7     0                    0   r[7]=0
+23      Column         5     0     9                    0   r[9]=sqlite_autoindex_stat_test_1.a
+24      Ne             9     33    14    BINARY-8       128 if r[14]!=r[9] goto 33
+25      Integer        1     7     0                    0   r[7]=1
+26      Column         5     1     9                    0   r[9]=sqlite_autoindex_stat_test_1.b
+27      Ne             9     34    15    BINARY-8       128 if r[15]!=r[9] goto 34
+28      Integer        2     7     0                    0   r[7]=2
+29      Column         5     2     9                    0   r[9]=sqlite_autoindex_stat_test_1.c
+30      Ne             9     35    16    BINARY-8       128 if r[16]!=r[9] goto 35
+31      Integer        3     7     0                    0   r[7]=3
+32      Goto           0     36    0                    0   
+33      Column         5     0     14                   0   r[14]=sqlite_autoindex_stat_test_1.a
+34      Column         5     1     15                   0   r[15]=sqlite_autoindex_stat_test_1.b
+35      Column         5     2     16                   0   r[16]=sqlite_autoindex_stat_test_1.c
+36      Function       1     6     9     stat_push(2)   0   r[9]=func(r[6..7])
+37    Next           5     22    0                    0   
+38    Function       0     6     13    stat_get(1)    0   r[13]=func(r[6])
+39    MakeRecord     11    3     9     BBB            0   r[9]=mkrec(r[11..13])
+40    NewRowid       0     5     0                    0   r[5]=rowid
+41    Insert         0     9     5                    8   intkey=r[5] data=r[9]
+42    LoadAnalysis   0     0     0                    0   
+43    Expire         0     0     0                    0   
+44    Halt           0     0     0                    0   
+45    Transaction    0     1     9     0              1   usesStmtJournal=1
+46    String8        0     3     0     stat_test      0   r[3]='stat_test'
+47    Goto           0     1     0                    0
+----
+
+{nospace} +
+
+`ANALYZE` of a table with a primary key, without rowid, and with sqlite_stat1 pre-created:
+
+[source]
+----
+sqlite> CREATE TABLE stat_test_norowid(a int, b int, c int, primary key (a,b,c)) without rowid;
+sqlite> EXPLAIN ANALYZE stat_test_norowid;
+addr  opcode         p1    p2    p3    p4             p5  comment      
+----  -------------  ----  ----  ----  -------------  --  -------------
+0     Init           0     41    0                    0   Start at 41
+1     Null           0     1     0                    0   r[1]=NULL
+2     OpenWrite      3     4     0     3              0   root=4 iDb=0; sqlite_stat1
+3     Rewind         3     9     0                    0   
+4       Column         3     0     2                    0   r[2]= cursor 3 column 0
+5       Ne             3     8     2     BINARY-8       81  if r[2]!=r[3] goto 8
+6       Rowid          3     4     0                    0   r[4]=sqlite_stat1.rowid
+7       Delete         3     0     0     sqlite_stat1   2   
+8     Next           3     4     0                    1   
+9     OpenWrite      0     4     0     3              0   root=4 iDb=0; sqlite_stat1
+10    OpenRead       4     7     0     k(3,,,)        0   root=7 iDb=0; stat_test_norowid
+11    String8        0     11    0     stat_test_norowid 0   r[11]='stat_test_norowid'
+12    String8        0     12    0     stat_test_norowid 0   r[12]='stat_test_norowid'; Analysis for stat_test_norowid.stat_test_norowid
+13    OpenRead       5     7     0     k(3,,,)        0   root=7 iDb=0; sqlite_autoindex_stat_test_norowid_1
+14    Integer        0     10    0                    0   r[10]=0
+15    Integer        3     7     0                    0   r[7]=3
+16    Integer        3     8     0                    0   r[8]=3
+17    Count          5     9     0                    0   r[9]=count()
+18    Function       0     7     6     stat_init(4)   0   r[6]=func(r[7..10])
+19    Rewind         5     38    0                    0   
+20    Integer        0     7     0                    0   r[7]=0
+21    Goto           0     30    0                    0   
+22      Integer        0     7     0                    0   r[7]=0
+23      Column         5     0     9                    0   r[9]=sqlite_autoindex_stat_test_norowid_1.a
+24      Ne             9     30    14    BINARY-8       128 if r[14]!=r[9] goto 30
+25      Integer        1     7     0                    0   r[7]=1
+26      Column         5     1     9                    0   r[9]=sqlite_autoindex_stat_test_norowid_1.b
+27      Ne             9     31    15    BINARY-8       128 if r[15]!=r[9] goto 31
+28      Integer        2     7     0                    0   r[7]=2
+29      Goto           0     32    0                    0   
+30      Column         5     0     14                   0   r[14]=sqlite_autoindex_stat_test_norowid_1.a
+31      Column         5     1     15                   0   r[15]=sqlite_autoindex_stat_test_norowid_1.b
+32      Function       1     6     9     stat_push(2)   0   r[9]=func(r[6..7])
+33    Next           5     22    0                    0   
+34    Function       0     6     13    stat_get(1)    0   r[13]=func(r[6])
+35    MakeRecord     11    3     9     BBB            0   r[9]=mkrec(r[11..13])
+36    NewRowid       0     5     0                    0   r[5]=rowid
+37    Insert         0     9     5                    8   intkey=r[5] data=r[9]
+38    LoadAnalysis   0     0     0                    0   
+39    Expire         0     0     0                    0   
+40    Halt           0     0     0                    0   
+41    Transaction    0     1     9     0              1   usesStmtJournal=1
+42    String8        0     3     0     stat_test_norowid 0   r[3]='stat_test_norowid'
+43    Goto           0     1     0                    0
+----
+
+Which is the same, just using the table name as the index name.
+
+{nospace} +
+
+`ANALYZE` without sqlite_stat1 created:
+
+[source]
+----
+sqlite> DROP TABLE sqlite_stat1;
+sqlite> EXPLAIN ANALYZE;
+addr  opcode         p1    p2    p3    p4             p5  comment      
+----  -------------  ----  ----  ----  -------------  --  -------------
+0     Init           0     47    0                    0   Start at 47
+1     ReadCookie     0     3     2                    0   
+2     If             3     5     0                    0   
+3     SetCookie      0     2     4                    0   
+4     SetCookie      0     5     1                    0   
+5     CreateBtree    0     2     1                    0   r[2]=root iDb=0 flags=1
+6     OpenWrite      0     1     0     5              0   root=1 iDb=0
+7     NewRowid       0     1     0                    0   r[1]=rowid
+8     Blob           6     3     0                   0   r[3]= (len=6)
+9     Insert         0     3     1                    8   intkey=r[1] data=r[3]
+10    Close          0     0     0                    0   
+11    Close          0     0     0                    0   
+12    Null           0     4     5                    0   r[4..5]=NULL
+13    Noop           4     0     4                    0   
+14    OpenWrite      3     1     0     5              0   root=1 iDb=0; sqlite_master
+15    SeekRowid      3     17    1                    0   intkey=r[1]
+16    Rowid          3     5     0                    0   r[5]= rowid of 3
+17    IsNull         5     25    0                    0   if r[5]==NULL goto 25
+18    String8        0     6     0     table          0   r[6]='table'
+19    String8        0     7     0     sqlite_stat1   0   r[7]='sqlite_stat1'
+20    String8        0     8     0     sqlite_stat1   0   r[8]='sqlite_stat1'
+21    Copy           2     9     0                    0   r[9]=r[2]
+22    String8        0     10    0     CREATE TABLE sqlite_stat1(tbl,idx,stat) 0   r[10]='CREATE TABLE sqlite_stat1(tbl,idx,stat)'
+23    MakeRecord     6     5     4     BBBDB          0   r[4]=mkrec(r[6..10])
+24    Insert         3     4     5                    0   intkey=r[5] data=r[4]
+25    SetCookie      0     1     5                    0   
+26    ParseSchema    0     0     0     tbl_name='sqlite_stat1' AND type!='trigger' 0   
+27    OpenWrite      0     2     0     3              16  root=2 iDb=0; sqlite_stat1
+28    OpenRead       5     3     0     4              0   root=3 iDb=0; casetest
+29    String8        0     18    0     casetest       0   r[18]='casetest'; casetest
+30    Count          5     20    0                    0   r[20]=count()
+31    IfNot          20    36    0                    0   
+32    Null           0     19    0                    0   r[19]=NULL
+33    MakeRecord     18    3     16    BBB            0   r[16]=mkrec(r[18..20])
+34    NewRowid       0     12    0                    0   r[12]=rowid
+35    Insert         0     16    12                   8   intkey=r[12] data=r[16]
+36    OpenRead       5     2     0     3              0   root=2 iDb=0; iiftest
+37    String8        0     18    0     iiftest        0   r[18]='iiftest'; iiftest
+38    Count          5     20    0                    0   r[20]=count()
+39    IfNot          20    44    0                    0   
+40    Null           0     19    0                    0   r[19]=NULL
+41    MakeRecord     18    3     16    BBB            0   r[16]=mkrec(r[18..20])
+42    NewRowid       0     12    0                    0   r[12]=rowid
+43    Insert         0     16    12                   8   intkey=r[12] data=r[16]
+44    LoadAnalysis   0     0     0                    0   
+45    Expire         0     0     0                    0   
+46    Halt           0     0     0                    0   
+47    Transaction    0     1     4     0              1   usesStmtJournal=1
+48    Goto           0     1     0                    0
+----
+
+Note the lack of clearing the table, because it doesn't exist.  `iiftest` and `casetest` are the tables in the database at the time of running this command, leftover from previous work.
+
+== Limbo Implementation Plan
+
+Backfill needed VDBE support for pre-created sqlite_stat1:
+
+* [ ] OpenWrite
+* [ ] Count
+* [ ] NewRowid
+* [ ] LoadAnalysis
+* [ ] Expire
+* [ ] Functions stat_init(), stat_get(), and stat_push()
+
+Then, implement the `ANALYZE` support:
+
+* [ ] Codegen ANALYZE table
+* [ ] Codegen ANALYZE schema
+* [ ] Codegen ANALYZE
+
+And then fill in the rest of VDBE support needed for creating sqlite_stat1:
+
+* [ ] CreateBtree
+* [ ] GetCookie
+* [ ] SetCookie
+* [ ] Close
+* [ ] ParseSchema
+
+Then, adjust the previous work to permit creating the table as part of codegen:
+
+* [ ] Codegen ANALYZE table
+* [ ] Codegen ANALYZE schema
+* [ ] Codegen ANALYZE
+
+Then, shore up testing:
+
+* [ ] Add ANALYZE calls to the simulator interaction plans
