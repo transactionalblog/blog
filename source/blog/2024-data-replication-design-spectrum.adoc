@@ -6,6 +6,12 @@
 :bibtex-file: 2024-data-replication-design-spectrum.bib
 :page-aside: With thanks to AJ Werner for pointers to Cockroach's optimizations, Reuben Bond for links to good Virtual Synchrony overview papers, Andrey Satarin for links to better failure detection material, and Phil Eaton, Alex Petrov, and Avinash Sajjanshetty for early reads and feedback.
 
+////
+TODO:
+- [ ] Add EBS ("millions of tiny databases") as a chain replication example next to GFS
+- [ ] Paragraph under first comparison makes PacificA sound like it has better write throughput than Paxos, which isn't true by numbers.
+////
+
 Consistent replication algorithms can be placed on a sliding scale based on how they handle replica failures.  Across the three common points on this spectrum, the resource efficiency, availability, and latency are compared, providing guidance for how to choose an appropriate replication algorithm for a use case.
 
 == Failure Masking vs Failure Detection
@@ -620,6 +626,10 @@ There are a number of other resources to consider in a real environment other th
 There are also other deployment environment considerations.  The analysis above considers all round-trip times equal, which is not the case in geographically distributed deployments.  Cross-datacenter network links are notoriously prone to random packet delays or loss, making any form of quorums more attractive for minimizing tail latency.  All RTT calculations above have considered a request as starting from a client, but if a client is always co-located with the primary or leader in a datacenter, that RTT is comparatively free, and only the round trips across datacenters or regions are worth optimizing.  One should tailor the choice of replication algorithm to also best suit the deployment environment.
 
 But after all this analysis, does Raft's hybrid approach to failure handling deliver some superior advantage that justifies its popularity?  Not really.  Quorums deliver superior availability, but at the cost of read throughput efficiency (and livelock for Paxos, or inconsistency for ABD).  Reconfiguration delivers superior resource efficiency, but at the cost of availability.  Raft has unwaveringly moderate results in each comparison.  Instead, its main strength is that its hybrid nature avoids the major pitfalls on both sides: it won't livelock under contention, and it can mask some failures.  If those are what the use case needs, then it's a great fit.  Otherwise, consider implementing a different approach.
+
+== See Also
+
+- Adam Prout has a post on https://medium.com/@adamprout/categorizing-how-distributed-databases-utilize-consensus-algorithms-492c8ff9e916[Categorizing How Distributed Databases Utilize Consensus Algorithms] which presents Quorums and Hybrid as "Consensus for Data (CfD)" and Reconfiguration as "Consensus for Metadata (CfM)".
 
 == References
 
