@@ -1,7 +1,17 @@
 = ANALYZE
 :revdate: 2025-01-07
+:draft: true
 :page-features: font-awesome
 :page-hook-preamble: false
+:page-tag: optimizer
+:page-order: 1
+
+////
+TODO:
+- indexes
+- covering indexes
+- add function definitions and semantics
+////
 
 == Syntax
 
