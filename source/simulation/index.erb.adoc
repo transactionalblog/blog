@@ -19,26 +19,53 @@ A walkthrough of how and why complex infrastructure should be built with determi
 # Deterministic Simulation
 ## Scheduling
 ## Time
+## Processes and Machines
 ## Mockable External Services: Networking
 ## Live External Services: Disks
-## Processes and Machines
-## Other Examples
-- Go: https://github.com/resonatehq/resonate/tree/268c588e302f13187309e4b37636d19595d42fa1/internal/kernel
-- Zig: Tigerbeetle
-- C++ish: FDB
-- Java: Cassandra D-Tests
 
 # Failure Modeling
+## Processes and Machines
 ## Networking
 ## Disks
-## Processes and Machines
 ## Buggify
 
 # Simulation Workloads
 ## Property Testing
 ## Nemesis Tests
+## Upgrade/Downgrade Testing
 ## Limitations
-   - Quiescence
+   - Quiescence / Liveness
    - Performance testing very limited
+
+# Case Studies
+
+## FoundationDB
+One unified scheduler
+Network mocked as a stream of futures
+Many composable workloads
+QuiescenceChecker
+Upgrades via restart tests
+Run via joshua
+
+## TigerBeetle
+Sharded scheduler: many sub-event loops ticked()
+Network mocked as a bus of messages
+One workload defined in StateMachine
+Tests continue after workload finishes as LivenessTest
+Run via vopr
+
+## Cassandra
+https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-10%3A+Cluster+and+Code+Simulations
+
+## Resonate
+https://github.com/resonatehq/resonate/tree/268c588e302f13187309e4b37636d19595d42fa1/internal/kernel
+
+## PolarSignals FrostDB
+https://github.com/polarsignals/frostdb/tree/e9ab6f315eae4b4e3cba4d4f2a8c066f29cf67b2/dst
+
+## RisingWave
+https://github.com/risingwavelabs/risingwave/blob/bb4dec288c5d93cc12c549e56ca7d11b0e827dc3/integration_tests/feature-store/simulator/src/entities_taxi.rs
+
+## Limbo
 
 ////
