@@ -25,6 +25,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 ** Acquired Oriole, itself also founded 2020
 * https://planetscale.com/[Planetscale] (2018)
 ** Develops and commercializes Vitess, which was started in YouTube in 2010.
+* https://en.heterodb.com/[HeteroDB] (2017) -- github:heterodb/pg-strom[]
 * https://hopsworks.ai/[Hopsworks] (2017)
 ** Develops and offers hosted https://www.rondb.com/[RonDB]
 * https://proxysql.com/[ProxySQL] (2016)
