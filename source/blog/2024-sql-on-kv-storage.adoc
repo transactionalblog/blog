@@ -19,7 +19,7 @@ Design Constraints
 ////
 
 It is assumed that the storage engine for the SQL database already exists, and
-is a linearizable key-value store with single key atomicity, with no in-built
+is a linearizable key-value store with single key atomicity, with no built-in
 transaction support.  The emphasis on "linearizable" is due to this page being
 written with distributed key-value stores in mind, but the vast majority of it
 applies to a single-node database as well.  As a concrete example, consider
@@ -95,7 +95,7 @@ Our goal is to build something which supports Read Committed or Snapshot Isolati
 
 Note that by "Read Committed", there is a significant difference between what the ANSI standard defines as Read Committed, and what the database industry at large defines as Read Committed.  The ANSI Standard claims that Read Committed should behave like exactly what it says: any data which is committed is visible for reading, but unlike Snapshot Isolation, the committed data read might form an inconsistent snapshot which observes only parts of some transactions.  The database industry has largely implemented Read Committed as "Snapshot Isolation except the server is allowed to pick a new read snapshot".sidenote:ref[]sidenote:ref[]
 Databases implement "Almost Snapshot Isolation" Read Committed instead of just Snapshot Isolation as it retains one very important difference: if the query encounters a conflict, the server is permitted to retry the statement with a new read snapshot until it succeeds.  Under Snapshot Isolation, that failure must be returned to the client so that they can retry the entire transaction body.  This means that Read Committed observes significantly fewer transaction aborts than Snapshot Isolation.
-[.aside]#sidenote:def[] For a more detailed explanation, take a look at {uri-oracle-read-comitted}[Oracle's documentation on Read Committed].#
+[.aside]#sidenote:def[] For a more detailed explanation, take a look at {uri-oracle-read-committed}[Oracle's documentation on Read Committed].#
 [.aside]#sidenote:def[] SQL Server appears to offer both Read Committed isolation levels.  It calls the ANSI Standard "Read Committed", and the commonly implemented variant {uri-read-committed-si}["Read Committed Snapshot Isolation"], though I haven't seen that name used elsewhere to identify this "Almost Snapshot Isolation" variant.#
 
 The strong suggestion of not pursuing Serializable is one of the divergences between a local-only database and a distributed database.
@@ -258,6 +258,19 @@ Thus, if the solution to MVCC cleanup or
 Primary key constraints can be deferred, so data models cannot assume that a primary key is unique.
 
 
+=== Indexes
+
+=== Index Backfill
+
+write into the past, or record log of concurrent operations and replay
+
+=== Foreign Key
+
+With mandatory index, requires indexing (parent col, child pk) so that updates can materialize write-write conflicts.
+
+Without mandatory index, requires being able to do read/write conflict checking.
+
+In both cases, requires doing reads, then writes, then reads again, and that latter set of reads makes this not one-shot transaction-able.
 
 
 ////
