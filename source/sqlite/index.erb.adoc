@@ -1,6 +1,5 @@
 = SQLite
 :revdate: 2025-01-07
-:draft: true
 :page-layout: index
 :page-aggregate: true
 

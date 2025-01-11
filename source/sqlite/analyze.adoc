@@ -1,17 +1,9 @@
 = ANALYZE
 :revdate: 2025-01-07
-:draft: true
 :page-features: font-awesome
 :page-hook-preamble: false
 :page-tag: optimizer
 :page-order: 1
-
-////
-TODO:
-- indexes
-- covering indexes
-- add function definitions and semantics
-////
 
 == Syntax
 
@@ -279,6 +271,115 @@ addr  opcode         p1    p2    p3    p4             p5  comment
 
 Note the lack of clearing the table, because it doesn't exist.  `iiftest` and `casetest` are the tables in the database at the time of running this command, leftover from previous work.
 
+== Functions
+
+As can be seen during codegen, there's three functions invoked: `stat_init()`, `stat_get()`, and `stat_push()`.  These functions are defined in sqlite source as:
+
+[source,c]
+----
+/*
+** Three SQL functions - stat_init(), stat_push(), and stat_get() -
+** share an instance of the following structure to hold their state
+** information.
+*/
+typedef struct StatAccum StatAccum;
+typedef struct StatSample StatSample;
+struct StatSample {
+  tRowcnt *anDLt;                 /* sqlite_stat4.nDLt */
+};
+struct StatAccum {
+  sqlite3 *db;              /* Database connection, for malloc() */
+  tRowcnt nEst;             /* Estimated number of rows */
+  tRowcnt nRow;             /* Number of rows visited so far */
+  int nLimit;               /* Analysis row-scan limit */
+  int nCol;                 /* Number of columns in index + pk/rowid */
+  int nKeyCol;              /* Number of index columns w/o the pk/rowid */
+  u8 nSkipAhead;            /* Number of times of skip-ahead */
+  StatSample current;       /* Current row as a StatSample */
+};
+----
+
+.stat_init()
+[source,c]
+----
+/*
+** Implementation of the stat_init(N,K,C,L) SQL function. The four parameters
+** are:
+**     N:    The number of columns in the index including the rowid/pk (note 1)
+**     K:    The number of columns in the index excluding the rowid/pk.
+**     C:    Estimated number of rows in the index
+**     L:    A limit on the number of rows to scan, or 0 for no-limit 
+**
+** Note 1:  In the special case of the covering index that implements a
+** WITHOUT ROWID table, N is the number of PRIMARY KEY columns, not the
+** total number of columns in the table.
+**
+** For indexes on ordinary rowid tables, N==K+1.  But for indexes on
+** WITHOUT ROWID tables, N=K+P where P is the number of columns in the
+** PRIMARY KEY of the table.  The covering index that implements the
+** original WITHOUT ROWID table as N==K as a special case.
+**
+** This routine allocates the StatAccum object in heap memory. The return 
+** value is a pointer to the StatAccum object.  The datatype of the
+** return value is BLOB, but it is really just a pointer to the StatAccum
+** object.
+*/
+----
+
+.stat_push()
+[source,c]
+----
+/*
+** Implementation of the stat_push SQL function:  stat_push(P,C,R)
+** Arguments:
+**
+**    P     Pointer to the StatAccum object created by stat_init()
+**    C     Index of left-most column to differ from previous row
+**    R     Rowid for the current row.  Might be a key record for
+**          WITHOUT ROWID tables.
+**
+** The purpose of this routine is to collect statistical data and/or
+** samples from the index being analyzed into the StatAccum object.
+** The stat_get() SQL function will be used afterwards to
+** retrieve the information gathered.
+**
+** This SQL function usually returns NULL, but might return an integer
+** if it wants the byte-code to do special processing.
+**
+** The R parameter is only used for STAT4
+*/
+----
+
+.stat_get()
+[source,c]
+----
+#define STAT_GET_STAT1 0          /* "stat" column of stat1 table */
+#define STAT_GET_ROWID 1          /* "rowid" column of stat[34] entry */
+#define STAT_GET_NEQ   2          /* "neq" column of stat[34] entry */
+#define STAT_GET_NLT   3          /* "nlt" column of stat[34] entry */
+#define STAT_GET_NDLT  4          /* "ndlt" column of stat[34] entry */
+
+/*
+** Implementation of the stat_get(P,J) SQL function.  This routine is
+** used to query statistical information that has been gathered into
+** the StatAccum object by prior calls to stat_push().  The P parameter
+** has type BLOB but it is really just a pointer to the StatAccum object.
+** The content to returned is determined by the parameter J
+** which is one of the STAT_GET_xxxx values defined above.
+**
+** The stat_get(P,J) function is not available to generic SQL.  It is
+** inserted as part of a manually constructed bytecode program.  (See
+** the callStatGet() routine below.)  It is guaranteed that the P
+** parameter will always be a pointer to a StatAccum object, never a
+** NULL.
+**
+** If STAT4 is not enabled, then J is always
+** STAT_GET_STAT1 and is hence omitted and this routine becomes
+** a one-parameter function, stat_get(P), that always returns the
+** stat1 table entry information.
+*/
+----
+
 == Limbo Implementation Plan
 
 Backfill needed VDBE support for pre-created sqlite_stat1:
@@ -313,3 +414,5 @@ Then, adjust the previous work to permit creating the table as part of codegen:
 Then, shore up testing:
 
 * [ ] Add ANALYZE calls to the simulator interaction plans
+
+Which leaves the work of supporting indexes (and covering indexes) until index support is added to limbo.
