@@ -44,6 +44,7 @@ class ImageDirPerAsciidoc < Middleman::Extension
       if resource.source_file.end_with? '.adoc'
         resource.options[:renderer_options][:attributes]['icons'] = 'font'
         resource.options[:renderer_options][:attributes]['imagesdir'] = ::File.join(@app.config[:asciidoc][:attributes]['imagesdir'].chomp('@'), resource.page_id + "@")
+        resource.options[:renderer_options][:attributes]['imagesembeddir'] = ::File.join(@app.config[:asciidoc][:attributes]['site-source'], @app.config[:asciidoc][:attributes]['imagesdir'].chomp('@').gsub(/^\/images/, '/imagesembed'), resource.page_id + "@")
         resource.options[:renderer_options][:attributes]['imagesoutdir'] = ::File.join(@app.config[:asciidoc][:attributes]['site-destination'], @app.config[:images_dir], resource.page_id + "@")
       end
     end
@@ -91,6 +92,7 @@ page '/*.txt', layout: false
 page '/*.bib', layout: false
 
 ignore /.*\.swp/
+ignore "imagesembed/**"
 
 # Helpers
 # Methods defined in the helpers block are available in templates

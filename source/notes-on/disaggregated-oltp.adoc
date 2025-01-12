@@ -4,7 +4,7 @@
 :page-hook: Aurora, Socrates, PolarDB, and Taurus.
 :bibtex-file: disaggregated-oltp.bib
 
-These are notes prepared from an informal presentation on the various cloud-native disaggregated OLTP RDBMS designs that have been getting published.
+These are notes prepared from an informal presentation on the various cloud-native disaggregated OLTP RDBMS designs that have been getting published, and some summary of the discussion we had after each paper.
 
 == Amazon Aurora
 
@@ -19,19 +19,19 @@ bibitem:[AuroraAvoiding]
 As the first of the disaggregated OLTP papers, they introduce the motivation for wanting to build a system like Aurora.  Previously, one would just run an unmodified MySQL on top of EBS, and when looking at the amount of data transferred, the same data was being sent in different forms multiple times.  A log, a binlog, a page write, and the double-write buffer write, are all essentially doing the same work of sending a tuple from MySQL to storage.
 
 .MySQL on EBS
-image::RDSArchitecture.png[]
+image::RDSArchitecture.png[embed=true]
 
 Thus, Aurora introduces using the write-ahead log as the protocol between the compute and the storage in a disaggregated system.  The page writes, double-write buffer, etc. are all removed and made the responsibility of the storage after receiving the write-ahead log.  The papers we're looking at all reference this model with the phrase _the log is the database_ in some form as part of their design.
 
 .Aurora Architecture
-image::AuroraArchitecture.png[]
+image::AuroraArchitecture.png[embed=true]
 
 The major idea they present is that the network is then the bottleneck in the system, and the smart storage is able to meaningfully offload work of processing WAL updates into page modifications, handle MVCC cleanup, checkpointing, etc.
 
 So I think the easiest way to get started is to zoom in on a single storage node:
 
 .Aurora Storage Node
-image::AuroraStorageNode.png[]
+image::AuroraStorageNode.png[embed=true]
 
 [quote]
 ____
@@ -76,10 +76,10 @@ It's overall a very realistic discussion of making major architectural changes t
 The architecture of Socrates is well illustrated in the paper:
 
 .Socrates Architecture
-image::SocratesArchitecture.png[]
+image::SocratesArchitecture.png[embed=true]
 
 .Socrates XLOG Service
-image::SocratesXLOG.png[]
+image::SocratesXLOG.png[embed=true]
 
 Their major design decisions are:
 
@@ -133,7 +133,7 @@ However, implementing a page cache over RDMA isn't trivial, and a solid portion 
 They offer an architecture diagram:
 
 .PolarDB Serverless Architecture
-image::PolarDBArchitecture.png[]
+image::PolarDBArchitecture.png[embed=true]
 
 However, there's a few things I think it doesn't represent well:
 
@@ -159,7 +159,7 @@ bibitem:[TaurusDB]
 The entire "Background and Related Work" section is a great read.  They set up excellent and concise comparisons against the same systems we've discussed above.  In very short summary: PolarFS (not PolarDB Serverless) uses a filesystem abstraction without smart storage and thus loses efficiency, Aurora uses 6-node quorums for both logs and pages which over-promises on durability and availability respective, and Socrates added too much complexity with its four teir Compute/XLOG/Page Server/XSTORE architecture.
 
 .Taurus Architecture
-image::TaurusArchitecture.png[]
+image::TaurusArchitecture.png[embed=true]
 
 In Taurus's Log Store, WAL segments are sent to a fixed-size append-only synchronously replication storage object called a PLog (Part of a Log?).  In a deployment, there's hundreds of Log Servers.  Three are chosen to form a PLog.  All three must ack the write, otherwise a new PLog is allocated.  (It's reconfiguation-based replication!)  The database WAL is an ordered collection of PLogs, itself stored in a PLog.  Metadata PLogs are chained as a linked list.
 
@@ -168,7 +168,7 @@ The Page Stores behave roughly the same, they accept logs and serve versioned pa
 Taurus abstracts most of the logic of dealing with Log Stores and Page Stores into a Storage Abstraction Layer, which manages the mapping of WAL segments to PLogs and slices to Page Stores.  The paper describes the read and write flow in detail, but it didn't feel notably different from any of the previously discussed systems.
 
 .Taurus Write Path
-image::TaurusWritePath.png[]
+image::TaurusWritePath.png[embed=true]
 
 For anyone who is against reconfiguration-based replication because of the "unavailability" while reconfiguring to a new set of available replicas, you'll hate the "comparison with quorum replication".  They argue that their probability of write unavailability is effectively zero as all Log Stores or Page Stores from their global pool of nodes would have to be unavailable for a new shard to be un-allocatable.  This argument both is and isn't true.
 
@@ -192,7 +192,7 @@ PolarDB mentioned the global page cache means they could support it, but such wo
 So TaurusDB is our chance to look at this design.
 
 .Taurus Multi-Master Architecture
-image::TaurusMMArchitecture.png[]
+image::TaurusMMArchitecture.png[embed=true]
 
 Multi-master means concurrent modifications, and naively that means LSN is now a vector clock.
 Introduces a clock type that's a hybrid between a vector clock and a scalar lamport clock.
