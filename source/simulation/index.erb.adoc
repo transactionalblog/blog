@@ -31,8 +31,18 @@ A walkthrough of how and why complex infrastructure should be built with determi
 
 # Simulation Workloads
 ## Property Testing
+All testing is done via specifying invariants about the system.
+ * write 0 + 100 increments = write 100
+ * A restore of a backup == the original state.
+## Global Invariants
+You can't assert global invariants in real systems because there's no way to get a perfect global snapshot.
+But in DST you can, so abuse it to enforce getter invariants.
 ## Nemesis Tests
+Making failure types toggleable is a good idea.
+E.g. Changing replication factor incompatible with random machine kills
 ## Upgrade/Downgrade Testing
+Externally via a harness running 1/2 test in v1.0, and 1/2 test in v2.0.
+Internally via building program as shared library, loading 2 of them, and doing a graceful transition.
 ## Limitations
    - Quiescence / Liveness
    - Performance testing very limited
@@ -62,10 +72,21 @@ https://github.com/resonatehq/resonate/tree/268c588e302f13187309e4b37636d19595d4
 
 ## PolarSignals FrostDB
 https://github.com/polarsignals/frostdb/tree/e9ab6f315eae4b4e3cba4d4f2a8c066f29cf67b2/dst
+the new thing which does very sled-like state machines + log generation and trace-based model checking sort of testing
 
 ## RisingWave
 https://github.com/risingwavelabs/risingwave/blob/bb4dec288c5d93cc12c549e56ca7d11b0e827dc3/integration_tests/feature-store/simulator/src/entities_taxi.rs
 
 ## Limbo
+Query testing and systems testing are two different things.
+
+Query testing:
+* plan all sql queries from all users before any part of simulation touches RNG.
+* do not run queries with any concurrency
+* test case minimization, coverage guided fuzzing, etc., then all applies
+
+Systems testing:
+* Run workload concurrently with test, run lots of concurrency, inject tons of failures
+* What folk generally do with DST
 
 ////
