@@ -40,15 +40,16 @@ async def run_middleman(filepath):
         if filepath.endswith('*'):
             cmd = f"bundle exec middleman build --environment=development --glob='{filepath}' --no-clean"
         else:
-            convert = {
-                '.adoc': '.html',
-                '.bib': '.html',
-                '.css.sass': '.css',
-                '.js': '.js',
-            }
-            for ext in convert.keys():
-                if filepath.endswith(ext):
-                    filepath = filepath.removesuffix(ext) + convert[ext]
+            convert = [
+                ('.erb.adoc', '.html'),
+                ('.adoc', '.html'),
+                ('.bib', '.html'),
+                ('.css.sass', '.css'),
+                ('.js', '.js'),
+            ]
+            for (oldext, newext) in convert:
+                if filepath.endswith(oldext):
+                    filepath = filepath.removesuffix(oldext) + newext
                     cmd = f"bundle exec middleman build --environment=development --glob='{filepath}' --no-clean"
                     break
             else:
