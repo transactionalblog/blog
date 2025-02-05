@@ -162,17 +162,20 @@ module AsciidoctorBibtex
       if @biblio[key]&.has_field? 'note'
         result << " #{@biblio[key].note}."
       end
-
       if @biblio[key]&.has_field? 'scholarcluster'
         result << " https://scholar.google.com/scholar?cluster=#{@biblio[key].scholarcluster}[[scholar\\]]"
       end
-
       if @biblio[key]&.has_field? 'arxiv'
         result << " https://arxiv.org/abs/#{@biblio[key].arxiv}[[arXiv\\]]"
       end
-
       if @biblio[key]&.has_field? 'pdf'
         result << " https://docs.google.com/viewer?url=#{@biblio[key].pdf}[[pdf\\]]"
+      end
+      if @biblio[key]&.has_field? 'scihub'
+        result << " [scihub]"
+      end
+      if @biblio[key]&.has_field? 'libgen'
+        result << " [libgen]"
       end
       @bibliographied[key] = true
       result
@@ -196,11 +199,18 @@ module AsciidoctorBibtex
       result = ''
 
       if @biblio[key]&.has_field? 'scholarcluster'
-        result << " https://scholar.google.com/scholar?cluster=#{@biblio[key].scholarcluster}[_#{refname}_]"
+        result << " https://scholar.google.com/scholar?cluster=#{@biblio[key].scholarcluster}[#{refname}]"
       elsif @biblio[key]&.has_field? 'arxiv'
-        result << " https://arxiv.org/abs/#{@biblio[key].arxiv}[_#{refname}_]"
+        result << " https://arxiv.org/abs/#{@biblio[key].arxiv}[#{refname}]"
       elsif @biblio[key]&.has_field? 'pdf'
-        result << " https://docs.google.com/viewer?url=#{@biblio[key].pdf}[_#{refname}_]"
+        result << " https://docs.google.com/viewer?url=#{@biblio[key].pdf}[#{refname}]"
+      elsif @biblio[key]&.has_field? 'url'
+        result << " #{@biblio[key].url}[#{refname}]"
+      elsif @biblio[key]&.has_field? 'doi'
+        result << " http://dx.doi.org/#{@biblio[key].doi}[#{refname}]"
+      end
+      if @biblio[key]&.has_field? 'libgen'
+        result << " [libgen]"
       end
       result
     end
@@ -237,17 +247,20 @@ module AsciidoctorBibtex
       if @biblio[key].has_field? 'note'
         result << " #{@biblio[key].note}."
       end
-
       if @biblio[key].has_field? 'scholarcluster'
         result << " https://scholar.google.com/scholar?cluster=#{@biblio[key].scholarcluster}[[scholar\\]]"
       end
-
       if @biblio[key].has_field? 'arxiv'
         result << " https://arxiv.org/abs/#{@biblio[key].arxiv}[[arXiv\\]]"
       end
-
       if @biblio[key]&.has_field? 'pdf'
         result << " https://docs.google.com/viewer?url=#{@biblio[key].pdf}[[pdf\\]]"
+      end
+      if @biblio[key]&.has_field? 'scihub'
+        result << " [scihub]"
+      end
+      if @biblio[key]&.has_field? 'libgen'
+        result << " [libgen]"
       end
 
       @bibliographied[key] = true
