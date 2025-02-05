@@ -146,6 +146,80 @@ Are the caches actually local SSD or are they Azure Managed Disks?:: Consensus w
 
 == Alibaba
 
+=== PolarFS
+
+:uri-polarfs-sdk: https://github.com/ApsaraDB/PolarDB-FileSystem/blob/master/src/pfs_sdk/pfsd_sdk.h
+:uri-polardb-fd: https://github.com/ApsaraDB/PolarDB-for-PostgreSQL/blob/bbc102d852c4aa202bd08fc8127ebb2d33cc0be4/src/include/storage/polar_fd.h#L136
+
+[.gray-bg]
+====
+bibitem:[PolarFS]
+====
+
+Alibaba took an unusual first step in building a disaggregated OLTP database. Instead of spending their effort building a separate pageserver and modifying the database to request pages from it and offload recovery to it, they invested effort into just building a sufficiently fast distributed filesystem. A year after the paper was published, Alibaba opensourced PolarFS as github:AsparaDB/PolarDB-FileSystem[] (and PolarDB as github:ApsaraDB/PolarDB-for-PostgreSQL[], with the PolarFS usage included), and so I've sprinkled links to it in the summary.
+
+In terms of architectural components: libpfs is the client library that exposes a POSIX-like filesystem API, PolarSwitch is a process run on the same host which redirects I/O requests from applications to ChunkServers, ChunkServers are deployed on storage nodes to serve I/O requests, and PolarCtrl is the control plane.  PolarCtrl's metadata about the system is stored in a MySQL instance.  The only necessary modifications to PolarDB were to port the filesystem calls to libpfs.
+
+.PolarFS Architecture
+image::PolarFSArchitecture.png[embed=true]
+
+The libpfs API is given as:
+
+[source,c]
+----
+int     pfs_mount(const char *volname, int host_id)
+int     pfs_umount(const char *volname)
+int     pfs_mount_growfs(const char *volname)
+
+int     pfs_creat(const char *volpath, mode_t mode)
+int     pfs_open(const char *volpath, int flags, mode_t mode)
+int     pfs_close(int fd)
+ssize_t pfs_read(int fd, void *buf, size_t len)
+ssize_t pfs_write(int fd, const void *buf, size_t len)
+off_t   pfs_lseek(int fd, off_t offset, int whence)
+ssize_t pfs_pread(int fd, void *buf, size_t len, off_t offset)
+ssize_t pfs_pwrite(int fd, const void *buf, size_t len, off_t offset)
+int     pfs_stat(const char *volpath, struct stat *buf)
+int     pfs_fstat(int fd, struct stat *buf)
+int     pfs_posix_fallocate(int fd, off_t offset, off_t len)
+int     pfs_unlink(const char *volpath)
+int     pfs_rename(const char *oldvolpath, const char *newvolpath)
+int     pfs_truncate(const char *volpath, off_t len)
+int     pfs_ftruncate(int fd, off_t len)
+int     pfs_access(const char *volpath, int amode)
+
+int     pfs_mkdir(const char *volpath, mode_t mode)
+DIR*    pfs_opendir(const char *volpath)
+struct dirent *pfs_readdir(DIR *dir)
+int     pfs_readdir_r(DIR *dir, struct dirent *entry,
+                      struct dirent **result)
+int     pfs_closedir(DIR *dir)
+int     pfs_rmdir(const char *volpath)
+int     pfs_chdir(const char *volpath)
+int     pfs_getcwd(char *buf)
+----
+
+Which has a few interesting subtleties, and you see this API in the OSS repo in {uri-polarfs-sdk}[pfsd_sdk.h]. The VFS layer implemented for Postgres is in {uri-polardb-fd}[polar_fd.h], which is a slight superset of the API given in `pfsd_sdk.h`. I'm assuming the lack of a `pfs_fsync()` means all ``pfs_pwrite()``s are immediately durable, and though `pfsd_fsync()` exists in `pfsd_sdk.h`, it has a comment of `/* mock */` over it.  Postgres is a known user of `sync_file_range()`, which I'm assuming is equally no-op'd. Volumes are mounted, and are dynamically growable or shrinkable, but most filesystems generally aren't incredibly compatible with being dynamically resized.  There is both direct IO and buffered IO support, even though the API doesn't indicate it.
+
+The given API describes PolarFS's file system layer which maps directories and files down onto blocks within the mounted volume.  The contents of a directory or the blocks associated with a file are written as blocks, with a root block holding the root directory's metadata.  To transactionally update a set of blocks (so that read replicas see a consistent filesystem), there is a journal file which serves as a WAL for file system updates, and libpfs implements disk paxos to coordinate between replicas who is allowed to write into the journal.
+
+The storage layer provides interfaces to manage and access volumes for the file system layer. A volume is divided into 10GB chunks, which are distributed across ChunkServers. The large chunk size was chosen to minimize metadata overhead so that it's practical to maintain the entire chunk-to-server mapping in memory in PolarCtrl.  Each ChunkServer manages ~10TB of chunks, so this still offers a reasonable ratio for practical load balancing on ChunkServers.  Within a ChunkServer, each chunk is divided into 64KB blocks which are allocated and mapped on demand.  Each chunk is thus 640KB of metadata to track chunk LBA to block location, or 640MB for all 1000 chunks per server.
+
+.PolarFS Write Path
+image::PolarFSWritePath.png[embed=true,align=center]
+
+PolarSwitch is a daemon that runs alongside any application using libpfs.  Libpfs forwards IO requests over a shared memory ring buffer to PolarSwitch, and PolarSwitch then divides the IO requests into per-chunk requests, references its in-memory mapping of chunk-to-server and sends out the requests.  Completions are reported via another shared ring buffer (similar to io_uring).  The reasoning for maintaining this as a separate daemon isn't given, but I'm assuming it was forced as utilizing RDMA as the network transport means that either only one process can use the NIC, or in the case of vNICs, a fixed number of processes that's less than the number of instances per host they wish to run.
+
+ChunkServers run on the disaggregated storage servers, with one ChunkServer per SSD on a dedicated CPU core.  (Which implies they have SSDs which are at least 10TB is size?)  Each chunk contains a WAL which is kept on a 3D XPoint SSD (aka Intel Optane).  Replication across ChunkServers is done using ParallelRaft, a Raft variant optimized to permit out-of-order completions.  SPDK is used to maximize IOPS per core, and is why each ChunkServer gets a dedicated core so that it may poll infinitely. Likely due to the large chunk and total data size, ChunkServers are given a reasonably high tolerance for being offline.
+
+PolarCtrl is the control plane deployed on a dedicated set of machines. It manages membership and liveness for ChunkServers, maintaining volume and chunk-to-server mappings, assigning of chunks to ChunkServers, and distributing metadata to PolarSwitch instances.
+
+Raft serializes all operations to a log, and commits them in-order only.  This causes write requests serialized later in the log to wait for all previous writes to be committed before their own response can be sent out.  This caused throughput to drop by half as write concurrency was raised from 8 to 32.  As a result, Raft was altered to allow out-of-order acknowledgements from replies and commit responses back to clients, and to permit holes in the Raft log.  They detail the effect that this had on leader election and replica catchup. This novel variant effectively transforms Raft into generalized multi-paxos, and no explanation was given as to why they didn't just implement that directly rather than adapting Raft into it.
+
+Disk snapshots are supported by PolarFS by PolarSwitch tagging requests with a snapshot tag on subsequent requests to ChunkServers.  On receiving a new snapshot tag, ChunkServers will snapshot by copying their LBA-to-block-location mapping, and will modify those blocks in a copy-on-write fashion afterwards.  After a ChunkServer reports having taken the snapshot, PolarSwitch stops adding the snapshot tag to requests to that ChunkServer.
+
+The evaulation section shows that PolarFS adds minimal overhead as compared to a local ext4 volume, and with latency ~10x lower than Ceph and 2x higher throughput.  Just to review, it achieved those results by packing extra large SSDs (>10TB), Intel Optane, RDMA, and large amounts of RAM, each of which is individually expensive, all into one deployment cluster, and special cased an infrastructure stack for it.  Not cheap, nor (given everything I've heard about using SPDK and RDMA) easy to write, deploy, or maintain.
+
 === PolarDB Serverless ★
 
 [.gray-bg]
@@ -153,7 +227,6 @@ Are the caches actually local SSD or are they Azure Managed Disks?:: Consensus w
 bibitem:[PolarDBServerless]
 ====
 
-Consider also reading the PolarFS paper, as it is referenced a bit.  TL;DR, it used RDMA and fast SSDs to make a fast filesystem which shards blocks across raft instances optimized for being block storage.
 
 As broad context, Alibaba is really about spending money on fancy hardware.  I had talked about this a bit in link:blog/2024-modern-database-hardware.html[Modern Database Hardware], but Alibaba seems to be more than happy to solve difficult
 software problems by spending money hardware.  Notably, Alibaba has RDMA deployed out internally, seemingly to the same
