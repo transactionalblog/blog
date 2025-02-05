@@ -245,7 +245,7 @@ Note the introduction of another component: the Global Slice Manager.  Sharding 
 
 In comparison against Aurora Multi-Master, it's noted that Aurora pushed resolving conflicts between masters to the storage layer.  In the evaluation, the two designs perform similarly when there's no data sharing, but the Taurus design performs much better as data sharing increases.
 
-=== Discussion
+==== Discussion
 
 MariaDB Xpand actually did something similar to this, but they never wrote about it, and the project was shut down by MariaDB.
 
