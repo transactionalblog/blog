@@ -2,11 +2,19 @@
 :revdate: 2024-12-05
 :page-hook-preamble: false
 :page-hook: Aurora, Socrates, PolarDB, and Taurus.
+:page-features: stem
+:stem: latexmath
 :bibtex-file: disaggregated-oltp.bib
+:toc: right
+:toclevels: 2
 
-These are notes prepared from an informal presentation on the various cloud-native disaggregated OLTP RDBMS designs that have been getting published, and some summary of the discussion we had after each paper.
+These notes were first prepared for an informal presentation on the various cloud-native disaggregated OLTP RDBMS designs that have been getting published and it cherry-picked one paper per notable design decision.  For the papers covered then, I've included a summary of the discussion we had after each paper.  I've since extended this page to cover all of the disaggregated OLTP papers, even for papers that are similar between two different vendors.
 
-== Amazon Aurora
+If you're looking for a quick overview of the disaggregated OLTP space, just read the papers with a ★.
+
+== Amazon
+
+=== Aurora ★
 
 Read these two papers together, and don't try to stop to understand all the fine details about log consistency across replicas and commit or recovery protocols in the first paper.  That material is covered in more detail (and with diagrams!) in the second paper.  I'd almost suggest reading the second paper first.
 
@@ -58,11 +66,35 @@ As there's only one nominated writer for the quorum of nodes, the writer knows w
 
 Read-only replicas consume the binlog from the primary, and apply to cached pages only.  Uncached data comes from storage groups.  S3 is used for backups.
 
-=== Discussion
+==== Discussion
 
 Is this a trade of decreasing the amount of work on writes at the cost of increasing the amount of work on reads?:: Moving the storage to over the network does add some cost, reconstructing full pages at arbitrary versions isn't cheap, and while MySQL could apply the WAL entry directly to the buffer cached page the storage node might have to fetch the old page from disk.  But much of the work is work that MySQL would otherwise be doing: finding old versions of tuples by chaining through the undo log, fuzzy checkpointing, etc.  So while fetching pages from disk over a network is slower than fetching them locally, it is a good argument that it lets MySQL focus more on the query execution and transaction processing than storage management.
 
-== Microsoft Socrates
+=== Aurora Serverless
+// VLDB'24
+
+:uri-memory-hotunplug: https://docs.kernel.org/admin-guide/mm/memory-hotplug.html
+
+[.gray-bg]
+====
+bibitem:[AuroraServerless]
+====
+
+This paper describes the transition from their naive Aurora Serverless v1 (ASv1) to Aurora Serverless v2 (ASv2).  It covers both the product dimensions of billing and end-user experiences, and the internal technical parts of how to orchestrate scaling up/down, managing load, and transferring user workloads with minimum distruption. ASv1 relied upon relaunching a database instance in order to change its scale.  A multi-tenant proxy frontend was created to allow sessions to be transferred between a rapidly restarted database instance.  This session transfer was incomplete (temporary tables couldn't be transferred), disruptive (due to transient unavailability), and inelastic as paying the cost of a restart only made sense for large (power of 2) instance size changes.  The goal of ASv2 was to be able to scale faster, less disruptively, and be able to better track a cyclical workload.
+
+Customers buy Aurora Serverless in units of _Aurora Capacity Units_ (ACUs), which is a combination of 2GB RAM + 0.25 vCPU + an undefined amount of networking and block device throughput.  Users define a ceiling and floor in ACU of what they wish for their database to scale up or down to, and then Aurora Serverless tries to autoscale to approximate fully elastic, usage-driven pricing.
+
+Aurora Serverless is split into fleet-wide, inter-host rebalancing; and host-local, intra-host, in-place scaling.
+
+image::AuroraServerlessArchitecture.png[embed=true]
+
+Instance Managers gather resource usage information for database instances on a host, and work within the host's resource limits to scale instances up or down to meet the resource needs.  The Fleet Manager controls database instance to host assignment.  Hosts' resources are oversubscribed, and when hosts are under resource pressure (at a critical level for CPU, allocated RAM, network, or disk throughput), the Fleet Manager will assign temporary ACU limits and live migrate database instances to redistribute heat across the cluster and relieve the resource pressure.  The scale-up rate is limited by the Instance Manager to give the Fleet Manager time to react.  The Fleet Manager will not live migrate from hosts which are deemed not to have the available network bandwidth to sustain an out-migration.  New database instances are placed assuming minimum ACU usage.  The Fleet Manager also adjusts the size of the fleet according to predicted and actual demand.
+
+The Fleet Manager must choose what instance to move, and to which host to move it.  Choosing an instance is a three step process: remove any ineligible instances, compute a preferences score (e.g. don't move frequently moved instances, prefer instances that have ack'd a heartbeat recently), and compute a numerical score (how much resources will be freed up, combined with what fraction of unused resources does this instance have).  Instances with equal preference scores are tiebroken by numerical score.  Target host selection proceeds similarly: ineligible hosts are removed, compute a preference score (fault tolerance distribution, no recent migration failures), and a numerical score (best-fit binpacking score, and most utilized resource percentage).  In the evaluation, they show that this 3 phase approach does a better job of distributing load across the fleet than a baseline of just best-fit with less instance movement.
+
+Database instances are wrapped in VMs for security reasons, and thus resource elasticity must be done in cooperation with the guest OS of each VM.  Every VM is of the same 128 ACU maximum instance size.  This relies on Nitro's SR-IOV support for having efficient virtualized IO.  Memory elasticity required a number of changes: memory can be {uri-memory-hotunplug}[offlined] to prevent it from being used for page cache and so that Linux doesn't keep a page table entry around for every page, cold pages are swapped out, and 4KB pages are coalesced to make 2MB sized free pages which can be reclaimed by the hypervisor.  Memory scales up based on the desired buffer pool size over the past 30 seconds, and down over the past 60 seconds.  CPU scales up based on P50 over the past 30 seconds, and down by P70 over the past 60 seconds.  Scaling up is done using the maximum of the two, scaling down uses the minimum.
+
+== Microsoft Socrates ★
 
 [.gray-bg]
 ====
@@ -101,6 +133,7 @@ B-tree traversals from replicas sometimes need to restart if a leaf page is a ne
 
 What's the major difference between Socrates and Aurora?  Aurora partitions the WAL across page servers.  Socrates has a centralized WAL service.
 
+[discrete]
 === Discussion
 
 Socrates feels like a very modern object storage-based database in the WarpStream or turbopuffer kind of way for it being a 2019 paper.  This architecture is the closest to Neon's as well.
@@ -111,7 +144,9 @@ Would VM migration keep the cache?:: Probably not?  This raised an interesting p
 
 Are the caches actually local SSD or are they Azure Managed Disks?:: Consensus was that it seemed pretty strongly implied that they were actually SSD.
 
-== Alibaba PolarDB
+== Alibaba
+
+=== PolarDB Serverless ★
 
 [.gray-bg]
 ====
@@ -133,7 +168,7 @@ However, implementing a page cache over RDMA isn't trivial, and a solid portion 
 They offer an architecture diagram:
 
 .PolarDB Serverless Architecture
-image::PolarDBArchitecture.png[embed=true]
+image::PolarDBArchitecture.png[embed=true,align=center]
 
 However, there's a few things I think it doesn't represent well:
 
@@ -145,12 +180,14 @@ There's a couple optimizations that they specifically call out. Read-only nodes 
 
 What's the major difference between PolarDB and Socrates?  Socrates has SSD persisted caches.  PolarDB has a persistent distributed memory cache.
 
-=== Discussion
+==== Discussion
 
 They still undersold the RDMA difficulty.  Someone who has worked with it previously commented that there's all sorts of issues about racing reads and writes, and getting group membership and shard movement right is doubly hard.  In both cases, an uninformed client can still do one-sided RDMA reads from a server they think is still a part of a replication group and/or has the shard it wants.
 
-== Huawei Taurus
+== Huawei
 
+=== TaurusDB ★
+// SIGMOD '20
 [.gray-bg]
 ====
 bibitem:[TaurusDB]
@@ -178,8 +215,8 @@ Page stores are append-only on disk, with a lock-free hashtable mapping (page,ve
 
 What's the major difference between Taurus and others?  Reconfiguration-based replication!
 
-== Huawei Taurus Multi-Master
-
+=== Multi-Master ★
+// VLDB '23
 [.gray-bg]
 ====
 bibitem:[TaurusMM]
