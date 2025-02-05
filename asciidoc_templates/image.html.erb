@@ -4,21 +4,22 @@
     width_attr = (attr? 'width') ? %( width="#{@attributes['width']}") : ''
     height_attr = (attr? 'height') ? %( height="#{@attributes['height']}") : ''
     role_attr = %( class="#{role}"%) if role
+    img_attrs = "#{width_attr}#{height_attr}#{role_attr})"
     if ((attr? 'format', 'svg') || (target.include? '.svg')) && document.safe < SafeMode::SECURE
       if attr? 'inline'
         puts "Inline not supported because asciidoctor"
         exit
         img = (read_svg_contents node, target) || %(<span class="alt">#{alt}</span>)
       elsif attr? 'interactive'
-        fallback = (attr? 'fallback') ? %(<img src="#{image_uri @attributes['fallback']}" alt="#{alt}"#{width_attr}#{height_attr}#{role_attr}#{void_element_slash}>) : %(<span class="alt">#{alt}</span>)
-        img = %(<object type="image/svg+xml" data="#{src = image_uri target}"#{width_attr}#{height_attr}#{role_attr}>#{fallback}</object>)
+        fallback = (attr? 'fallback') ? %(<img src="#{image_uri @attributes['fallback']}" alt="#{alt}"#{img_attrs}#{void_element_slash}>) : %(<span class="alt">#{alt}</span>)
+        img = %(<object type="image/svg+xml" data="#{src = image_uri target}"#{img_attrs}>#{fallback}</object>)
       else
-        img = %(<img src="#{src = image_uri target}" alt="#{alt}"#{width_attr}#{height_attr}#{role_attr}#{void_element_slash}>)
+        img = %(<img src="#{src = image_uri target}" alt="#{alt}"#{img_attrs}#{void_element_slash}>)
       end
     elsif attr? 'embed' || document.attributes["embed-images"]
-      img = %(<img src="#{src = generate_data_uri target, 'imagesembeddir'}" alt="#{alt}"#{width_attr}#{height_attr}#{role_attr}#{void_element_slash}>)
+      img = %(<img src="#{src = generate_data_uri target, 'imagesembeddir'}" alt="#{alt}"#{img_attrs}#{void_element_slash}>)
     else
-      img = %(<img src="#{src = image_uri target}" alt="#{alt}"#{width_attr}#{height_attr}#{role_attr}#{void_element_slash}>)
+      img = %(<img src="#{src = image_uri target}" alt="#{alt}"#{img_attrs}#{void_element_slash}>)
     end
     if (attr? 'link') && ((href_attr_val = @attributes['link']) != 'self' || (href_attr_val = src))
       img = %(<a class="image" href="#{href_attr_val}">#{img}</a>)
