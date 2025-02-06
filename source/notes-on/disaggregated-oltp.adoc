@@ -146,6 +146,8 @@ Are the caches actually local SSD or are they Azure Managed Disks?:: Consensus w
 
 == Alibaba
 
+As broad context, Alibaba is really about spending money on fancy hardware.  I had talked about this a bit in link:blog/2024-modern-database-hardware.html[Modern Database Hardware], but Alibaba's papers quickly illustrate that they're more than happy to sol seems to be more than happy to solve difficult software problems by spending significant stacks of money on very modern hardware.  Notably, Alibaba has RDMA deployed out internally, seemingly to the same extent that Microsoft does, except Microsoft seems to keep a fallback-to-TCP option for most of their stack, and Alibaba seems comfortable building services that critically depend on RDMA's primitives.
+
 === PolarFS
 
 :uri-polarfs-sdk: https://github.com/ApsaraDB/PolarDB-FileSystem/blob/master/src/pfs_sdk/pfsd_sdk.h
@@ -227,13 +229,7 @@ The evaulation section shows that PolarFS adds minimal overhead as compared to a
 bibitem:[PolarDBServerless]
 ====
 
-
-As broad context, Alibaba is really about spending money on fancy hardware.  I had talked about this a bit in link:blog/2024-modern-database-hardware.html[Modern Database Hardware], but Alibaba seems to be more than happy to solve difficult
-software problems by spending money hardware.  Notably, Alibaba has RDMA deployed out internally, seemingly to the same
-extent that Microsoft does, except Microsoft seems to keep a fallback-to-TCP option for most of their stack, and Alibaba
-seems comfortable building services that critically depend on RDMA's primitives.
-
-Thus, much of the PolarDB Serverless paper is about leveraging a multi-tenant scale-out memory pool, built via RDMA.
+The PolarDB Serverless paper is about leveraging a multi-tenant scale-out memory pool, built via RDMA.
 This makes them also a disaggregated memory database!  As a direct consequence, memory and CPU can be scaled independently, and the evaluation shows elastically changing the amount of memory allocated to a PolarDB tenant.
 
 However, implementing a page cache over RDMA isn't trivial, and a solid portion of the paper is spent talking about the exact details of managing latches on remote memory pages and navigating b-tree traversals.  Specifically, B-tree operations which change the structure of the tree required significant care.  Recovery also has to deal with that the remote buffer cache has all the partial execution state from the failed RW node, so the new RW node has to release latches in the shared memory pool and throw away pages which were partially modified.
