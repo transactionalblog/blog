@@ -72,6 +72,7 @@ Is this a trade of decreasing the amount of work on writes at the cost of increa
 
 === Aurora Serverless
 // VLDB'24
+// https://assets.amazon.science/ee/a4/41ff11374f2f865e5e24de11bd17/resource-management-in-aurora-serverless.pdf
 
 :uri-memory-hotunplug: https://docs.kernel.org/admin-guide/mm/memory-hotplug.html
 
@@ -222,6 +223,30 @@ Disk snapshots are supported by PolarFS by PolarSwitch tagging requests with a s
 
 The evaulation section shows that PolarFS adds minimal overhead as compared to a local ext4 volume, and with latency ~10x lower than Ceph and 2x higher throughput.  Just to review, it achieved those results by packing extra large SSDs (>10TB), Intel Optane, RDMA, and large amounts of RAM, each of which is individually expensive, all into one deployment cluster, and special cased an infrastructure stack for it.  Not cheap, nor (given everything I've heard about using SPDK and RDMA) easy to write, deploy, or maintain.
 
+=== PolarDB Computational Storage
+// FAST '20
+// https://www.usenix.org/system/files/fast20-cao_wei.pdf
+
+[.gray-bg]
+====
+bibitem:[PolarDBComputationalStorage]
+====
+
+This paper is more focused on the computational storage side of integrating SmartSSDs (in the form of ScaleFlux's product) into a database, and the database they happen to have chosen for this work is a disaggregated one.  However, I've included it in this listing because it's the only paper that gets into the topic of tight integration between page servers and compute for pushdown in detail.  I'll be doing a disservice to the actual paper in this summary, and focusing only on the pushdown aspect.
+
+The draw of pushdown in a disaggregated architecture is to minimize the amount of processing done on non-matching data.  Pushing table scan filters from compute nodes to storage nodes reduces the number of rows or pages that the storage nodes must send over the network.  With computational storage, those filters can be pushed all the way to the SSD itself, removing the need to even send non-matching rows over the PCIe bus. However, it is moving compute work from the compute node to storage, and compute resources are much more limited in storage.  Rather than scale up the compute resources of the storage nodes, Alibaba elected to increase the compute of the storage devices themselves by utilizing SSDs with on-board FPGAs.
+
+.PolarDB Scan Pushdown Architecture
+image::PolarDBComputationalStorage.png[embed=true,align=center]
+
+The required changes in PolarDB start at the scan operator. PolarDB read data from files by requesting blocks by their offset within the file.  That has been enhanced to include schema of the table and the preciate to apply to the block request.  The ChunkServers split the predicates into those that can be pushed to the FPGA, and those that need to be evaluated on the CPU. In the PolarFS paper, ChunkServers are described as having a one-to-one relationship with an attached 10TB SSD and tracking 64KB sized blocks.  In this paper, ChunkServers stripe data across a number of SmartSSDs with 4MB stripes, and 4KB blocks are snappy compressed and thus variable length.  ChunkServers split the request into one per stripe, and forward them to the corresponding SmartSSDs.
+
+The computational storage device has a corresponding driver in Linux which exposes it as a block device.  (See {uri-snia-nvme-cs}[NVMe Computational Storage Standardization] if you'd like more of a view into how SmartSSD<->Host integration works.)  The ChunkServer sends the driver the scan request. The driver reorders filters to match the hardware's pipelined table record decoding and translates logical blocks to physical blocks on the NAND flash memory.  The driver also splits larger scans into smaller ones to avoid head-of-line blocking causing high latency for concurrent requests.
+
+PolarDB was modified to be more accomodating to efficient, simple evaluation of predicates.  The encoding format for keys and values were changed to always be `memcmp()`-orderable, so that the FPGA wouldn't need to understand different value encoding formats and comparisons for them. Blocks were also changed from having a footer with metadata to a header with metadata, so that decoding of the block could happen as it's being read.
+
+Their evaluation compares no pushdown, CPU-only pushdown, and computational storage (CSD) pushdown on TPC-H.  Query latency for uncompressed CPU-based pushdown and CSD-based pushdown look like very similar 2-3x improvementes, which is unsurprising as it reflects that the majority of the gain is from freeing the one compute instance from receiving data, evaluating the filter, and then throwing it away.  With compressed data, the CSD-based pushdown is a bit noticably better, as decompression isn't free, but can be done efficiently in hardware.  The PCIe and Network Traffic graphs per query show that each layer of pushdown removes another 2-3x of network traffic (CPU-based pushdown) or PCIe traffic (CSD-based pushdown).
+
 === PolarDB Serverless ★
 
 [.gray-bg]
@@ -291,7 +316,7 @@ What's the major difference between Taurus and others?  Reconfiguration-based re
 bibitem:[TaurusMM]
 ====
 
-This is, admittedly, mostly an excuse to discuss multi-master designs within disaggregated OLTP.
+The suggested reading of this paper is, admittedly, mostly an excuse to discuss multi-master designs within disaggregated OLTP.
 Aurora had multi-master implemented, which they've since reverted.
 Socrates was against multi-master.
 PolarDB mentioned the global page cache means they could support it, but such work was out of scope for the paper.
