@@ -2,6 +2,7 @@
 :revdate: 2024-11-19
 :page-aside: With thanks to Phil Eaton for early review, and Shikar Bandar for the pointer to AWS's ClockBound.
 :page-hook-preamble: false
+:page-translation-zh: https://pigsty.cc/zh/blog/db/future-hardware/
 
 We're in an exciting era for databases where advancements are coming along each major resource front, each of which has the potential to shape what an optimal database architecture would be.  All combined, I'm hopeful that we'll see some interesting architectural shifts in databases over the next decade, but I'm uncertain if the necessary hardware will be accessible.
 
