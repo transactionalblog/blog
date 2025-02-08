@@ -227,6 +227,8 @@ The evaulation section shows that PolarFS adds minimal overhead as compared to a
 // FAST '20
 // https://www.usenix.org/system/files/fast20-cao_wei.pdf
 
+:uri-snia-nvme-cs: https://www.snia.org/educational-library/nvme-computational-storage-standardization-2023
+
 [.gray-bg]
 ====
 bibitem:[PolarDBComputationalStorage]
@@ -241,27 +243,29 @@ image::PolarDBComputationalStorage.png[embed=true,align=center]
 
 The required changes in PolarDB start at the scan operator. PolarDB read data from files by requesting blocks by their offset within the file.  That has been enhanced to include schema of the table and the preciate to apply to the block request.  The ChunkServers split the predicates into those that can be pushed to the FPGA, and those that need to be evaluated on the CPU. In the PolarFS paper, ChunkServers are described as having a one-to-one relationship with an attached 10TB SSD and tracking 64KB sized blocks.  In this paper, ChunkServers stripe data across a number of SmartSSDs with 4MB stripes, and 4KB blocks are snappy compressed and thus variable length.  ChunkServers split the request into one per stripe, and forward them to the corresponding SmartSSDs.
 
-The computational storage device has a corresponding driver in Linux which exposes it as a block device.  (See {uri-snia-nvme-cs}[NVMe Computational Storage Standardization] if you'd like more of a view into how SmartSSD<->Host integration works.)  The ChunkServer sends the driver the scan request. The driver reorders filters to match the hardware's pipelined table record decoding and translates logical blocks to physical blocks on the NAND flash memory.  The driver also splits larger scans into smaller ones to avoid head-of-line blocking causing high latency for concurrent requests.
+The computational storage device has a corresponding driver in Linux which exposes it as a block device.sidenote:ref[] The ChunkServer sends the driver the scan request. The driver reorders filters to match the hardware's pipelined table record decoding and translates logical blocks to physical blocks on the NAND flash memory.  The driver also splits larger scans into smaller ones to avoid head-of-line blocking causing high latency for concurrent requests.
+[.aside]#sidenote:def[] See {uri-snia-nvme-cs}[NVMe Computational Storage Standardization] if you'd like more of a view into how SmartSSD<->Host integration works.#
 
 PolarDB was modified to be more accomodating to efficient, simple evaluation of predicates.  The encoding format for keys and values were changed to always be `memcmp()`-orderable, so that the FPGA wouldn't need to understand different value encoding formats and comparisons for them. Blocks were also changed from having a footer with metadata to a header with metadata, so that decoding of the block could happen as it's being read.
 
 Their evaluation compares no pushdown, CPU-only pushdown, and computational storage (CSD) pushdown on TPC-H.  Query latency for uncompressed CPU-based pushdown and CSD-based pushdown look like very similar 2-3x improvementes, which is unsurprising as it reflects that the majority of the gain is from freeing the one compute instance from receiving data, evaluating the filter, and then throwing it away.  With compressed data, the CSD-based pushdown is a bit noticably better, as decompression isn't free, but can be done efficiently in hardware.  The PCIe and Network Traffic graphs per query show that each layer of pushdown removes another 2-3x of network traffic (CPU-based pushdown) or PCIe traffic (CSD-based pushdown).
 
 === PolarDB Serverless ★
+// SIGMOD '21
+// https://users.cs.utah.edu/~lifeifei/papers/polardbserverless-sigmod21.pdf
 
 [.gray-bg]
 ====
 bibitem:[PolarDBServerless]
 ====
 
-The PolarDB Serverless paper is about leveraging a multi-tenant scale-out memory pool, built via RDMA.
-This makes them also a disaggregated memory database!  As a direct consequence, memory and CPU can be scaled independently, and the evaluation shows elastically changing the amount of memory allocated to a PolarDB tenant.
+The PolarDB Serverless paper is about leveraging a multi-tenant scale-out memory pool, built via RDMA. This makes them also a disaggregated memory database!  As a direct consequence, memory and CPU can be scaled independently, and the evaluation shows elastically changing the amount of memory allocated to a PolarDB tenant.
 
-However, implementing a page cache over RDMA isn't trivial, and a solid portion of the paper is spent talking about the exact details of managing latches on remote memory pages and navigating b-tree traversals.  Specifically, B-tree operations which change the structure of the tree required significant care.  Recovery also has to deal with that the remote buffer cache has all the partial execution state from the failed RW node, so the new RW node has to release latches in the shared memory pool and throw away pages which were partially modified.
+However, implementing a page cache over RDMA isn't trivial, and a solid portion of the paper is spent talking about the exact details of managing latches on remote memory pages and navigating b-tree traversals.  Specifically, B-tree operations which change the structure of the tree required significant care.  Recovery also has to deal with that the remote buffer cache has all the partial execution state from the failed RW node, so the new RW node has to release latches in the shared memory pool and throw away pages which were partially modified. I'll be eliding all the RDMA-specific details, and just covering the parts that would equally apply to a slower, TCP-based memory disaggregation architecture as well.
 
-They offer an architecture diagram:
+They offer an architecture diagram for PolarDB as a whole:
 
-.PolarDB Serverless Architecture
+.PolarDB Architecture
 image::PolarDBArchitecture.png[embed=true,align=center]
 
 However, there's a few things I think it doesn't represent well:
@@ -270,9 +274,39 @@ However, there's a few things I think it doesn't represent well:
 * Due to the use of ParallelRaft, logs are sent only to the leader node of the page chunk, who will materialize pages and propagate updates to other replicas.
 * There's also a timestamp service which, which uses RDMA to quickly and cheaply serve timestamps that's not included in the diagram.
 
-There's a couple optimizations that they specifically call out. Read-only nodes don't acquire latches in the buffer pool unless the RW node says it modified the B-tree structure since the Read-only node's last access.  They also implement a specific optimization for indexes: a prefetching index probe operation.  Fetching keys from the index will generate prefetches to load the pointed-to data pages from the page servers, under the assumption that they'll be immediately requested as part of SQL execution anyway.
+PolarDB Serverless extends this to add a remote memory pool, which allows read-only and read-write to share the same buffer pool.  Remote memory access is performed via `librmem`, which exposes the API:
 
-What's the major difference between PolarDB and Socrates?  Socrates has SSD persisted caches.  PolarDB has a persistent distributed memory cache.
+[source,c]
+----
+int page_register(PageID page_id,
+                  const Address local_addr,
+                  Address& remote_addr,
+                  Address& pl_addr,
+                  bool& exists);
+int page_unregister(PageID page_id);
+int page_read(const Address local_addr,
+              const Address remote_addr);
+int page_write(const Address local_addr,
+               const Address remote_addr);
+int page_invalidate(PageID page_id);
+----
+
+The minimum unit of allocation is a 1GB physically contiguous _slab_, which is divided into 16KB pages (because PolarDB is MySQL, and MySQL uses 16KB pages).  A slab node holds multiple slabs, and database instances allocate slabs across multiple slab nodes to meet their predefined buffer pool capacity when they're first started.  The first allocated slab is nominated as the _home node_, and is assigned the responsibility of hosting the buffer cache metadata for the database instance.  The Page Address Table (PAT) tracks the slab node and physical address of each page. The Page Invalidation Bitmap (PIB) is updated when a RW node has a local modification to a page which hasn't been written back yet (and is used by RO nodes to know when they're stale).  The Page Reference Directory (PRD) tracks what instances currently hold references to each page described in the PAT.  The Page Latch Table (PLT) manages a page latch for each entry in the PAT.
+
+.PolarDB Serverless Remote Buffer Pool
+image::PolarDBServerlessRemoteMemory.png[embed=true,align=center]
+
+`page_register` is a request to the home node to either increment the refcount for the page and return its address, or allocate a new page (evicting an old one if necessary to make space) and return that.  (This isn't reading the page from storage, as there's no direct Slab Node<->PolarFS communication, just allocating space on the remote buffer pool.)  `page_unregister` decrements the reference count allowing the page to be freed if needed.  Dirty pages can always be immediately evicted as PolarDB can materialize pages on demand from the ChunkServers.  If the buffer pool size is expanded, the home node expands its PAT/BIP/PRD metadata accordingly, and allocates slabs eagerly.  If the buffer pool size is shrunk, then extra memory is released by freeing pages, the exist pages are defragmented, and then the now unused slabs are released.  Note that the defragmentation and physically contiguous memory is only needed to permit one-sided RDMA reads/writes, and a non-RDMA implementation could likely be simpler and non-contiguous.
+
+Each instance has a local page cache in RAM, because there's no L1/L2/L3 cache for remote memory.  This local cache is tunable and defaults to stem:[min(sizeof(RemoteMemory)/8, 128GB)], which was set by observing the effects on TPC-C and TPC-H benchmarks.  Not all pages read from PolarFS are pushed into remote memory: pages read from full table scans are only read into the local page cache, and then are discarded.  Modifications to pages are still performed only in local cache.  If the page exists in the remote buffer pool, it must first be marked as invalidated before it can be modified, and before it can be dropped from the local cache it must be written back to the remote buffer pool (the flow of which is show in the diagram above). Insertions and deletions optimistically traverse the tree without locks, assuming they won't need to split/merge any pages, and restart into a pessamistic locking traversal if it's determined that it is necessary.  (Interestingly in contrast to Socrates, which just has RO nodes restart their btree traversals whenever they encounter child pages of an older version than the parent page.)
+
+There were a few improvements made to PolarDB, which are presented as seemingly unrelated to the disaggregated memory architecture, but I believe are a direct consequence.  The snapshot isolation implementation was changed ot fetch a centralized timestamp, used to fetch both a read timestamp and a commit timestamp.  All rows have a commit timestamp suffixed to make MVCC visibility filtering easy, and a Commit Timestamp Log was added which records the commit timestamp of a transaction to allow resolving commit timestamps of recently committed data.  The need for a remote timestamp service and tracking commit timestamp per row is so that promoting a Read-Only replica to the Read-Write leader doesn't require scanning all the data.  There's no need to recover the next valid commit timestamp, as it's held in a remote service.  There's no need to rebuild metadata of what transactions were concurrent shouldn't see each others' effects, as MVCC visibility rules are a strict timestamp filter and rows without commit timestamps can be incrementally resolved. Similarly, PolarDB Serverless finally justified adding the GetPage@LSN request to PolarFS that every other disaggregated OLTP system already had (see, for example, the Socrates overview).
+
+There's a couple optimizations to transaction and query processing that they specifically call out. Read-only nodes don't acquire latches in the buffer pool unless the RW node says it modified the B-tree structure since the Read-only node's last access.  They also implement a specific optimization for indexes: a prefetching index probe operation.  Fetching keys from the index will generate prefetches to load the pointed-to data pages from the page servers, under the assumption that they'll be immediately requested as part of SQL execution anyway.
+
+In the event of the loss of the RW node, the Cluster Manager will promote a RO node to the new RW node.  This involves collecting the stem:[min(max LSN per chunk)] and requesting redo logs to be processed to bring all chunks to a consistent version.  All invalidate pages in the remote memory pool are evicted (using the Page Invalidtion Bitmap so it's not a full scan of GBs of data), along with any pages whose version is newer than the redo'd recovery version.  All locks held by the failed RW node are released. All active transactions are recovered from the headers of the undo log.  Then notifies the Cluster Manager its recovery is complete and rolls back the active transactions in the background.  If a RW node voluntarily gives up its status as the writer to another node, it can flush all modified pages and drop all locks to save the RO node the work of applying redo logs and evicting pages from the buffer pool.  In a drastic event where all replicas of the home slab are lost, all slabs are cleared, and all database nodes are restarted so that recovery restores a consistent state.
+
+The evaluation shows the impact of all the above evaluations on recovery time.  With no optimizations, unavailability lasted ~85s, and recovery back to original performance takes 105s.  With page materialization on PolarFS, it's reduced to an unavailability of ~15s and full performance after 35s.  With remote memory buffer pool, it's an unavailability of ~15s, and full performance after 23s.  A voluntary handoff by the RW node leads to 2s of unavailability and full performance after 6s.  Otherwise, the graphs show about one would expect that memory can be scaled elastically, and performance improves/degrates with more/less memory, respectively.
 
 ==== Discussion
 
