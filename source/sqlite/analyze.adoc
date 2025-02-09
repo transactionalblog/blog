@@ -271,6 +271,94 @@ addr  opcode         p1    p2    p3    p4             p5  comment
 
 Note the lack of clearing the table, because it doesn't exist.  `iiftest` and `casetest` are the tables in the database at the time of running this command, leftover from previous work.
 
+== Instructions
+
+There's a few new instructions that will need to be implemented to support ANALYZE:
+
+.Count
+[source,c]
+----
+/* Opcode: Count P1 P2 P3 * *
+** Synopsis: r[P2]=count()
+**
+** Store the number of entries (an integer value) in the table or index
+** opened by cursor P1 in register P2.
+**
+** If P3==0, then an exact count is obtained, which involves visiting
+** every btree page of the table.  But if P3 is non-zero, an estimate
+** is returned based on the current cursor position. 
+*/
+----
+
+.Expire
+[source,c]
+----
+/* Opcode: Expire P1 P2 * * *
+**
+** Cause precompiled statements to expire.  When an expired statement
+** is executed using sqlite3_step() it will either automatically
+** reprepare itself (if it was originally created using sqlite3_prepare_v2())
+** or it will fail with SQLITE_SCHEMA.
+**
+** If P1 is 0, then all SQL statements become expired. If P1 is non-zero,
+** then only the currently executing statement is expired.
+**
+** If P2 is 0, then SQL statements are expired immediately.  If P2 is 1,
+** then running SQL statements are allowed to continue to run to completion.
+** The P2==1 case occurs when a CREATE INDEX or similar schema change happens
+** that might help the statement run faster but which does not affect the
+** correctness of operation.
+*/
+----
+
+.LoadAnalysis
+[source,c]
+----
+/* Opcode: LoadAnalysis P1 * * * *
+**
+** Read the sqlite_stat1 table for database P1 and load the content
+** of that table into the internal index hash table.  This will cause
+** the analysis to be used when preparing all subsequent queries.
+*/
+----
+
+.ReadCookie
+[source,c]
+----
+/* Opcode: ReadCookie P1 P2 P3 * *
+**
+** Read cookie number P3 from database P1 and write it into register P2.
+** P3==1 is the schema version.  P3==2 is the database format.
+** P3==3 is the recommended pager cache size, and so forth.  P1==0 is
+** the main database file and P1==1 is the database file used to store
+** temporary tables.
+**
+** There must be a read-lock on the database (either a transaction
+** must be started or there must be an open cursor) before
+** executing this instruction.
+*/
+----
+
+.SetCookie
+[source,c]
+----
+/* Opcode: SetCookie P1 P2 P3 * P5
+**
+** Write the integer value P3 into cookie number P2 of database P1.
+** P2==1 is the schema version.  P2==2 is the database format.
+** P2==3 is the recommended pager cache
+** size, and so forth.  P1==0 is the main database file and P1==1 is the
+** database file used to store temporary tables.
+**
+** A transaction must be started before executing this opcode.
+**
+** If P2 is the SCHEMA_VERSION cookie (cookie number 1) then the internal
+** schema version is set to P3-P5.  The "PRAGMA schema_version=N" statement
+** has P5 set to 1, so that the internal schema version will be different
+** from the database schema version, resulting in a schema reset.
+*/
+----
+
 == Functions
 
 As can be seen during codegen, there's three functions invoked: `stat_init()`, `stat_get()`, and `stat_push()`.  These functions are defined in sqlite source as:
@@ -384,9 +472,7 @@ struct StatAccum {
 
 Backfill needed VDBE support for pre-created sqlite_stat1:
 
-* [ ] OpenWrite
 * [ ] Count
-* [ ] NewRowid
 * [ ] LoadAnalysis
 * [ ] Expire
 * [ ] Functions stat_init(), stat_get(), and stat_push()
