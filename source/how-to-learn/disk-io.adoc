@@ -6,6 +6,24 @@
 :page-hook-preamble: false
 :page-hook: Filesystems, file IO, and durability.
 
+////
+TODO:
+- clarify that it's not "most" databases use O_DIRECT, it's that the modern best practice is to use O_DIRECT
+- Give pointers to other O_DIRECT usage and discussion
+    * Postgres definitely predates O_DIRECT, and didn't even use threads out of portability concerns.  They've looked into adopting async IO and O_DIRECT, but retrofitting it into postgres is understandably hard.  https://www.postgresql.org/message-id/20210223100344.llw5an2aklengrmn@alap3.anarazel.de
+    * InnoDB can be configured into using O_DIRECT, but again, age and portability requirements mean that it also supports other ways of writing. https://dev.mysql.com/doc/refman/8.4/en/innodb-parameters.html#sysvar_innodb_flush_method
+    * Embedded databases are referenced directly in the post, but sqlite is always a mystery as it also maintains its own page cache anyway.
+    * MongoDB's WiredTiger doesn't use O_DIRECT as they appear to not implement async IO, and instead double buffer all pages in memory (and also give incorrect windows guidance...) https://source.wiredtiger.com/develop/tune_system_buffer_cache.html
+
+    And if you look around at other databases, there's either direct usage of it, or discussion of adopting it:
+    * Cassandra: https://issues.apache.org/jira/browse/CASSANDRA-14466
+    * RocksDB: https://github.com/facebook/rocksdb/wiki/Direct-IO
+
+- Discuss lack of support for O_DIRECT:
+    - Mention ZFS added O_DIRECT support in Sept 2024 https://www.phoronix.com/news/OpenZFS-Direct-IO
+    - Docker for Mac https://github.com/docker/for-mac/issues/1619
+////
+
 [.display-none]
 == APIs
 
@@ -33,7 +51,7 @@ If using buffered IO, {uri-preadv2-pwritev2}[preadv2/prwritev2's flags] can be h
 Regardless of using buffered or unbuffered IO, it's wise to be mindful of the extra cost of appending to a file versus overwriting a pre-allocated block within a file.  Appending to a file changes the file's size, which thus incurs additional filesystem metadata operations.  Instead, consider using man:fallocate[2] to extend the file in larger chunks{nospace}sidenote:ref[].  Note that depending on the filesystem, `fallocate(FALLOC_FL_ZERO_RANGE)` "preferably" converts the range into unwritten extents. The range will not be physically zeroed out on the device and writes will still need to update metadata to mark the extent as written.  Use of the default `0` mode is recommended.  When using `O_DIRECT`, especially heed this guidance, as {uri-clarifying-direct-io}[Clarifying Direct I/O Semantics] largely focuses on that `O_DIRECT` writes which require metadata modifications are a complicated and not well specified topic.
 [.aside]#sidenote:def[] I once benchmarked the difference between appending one block every write versus writing over pre-allocated blocks as about a 40% throughput difference.#
 
-Directly invoking `write()` performs synchronous IO.  Event-driven non-blocking IO is increasingly popular for concurrency and due to thread-per-core architectures, and there's a number of different ways to do asynchronous IO in linux.  Prefer them in the following order: man:io_uring[7] > man:io_submit[2] > man:aio[7] > man:epoll[7] > man:select[2].  Support for the number of operations one can issue asynchronously decreases rapidly the further one gets from io_uring.  For example, io_uring supports an async man:fallocate[2], but aio doesn't; aio supports async `fsync()`, and epoll doesn't.  A library which issues synchronous filesystem calls on background threads, like {uri-libeio}[libeio], will be needed to fill in support where it's missing.  For the utmost performance, one can use SPDK, but its usage is particularly not friendly.  _Understanding Modern Storage APIs_{nospace}sidenote:ref[] has a nice comparison of SPDK vs io_uring vs aio.
+Directly invoking `write()` performs synchronous IO.  Event-driven non-blocking IO is increasingly popular for concurrency and due to thread-per-core architectures, and there's a number of different ways to do asynchronous IO in linux.  Prefer them in the following order: man:io_uring[7] > man:io_submit[2] > man:aio[7] > man:epoll[7] > man:select[2].  Support for the number of operations one can issue asynchronously decreases rapidly the further one gets from io_uring.  For example, io_uring supports an async man:fallocate[2], but aio doesn't; aio supports async `fsync()`, and epoll doesn't.  A library which issues synchronous filesystem calls on background threads, like {uri-libeio}[libeio], will be needed to fill in support where it's missing.  For the utmost performance, one can use SPDK, but its usage is particularly not friendly.  biblink:[ModernStorageAPIs]{nospace}sidenote:ref[] has a nice comparison of SPDK vs io_uring vs aio.
 [.aside]#sidenote:def[] bibitem:[ModernStorageAPIs]#
 
 For commentary on each of these asynchronous IO frameworks, the libev source code is a treasure which catalogs all the caveats in a leading rant comment in each source file:
@@ -165,3 +183,5 @@ You can periodically scrape `/proc/diskstats` to self-report on disk metrics.
 
 * https://www.evanjones.ca/durability-filesystem.html[Durability: Linux File APIs]
 * https://www.scylladb.com/2017/10/05/io-access-methods-scylla/[Different I/O Access Methods for Linux, What We Chose for ScyllaDB, and Why]
+* https://www.scylladb.com/2024/11/25/database-internals-working-with-io/[Database Internals: Working with IO]
+* https://arxiv.org/abs/2411.16254[Asynchronous I/O -- With Great Power Comes Great Responsibility]
