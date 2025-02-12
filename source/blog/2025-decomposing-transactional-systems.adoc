@@ -1,0 +1,303 @@
+= Decomposing Transactional Systems
+:revdate: 2025-02-12
+:draft: true
+:page-hook-preamble: false
+:page-hook: Every transactional system must execute, order, validate, and durably record transactions.
+
+Every transactional system does four things:
+
+1. It _executes_ transactions.
+2. It _orders_ transactions.
+3. It _validates_ transactions.
+4. It makes transactions _durable_.
+
+Executing a transaction means evaluating the body of the transaction to produce the intended reads and writes _and_ applying those effects to storage.
+
+Ordering a transaction means deciding which transactions this one comes before, and which ones it comes after.  Often, this is done by assigning it a version.  Specifically, the focus here is on the _commit_ version.  MVCC databases may assign an initial read version, which can be a non-trivial process, but always pay close attention to which version is used as the commit version -- the one at which writes are persisted.
+
+Validating a transaction means enforcing concurrency control, or more rarely, domain-specific semantics.  If a transaction is going to be rejected for a system defined reason, such as having serializability conflicts with existing transactions, it will happen here.
+
+Making a transaction durable means persisting it, generally to disk.  There's an important difference between persisting the data, which can sometimes happen during transaction execution, from persisting the final outcome of the transaction.  I'd specifically recommend paying attention to the latter, and noting how the system performs atomic commitment and replication.  (And sometimes the lines between those two aren't very clear.)
+
+All four of these things must be done before one may acknowledge a transaction's result to a client.  However, these steps can be done in any order.  They can be done concurrently.  Different systems achieve different tradeoffs by reordering these steps.
+
+////
+two benefits:
+- gives a place to start in analyzing a complex system
+- replace the parts you're not working through with the simplest equivalents
+////
+
+== Examples
+
+A classic optimistic concurrency control database will execute a transaction, and record the read and write sets.  Once execution finishes, a commit version is allocated, and concurrent transactions are checked for conflicts.  If no conflicts were found, the transaction is made durable, and acknowledged as committed.  
+
+Classic optimistic concurrency control databases break down as:
+
+[dbdiag-spans]
+----
+OCC: Execute
+OCC: Order
+OCC: Validate
+OCC: Durable
+----
+
+A classic pessimistic concurrency control database executes a transaction and acquires locks as it runs to exclude conflicting transactions.  When the transaction finishes, it acquires a commit version, and then is persisted to disk.
+
+Classic pessimistic concurrency control databases break down as:
+
+[dbdiag-spans]
+----
+[
+PCC: Validate CC
+PCC: Execute EX
+]
+[
+PCC: END EX
+PCC: END CC
+]
+PCC: Order
+PCC: Durable 
+----
+
+Get the idea?  Great, let's burn through some real world examples.
+
+=== FoundationDB
+
+[.gray-bg]
+====
+FoundationDB paper
+====
+
+[quote]
+____
+2.4.1 End-to-end Transaction Processing As illustrated in Figure 1, a
+client transaction starts by contacting one of the Proxies to obtain
+a read version (i.e., a timestamp). The Proxy then asks the Sequencer for a read version that is guaranteed to be no less than any
+previously issued transaction commit version, and this read version
+is sent back to the client. Then the client may issue multiple reads
+to StorageServers and obtain values at that specific read version.
+Client writes are buffered locally without contacting the cluster.
+At commit time, the client sends the transaction data, including
+the read and write sets (i.e., key ranges), to one of the Proxies
+and waits for a commit or abort response from the Proxy. If the
+transaction cannot commit, the client may choose to restart the
+transaction from the beginning again.
+
+A Proxy commits a client transaction in three steps. First, the
+Proxy contacts the Sequencer to obtain a commit version that is
+larger than any existing read versions or commit versions. The
+Sequencer chooses the commit version by advancing it at a rate of
+one million versions per second. Then, the Proxy sends the transaction information to range-partitioned Resolvers, which implement
+FDB's optimistic concurrency control by checking for read-write
+conflicts. If all Resolvers return with no conflict, the transaction
+can proceed to the final commit stage. Otherwise, the Proxy marks
+the transaction as aborted. Finally, committed transactions are sent
+to a set of LogServers for persistence. A transaction is considered committed after all designated LogServers have replied to the
+Proxy, which reports the committed version to the Sequencer (to
+ensure that later transactions' read versions are after this commit)
+and then replies to the client. At the same time, StorageServers
+continuously pull mutation logs from LogServers and apply committed updates to disks.
+____
+
+Breaking this down, we see
+
+. A client executes a transaction.
+. The proxy acquires a commit version.
+. The transaction is conflict checked.
+. The transaction is made durable.
+
+All as sequential steps.
+
+[dbdiag-spans]
+----
+FDB: Execute
+FDB: Order
+FDB: Validate
+FDB: Durable
+----
+
+Oh hey, a classic optimistic concurrency control database.  With this in mind, if you're trying to understand one piece of the system (e.g. distributed conflict checking in the resolvers), you can replace the other pieces temporarily with the minimal equivalents (e.g. replace the log servers with appending to a single WAL on one disk).
+
+=== Spanner
+
+[dbdiag-spans]
+----
+[
+Spanner: Validate CC
+Spanner: Execute EX
+]
+[
+Spanner: END EX
+Spanner: END CC
+]
+Spanner: Order
+Spanner: Durable
+----
+
+Oh hey, a classic pessimistic concurrency control database.
+
+=== Cockroach
+
+[dbdiag-spans]
+----
+Cockroach: Order
+[
+Cockroach: Validate CC
+Cockroach: Execute EX
+]
+[
+Cockroach: END EX
+Cockroach: END CC
+]
+Cockroach: Durable
+----
+
+With "Classic Optimistic Concurrency Control" and FoundationDB, we looked at _backwards-validating OCC_.  Cockroach utilized _forward-validating OCC_, which as we see executes similarly to pessimistic concurrency control.
+
+=== Calvin
+
+[.gray-bg]
+====
+Calvin Paper
+====
+
+[quote]
+____
+The essence of Calvin lies in separating the system into three separate layers of processing:
+
+• The sequencing layer (or “sequencer”) intercepts transactional inputs and places them into a global transactional input
+sequence—this sequence will be the order of transactions to
+which all replicas will ensure serial equivalence during their
+execution. The sequencer therefore also handles the replication and logging of this input sequence.
+• The scheduling layer (or “scheduler”) orchestrates transaction execution using a deterministic locking scheme to guarantee equivalence to the serial order specified by the sequencing layer while allowing transactions to be executed concurrently by a pool of transaction execution threads. (Although
+they are shown below the scheduler components in Figure 1,
+these execution threads conceptually belong to the scheduling layer.)
+• The storage layer handles all physical data layout. Calvin
+transactions access data using a simple CRUD interface; any
+storage engine supporting a similar interface can be plugged
+into Calvin fairly easily.
+____
+
+This means Calvin breaks down as:
+
+. Sequence the transaction into a global log.
+. Make the log durable.
+. Use locking to know when one can safely execute in the serial order despite concurrency.
+. Execute the transaction.
+
+[dbdiag-spans]
+----
+Calvin: Order
+Calvin: Durable
+[
+Calvin: Validate CC
+Calvin: Execute EX
+]
+[
+Calvin: END EX
+Calvin: END CC
+]
+----
+
+Calvin is the most well known example of a database which does *not* execute transactions as its first step in transaction processing.  It, in fact, executes them as the last step.  Calvin is the iconic system for the field of _deterministic databases_, and a key trait of all such systems is that they delay transaction execution until the very end of processing.
+
+=== CURP
+
+[dbdiag-spans]
+----
+CURP: Execute
+[
+CURP: Validate CC
+CURP: Durable DR
+]
+[
+CURP: END DR
+CURP: END CC
+]
+CURP: Order
+----
+
+=== Tapir
+
+[dbdiag-spans]
+----
+Tapir: Order
+Tapir: Execute
+[
+Tapir: Validate CC
+Tapir: Durable DR
+]
+[
+Tapir: END DR
+Tapir: END CC
+]
+----
+
+=== MaaT
+
+The fun part of such a decomposition is that it also raises fun questions.  What would a database need to look like in order for ordering and execution to happen concurrently?
+
+[dbdiag-spans]
+----
+[
+MaaT: Execute EX
+MaaT: Order OD
+]
+[
+MaaT: END OD
+MaaT: END EX
+]
+MaaT: Validate
+MaaT: Durable
+----
+
+The answer is _dynamic timestamp assignment_
+
+
+
+
+
+////
+Three things you must do:
+
+1. Order
+2. Check for conflicts
+3. Durable
+
+Can be done in any order
+Can be done concurrently
+Must be done before you can tell a client "I accept your commit".
+
+Durable: You must have the transaction recorded durably on disk.
+
+Order: you must decide what transactions this one is before and after.  This doesn't _have_ to be a strict ordering, and some systems work with just a weak ordering, but _some_ ordering must exist to be able to resolve conflicts.
+
+Commit: Decide if the outcome of the transaction is to commit or abort.
+
+----
+Execute -> Order -> Check -> Durable: FoundationDB
+Execute -> Order -> Durable -> Check:
+Execute -> Durable -> Order -> Check:
+Execute -> Durable -> Check -> Order:
+Execute -> Check -> Order -> Durable:
+Execute -> Check -> Durable -> Order:
+Order -> Execute -> Check -> Durable:
++16
+
+Order -> Durable -> Check: Calvin
+Check -> Order -> Durable:
+Check -> Durable -> Order: CURP
+Durable -> Check -> Order:
+Durable -> Order -> Check:
++12
+
+[Order,Durable] -> Check:
+[Order,Check] -> Durable:
+[Durable,Check] -> Order:
++4
+
+[Durable,Order,Check]: 
+
++1
+----
+////
