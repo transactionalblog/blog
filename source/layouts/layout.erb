@@ -126,7 +126,7 @@ category_heading = if up_title.nil? || up_title == 'Blog' then '' else up_title 
         end
       end.join ' • '
       if !translations.empty? then metadata.append(translations) end
-      metadata.append("<br/>Mandatory Legal Disclaimer:<br/>Opinions expressed are solely<br/>my own and do not express the<br/>views or opinions of my employer.")
+      #metadata.append("<br/>Mandatory Legal Disclaimer:<br/>Opinions expressed are solely<br/>my own and do not express the<br/>views or opinions of my employer.")
       metadata = metadata.join '<br>'
       if metadata then '<p>' + metadata + '</p>' end
       %>
