@@ -1,0 +1,220 @@
+= Enough With All The Raft
+:revdate: 2025-02-27
+:page-hook-preamble: false
+:page-hook: There's better ways to replicate data than Raft.
+
+This talk is an extension of my earlier link:/blog/2024-data-replication-design-spectrum.html[Data Replication Design Spectrum] blog post.  The blog post was the analysis of the various replication algorithms, which concludes with showing that Raft has no particular advantage along any easy analyze/theoretical dimension.  This builds on that argument to try and persuade you out of using Raft and to supply suggestions on how to work around the downsides of quorum-based or reconfiguration-based replication which makes people shy away from them.
+
+'''
+
+[.display-none]
+== Slides
+
+++++
+<style>
+.imageblock {
+    border: solid lightgray;
+}
+</style>
+++++
+
+image::slide_1.png[embed=true,align=center]
+
+Hi folks.  I'm here to try and convince you to consider options other than Raft.  
+
+'''
+
+image::slide_2.png[embed=true,align=center]
+
+Raft, or just leadered consensus in general and I'm using the two interchangeably in this talk, has emphatically won both on actual usage in databases by my somewhat haphazard survey…
+
+'''
+
+image::slide_3.png[embed=true,align=center]
+
+And even more subjectively it's won by mindshare.  Any discussion I see of replication is always about raft. (and this is edited, throughout this whole talk, I'm not trying to subtweet any one person/project/whatever)  But it's always Raft.  Or multi-paxos.  Or that viewstamped replication should be the one true replication algorithm. And this grates on me, because if you're choosing between three options, those aren't even the right three to be considering.
+
+'''
+
+image::slide_4.png[embed=true,align=center]
+
+I claim there's three classes of replication algorithms{nospace}sidenote:ref[]: Quorums, Reconfiguration, and leadered consensus as a hybrid of the two, and that all replication algorithms can be placed along a single axis which classifies them based upon how they handle failures.  With quorums, the loss of any member of the replication group can be tolerated, and replication continues on.  Think Cassandra.  With reconfiguration, the write-all-read-one replication halts on a failure, and continues once the failed node has been automatically replaced.  Historically, this is like MySQL with failover.  And finally our overused Raft exists as a hybrid of the two: the followers act like quorum replication, but having a leader bumps it one tick towards reconfiguration.
+[.aside]#sidenote:def[] This is the one slide summary of what link:/blog/2024-data-replication-design-spectrum.html[Data Replication Design Spectrum] tries to pitch in terms of classification.#
+
+'''
+
+image::slide_5.png[embed=true,align=center]
+
+And so this talk is framed as trying to argue my hypothetical arch-nemesis out their mental model here that Raft is the absolute best and always the correct default option, and anything else should only be used begrudgingly in some _very_ specific cases.  I'm actually trying to get to the argument of: please just use the best suited replication algorithm, but that's going to involve some Raft bashing while sprinkling in advice on how to succeed in a non-raft world.
+
+So let's get started.
+
+'''
+
+image::slide_6.png[embed=true,align=center]
+
+We're going to first tackle the broad argument that raft is just uniformly superior.  And if you tell me it's best, I want to know, it's best at... what?
+
+'''
+
+image::slide_7.png[embed=true,align=center]
+
+If it's the best at something, I should be able to sit down, and do the math of how it acts along some dimensions versus the alternatives, and show, inarguably, that raft delivers better _something_ than the alternatives.  But I've done that math.  I have a blog post which calculates Quorums, Raft, and Reconfiguration along these dimensions, with every notable variant or proposed raft optimization factored in.
+
+'''
+
+image::slide_8.png[embed=true,align=center]
+
+And that post shows: Raft isn't better.  In every category, it's at best tied, and at worst, it's the worst. Most distributed database deployments I've worked with have been storage bound, and that 40% higher storage efficiency for reconfiguration can mean a lot of money.  Or if you care about availability, on paper, leaderless Paxos gives you better tail latencies with less availability blips than Raft. So the math isn't justifying Raft's absurd popularity.
+
+'''
+
+image::slide_9.png[embed=true,align=center]
+
+There's also this draw to Raft that it's great because of its simplicity.  It's simpler than Multi-Paxos, for sure, it did a great job at that.
+
+'''
+
+image::slide_10.png[embed=true,align=center]
+
+But in the in the broader picture, Raft isn't simpler.  Quorums have different replicas with different states and different orders of operations causing an explosion of states to check for correctness.  But once you've handled that, all distributed systems problems of slowness, failures, partitions, what-have-you all look the same.
+
+Reconfiguration is the opposite.  I've worked on FoundationDB, a very reconfiguration-based databases, and whenever some code sends an RPC, either it gets a reply or everyone gets killed and the system resets.  All the code is happy-path only, as all failures get pushed through one reconfiguration process.  It's beautifully simple. But gray failures are hard, and having to precisely answer “is this other replica sufficiently alive?” is the challenge that Reconfiguration gains instead.
+
+And Raft is both of these things, so not only do you have to have a well-integrated failure detector for the leader, but you also have a tremendous state space to search in which bugs could be hiding from the quorum of followers.  It's not simpler.
+
+'''
+
+image::slide_11.png[embed=true,align=center]
+
+One could argue "Raft is better than Reconfiguration because Reconfiguration has unavailability!"
+
+This is the reconfiguration counter-argument I have encountered the most often, and this is my least favorite argument, because it's like a matryoshka of misunderstandings.
+
+'''
+
+image::slide_12.png[embed=true,align=center]
+
+First, If you're so upset about unavailability, what happens when the leader dies in raft?  Request processing halts, there's a timeout, a reconfiguration process (leader election), and requests resume.
+
+'''
+
+image::slide_13.png[embed=true,align=center]
+
+What happens when you use reconfiguration and a replica dies? Request processing halts, there's a timeout, a reconfiguration process, and requests resume.  It's literally the same diagram.  I just deleted some nodes.  If you're upset about this slide, you *have to* be equally upset about the last slide too.
+
+'''
+
+image::slide_14.png[embed=true,align=center]
+
+Furthermore, if we're talking about replicating partitions of data, then leadership gets distributed across every machine to balance resource usage as leaders do more work. So when a machine fails, some percentage of your data is going to be "unavailable", we're only arguing about exactly what that percent is. So, no.
+
+'''
+
+image::slide_15.png[embed=true,align=center]
+
+Furthermore, it's an argument based out of a bad definition of the word availability.  Unavailability is when requests have latency above a given threshold.  If the reconfiguration process happens within your latency threshold, it's not unavailability.
+
+'''
+
+image::slide_16.png[embed=true,align=center]
+
+The https://arxiv.org/abs/2412.02792/[Huawei Taurus paper] has an argument for reconfiguration-based replication in this vein, which is a bold argument and I love it.
+
+'''
+
+image::slide_17.png[embed=true,align=center]
+
+They're building replication for a write ahead log, and are making a case here about their write availability for appending a new log segment.
+
+They say:
+
+* We can identify a failure quickly.
+* Our reconfiguration process is fast.
+* The chance of us being unable to find 3 new working nodes is effectively 0.
+* Therefore our change of being unavailable is effectively 0%.
+
+And that's the correct way to look at availability.  You can hate this argument, you can still poke some minor holes in it, but they're not wrong.
+
+'''
+
+image::slide_18.png[embed=true,align=center]
+
+There is a correct counter-argument here, and it's that you cannot solve consensus with two failures using three nodes.  So when raft is electing a new leader or changing its replicas, it can do that itself.  Reconfiguration-based replication needs some external consensus service to lean on.  But the options of what you can use for that are ever more plentiful.  With S3 supporting compare-and-swap now, you can even use S3 as your consensus service.  But this is a design requirement difference from Raft.
+
+'''
+
+image::slide_19.png[embed=true,align=center]
+
+For concrete advice on how to build systems using an external consensus service to manage membership, the https://www.microsoft.com/en-us/research/publication/pacifica-replication-in-log-based-distributed-storage-systems/[PacificA paper] gives a very nice description of how to do this, and how manage an automatic failover and reconfiguration process safely.  It has already been directly adopted Elasticsearch, and Kafka's replication is very similar in spirit.
+
+'''
+
+image::slide_20.png[embed=true,align=center]
+
+Moving onto the Quorums side, one could argue "Raft is better than Quorums because Quorums livelock on contention!"
+
+Simple majority quorums doesn't livelock, so we're talking about leaderless consensus here only, and this is a known concern.  But there's ways to minimize or work around this issue.{nospace}sidenote:ref[]
+[.aside]#sidenote:def[] Unmentioned in this talk is "just put the replicas closer together", like https://www.vldb.org/pvldb/vol10/p1730-lin.pdf[Tencent's PaxosStore], because that's not as general of advice.#
+
+'''
+
+image::slide_21.png[embed=true,align=center]
+
+First, don't keep the raft mental model that operations need to go into a log, and all operations need to go into _one_ log. Target your operations to the specific entity or entities that you're modifying, so that you contend only on what you actually need to.
+
+'''
+
+image::slide_22.png[embed=true,align=center]
+
+You don't even need to materialize a log if you don't need a log. https://arxiv.org/abs/1802.07000[Compare-and-Swap Paxos], just models evolving your entity from one state to the new state with no “put things into a log” step in-between.  And it's a great example of being simpler than Raft -- Denis's example implementation with membership changes is 500 lines of code.
+
+If you're looking for a weekend implement consensus project, this is what I'd recommend doing.
+
+'''
+
+image::slide_23.png[embed=true,align=center]
+
+Second, and this is the trick I see applied the least often, but remember that even when modifying the same entity, you don't need to have all replicas agree on an ordering for commutative operations -- those which yield the same result regardless of what order they're performed in.  Increments are the easiest example.  Every replica agrees that at the end it's a net plus six here, and this is safe to do as long as no one sees an intermediate result.
+
+'''
+
+image::slide_24.png[embed=true,align=center]
+
+Permitting commutative operations to commit concurrently while banning reads requires cooperation from your concurrency control layer too.  You can read about increment locks in database textbooks, but https://mwhittaker.github.io/papers/html/o1986escrow.html[escrow transactions] is the most fun.  If I try to deposit $100 and withdraw $100 from my bank account, those might be commutative operations.  If I have _zero_ dollars, it matters if the withdrawal gets ordered before the deposit.  If I'm a billionaire, it doesn't matter.  Escrow Transactions pitches how to handle even these sorts of "conditionally commutative" situations so that you can get your contention down as low as possible.
+
+'''
+
+image::slide_25.png[embed=true,align=center]
+
+Lastly, the livelock stems from inconsistent ordering of requests across replicas, and you can also take a dependency on physical clocks to help consistently order requests instead.  There's an https://www.usenix.org/conference/nsdi21/presentation/tollman[E-Paxos Revisited]{nospace}sidenote:ref[] paper which gives a focused pitch on this idea as well, but I'd strongly suggest checking out https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-15%3A+General+Purpose+Transactions[Accord], Cassandra's new strictly serializable transaction protocol, that's an industry implementation of leaderless consensus, and avoiding livelock by leaning on a physical time based ordering.
+[.aside]#sidenote:def[] E-Paxos is the classic example of targeting only the entities one wishes to modify within paxos, but there's aspects of it which haven't been fully scoped out for real-world implementation. Most of these are centered around that E-Paxos maintains a DAG of operations (where edges are conflicts) which makes a number of aspects of a real system (e.g. replica catchup or garbage collection) significantly harder to do efficiently.  I only know of Cassandra having an implementation of it which was never merged, and they ended up going towards extending E-Paxos into Accord instead.#
+
+'''
+
+image::slide_26.png[embed=true,align=center]
+
+So to wrap this up, I'm not here to pitch you that Raft _never_ has a use. Going through these arguments was to show that there are limitations to Quorums and Reconfiguration, and talk about how you can best work around those limitations. But each side has a critical flaw, and the one advantage that Raft uniquely has, is its unrelenting, unwavering mediocrity.  It is less efficient, it is less “available”, and it is more complicated, but there's no situation in which Raft isn't an “okay” solution.  It's a safe choice. But, broadly, categorically, and littered with minor factual issues, not using raft gets you a system thats's better at something.
+
+'''
+
+image::slide_27.png[embed=true,align=center]
+
+So the mental model I'd like to leave you with is:
+
+* Use Quorums or Raft if you can't have any other supporting service to help with group membership.
+* Use Reconfiguration or Raft if you must handle high, single-item contention.
+
+If you need both of these things, then you might have to use Raft. But using Raft is your punishment. You're forced to use a resource in-efficient, complex solution, because your design constraints left you with no wiggle room.
+
+'''
+
+image::slide_28.png[embed=true,align=center]
+
+Please use the replication algorithm that best fits your use case.  It's possible that is Raft.  That's fine. But reconfiguration is 40% cheaper by instance count than Raft.  If I go to your database's users and ask if they're fine with slightly higher tail latency in exchange for 40% off their hardware cost, how many are going to say no?  Or if tail latency is really that important to them, would they not be happier with Quourms?  Use what fits your users' needs the best.
+
+'''
+
+image::slide_29.png[embed=true,align=center]
+
+If you're interested in some further food for thought here, looking at link:/notes-on/disaggregated-oltp.html[disaggregated OLTP systems] is a really interesting replication case study.  Each of the major vendors chose a completely different replication solution, and so if you read through the series of papers you see what effects those choices had, and get to read the criticisms that the later papers had of the earlier ones' decisions.
