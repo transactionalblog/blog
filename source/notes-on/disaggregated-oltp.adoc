@@ -57,7 +57,7 @@ It involves the following steps:
 ____
 
 Storage nodes are used as part of a quorum, and the classic "tolerate loss of 1 AZ + 1 machine" means 6-node quorums with |W|=4 and |R|=3.
-The quorum means that transient single node failures (either accidental network blips or intentional node upgrades) are handled seamlessly.  However, this isn't traditional majority quorums.  The Primary is an elected sole writer, which transforms majority quorums into something more consistent.  Page server quorums are also reconfigured on suspected failure.  This is a replication design that doesn't even fit cleanly into my link:blog/2024-data-replication-design-spectrum.html[Data Replication Design Spectrum] blog post.
+The quorum means that transient single node failures (either accidental network blips or intentional node upgrades) are handled seamlessly.  However, this isn't traditional majority quorums.  The Primary is an elected sole writer, which transforms majority quorums into something more consistent.  Page server quorums are also reconfigured on suspected failure.  This is a replication design that doesn't even fit cleanly into my link:/blog/2024-data-replication-design-spectrum.html[Data Replication Design Spectrum] blog post.
 
 Each log write contains its LSN, and also includes the last PSN sent to the storage group.  Not every write is a transaction commit.  There's a whole discussion of Storage Consistency Points in the second paper to dig into the exact relationships between the Volume Complete LSN and the Consistency Point LSN and the Segment Complete LSN and a Protection Group Complete LSN.  The overall point to get here is that trying to recover a consistent snapshot from a highly partitioned log is hard.
 
@@ -148,7 +148,7 @@ Are the caches actually local SSD or are they Azure Managed Disks?:: Consensus w
 
 == Alibaba
 
-As broad context, Alibaba is really about spending money on fancy hardware.  I had talked about this a bit in link:blog/2024-modern-database-hardware.html[Modern Database Hardware], but Alibaba's papers quickly illustrate that they're more than happy to sol seems to be more than happy to solve difficult software problems by spending significant stacks of money on very modern hardware.  Notably, Alibaba has RDMA deployed out internally, seemingly to the same extent that Microsoft does, except Microsoft seems to keep a fallback-to-TCP option for most of their stack, and Alibaba seems comfortable building services that critically depend on RDMA's primitives.
+As broad context, Alibaba is really about spending money on fancy hardware.  I had talked about this a bit in link:/blog/2024-modern-database-hardware.html[Modern Database Hardware], but Alibaba's papers quickly illustrate that they're more than happy to sol seems to be more than happy to solve difficult software problems by spending significant stacks of money on very modern hardware.  Notably, Alibaba has RDMA deployed out internally, seemingly to the same extent that Microsoft does, except Microsoft seems to keep a fallback-to-TCP option for most of their stack, and Alibaba seems comfortable building services that critically depend on RDMA's primitives.
 
 === PolarFS
 
