@@ -5,10 +5,11 @@
 
 This talk is an extension of my earlier link:/blog/2024-data-replication-design-spectrum.html[Data Replication Design Spectrum] blog post.  The blog post was the analysis of the various replication algorithms, which concludes with showing that Raft has no particular advantage along any easy analyze/theoretical dimension.  This builds on that argument to try and persuade you out of using Raft and to supply suggestions on how to work around the downsides of quorum-based or reconfiguration-based replication which makes people shy away from them.
 
-'''
+== Video
 
-[.display-none]
-== Slides
+Will be added once released.
+
+== Transcript
 
 ++++
 <style>
