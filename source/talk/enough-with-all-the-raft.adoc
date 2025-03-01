@@ -7,7 +7,11 @@ This talk is an extension of my earlier link:/blog/2024-data-replication-design-
 
 == Video
 
-Will be added once released.
+++++
+<div style="position: relative; padding-top: 56.25%;">
+<iframe allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen="true" loading="lazy" src="https://iframe.mediadelivery.net/embed/338510/2016d6c4-b08d-40b3-af2f-67926ca8521f?autoplay=false&chromecast=true" style="border: none;position: absolute;top: 0;height: 100%;width: 100%;"></iframe>
+</div>
+++++
 
 == Transcript
 
