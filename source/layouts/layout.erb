@@ -144,7 +144,7 @@ category_heading = if up_title.nil? || up_title == 'Blog' then '' else up_title 
         <span class="up"><%= link_to "↑ " + up_title + " ↑", page_up %></span>
         <span class="next"><%= if page_next then link_to (page_next.title + " ↦"), page_next end %></span>
       </div>
-      <% if current_page.data.category == 'blog' || !page_up.data.aggregate %>
+      <% if current_page.data.category == 'blog' || !page_up.data.aggregate || current_page.data.discu %>
       <% category_heading = if current_page.data.category != 'blog' then category_name[current_page.data.category] + ": " else "" end .titleize %>
       <p><a href="https://discu.eu/?q=<%= "https://transactional.blog" + current_page.url %>&submit_title=<%= category_heading + current_page.data.title %>">See discussion of this page on Reddit, HN, and lobsters.</a></p>
       <% end %>
