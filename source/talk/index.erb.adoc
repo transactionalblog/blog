@@ -1,7 +1,6 @@
 = Talks
 :revdate: 2025-02-27
 :page-layout: index
-:page-aggregate: true
 
 Transcriptions of talks I've given.
 
