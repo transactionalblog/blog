@@ -352,6 +352,11 @@ The evaluation section doesn't hold any major surprises.  They saw 19% higher sy
 // SIGMOD '23
 // https://dl.acm.org/doi/pdf/10.1145/3589785
 
+[.gray-bg]
+--
+bibitem:[PolarDBIMCI]
+--
+
 PolarDB-IMCI is PolarDB's solution to HTAP.  It takes until the third page to finally learn that IMCI stands for _in-memory column index_. The goal of PolarDB-IMCI is outlined as achieving good OLAP performance, without compromising OLTP performance, on fresh, realtime data.
 
 The in-memory column index is maintained on a set of read-only nodes separate from those executing OLTP workloads, so that OLAP and OLTP don't interfere.  Redo logs are used to apply updates to the columnar replicas, and PolarDB-IMCI introduces _commit-ahead log shipping_ (CALS) and _2-Phase conflict-free log replay_ (2P-COFFER) to minimize the staleness of the columnar replicas and efficiently parse changes.  The columnar index is maintained as append-only storage, making updates and lookups by RowID fast, but requires a second index (implemented as a two-layer LSM tree) for Primary Key to RowID mapping.  IMCI's checkpointing is integrated with the PolarDB storage engine, making it possible to spin up extra columnar replicas quickly.
