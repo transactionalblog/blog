@@ -348,6 +348,27 @@ PolarDB-X also powers an HTAP solution, where row-wise RW database nodes also as
 
 The evaluation section doesn't hold any major surprises.  They saw 19% higher sysbench throughput using HLCs rather than a timestamp oracle.  Scaling operations complete within 4-5 seconds, without major distruptions.  Having columnar data available improved the execution time of queries which highly benefit from columnstores.
 
+=== PolarDB-ICMI
+// SIGMOD '23
+// https://dl.acm.org/doi/pdf/10.1145/3589785
+
+PolarDB-IMCI is PolarDB's solution to HTAP.  It takes until the third page to finally learn that IMCI stands for _in-memory column index_. The goal of PolarDB-IMCI is outlined as achieving good OLAP performance, without compromising OLTP performance, on fresh, realtime data.
+
+The in-memory column index is maintained on a set of read-only nodes separate from those executing OLTP workloads, so that OLAP and OLTP don't interfere.  Redo logs are used to apply updates to the columnar replicas, and PolarDB-IMCI introduces _commit-ahead log shipping_ (CALS) and _2-Phase conflict-free log replay_ (2P-COFFER) to minimize the staleness of the columnar replicas and efficiently parse changes.  The columnar index is maintained as append-only storage, making updates and lookups by RowID fast, but requires a second index (implemented as a two-layer LSM tree) for Primary Key to RowID mapping.  IMCI's checkpointing is integrated with the PolarDB storage engine, making it possible to spin up extra columnar replicas quickly.
+
+.PolarDB-IMCI Architecture
+image::PolarDBIMCIArchitecture.png[embed=true,align=center]
+
+A columnar index is defined as part of the DDL, which allows a subset of the rows of a table to be held in the in-memory columnar index.  Tables are divided into chunks of 64K rows, and the indexed columns from these row groups are organized into a compressed _data pack_ along with some metadata.  The leftover rows form a partial data pack, which is left uncompressed due to the frequent udpates.  The pack's metadata offers zonemap-style metadata (min/max per column, sum, count, null, distinct) over the contained inserts. Deletes are treated as inserts of tombstones, which look up the RowID of the row being deleted by the Primary Key.  An update is a delete followed by an insert. Compression is the standard columnar compression (frame of reference/delta encoding) and not deflate/lzma sort of compression.
+
+Commit-ahead log shipping involves the Read-Write transaction node writing each DML statement out as a write-ahead log record once it has been executed.  The columnar Read-Only nodes eagerly fetch this log record, parse it as a DML statement, and store it in a per-transaction buffer.  Once the Read-Write node sends the final commit/abort decision, the Read-Only columnar nodes already have a buffer of logical operations to apply (if commit) or disacard (if abort).  Transactions which overflow their buffer are pre-committed, and the MVCC implementation is used to hide the written data from being visible.
+
+This work is all performed directly off of the redo write-ahead logs to avoid putting extra work on the read-write transactional node.  However, redo logs reflect physical page changes and lack database-level or table-level information, page changes involve B+-Tree splits/merges as well, and only the page delta is included rather than the full update. The Two-Phase Conflict-Free Parallel Replay is to address these limitations.  The first phase applies the redo logs onto an in-memory copy of the row-store to reconstruct the missing data and information.  The second phase replays the full DML onto the column index, while respecting the original order of statement execution according to the LSNs in the redo log.
+
+PolarDB-IMCI's proxy layer plans the query under a row-based cost model.  If the cost is low, it's forwarded to the transactional replicas.  If it's high, it's sent to a columnar replica, and re-planned to be column-oriented.  This re-planning starts with the row-wise plan as its base, re-runs join ordering with the new cost model, and converts expression execution to be its vectorized equivalents.  PolarDB-IMCI calculates table-wide statistics via random background sampling for use in accurate cardinality estimation in the optimizer.
+
+The evaluation section shows significant speedups of PolarDB-IMCI over row-wise PolarDB for OLAP workloads, as one would expect of an in-memory columnar index versus an on-disk b-tree.  They show performance that's on the same order as Clickhouse, and then demonstrate the minimal impact to OLTP performance and the resource elasticity for OLAP workloads they've enabled.
+
 == Huawei
 
 === TaurusDB ★
