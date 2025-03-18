@@ -1,0 +1,38 @@
+= Linux Filesystem Durability
+:revdate: 2025-03-18
+:draft: true
+:page-hook-preamble: false
+
+== Write-then-fsync 
+
+There's two ways to request data be made durable on disk:
+
+1. Write the data to the disk's volatile cache, and then send it a `FLUSH` command to force it to non-volatile storage.
+2. Write the data to disk with the Force Unit Access (FUA) bit set to force the data directly to non-volatile storage.
+
+If a filesystem does neither of these, then they are highly suspect as not supporting durability at all.
+
+:uri-blkdev-issue-flush: https://elixir.bootlin.com/linux/v6.14-rc6/source/block/blk-flush.c#L461
+:uri-generic-file-fsync: https://elixir.bootlin.com/linux/v6.14-rc6/source/fs/libfs.c#L1550
+:uri-generic-buffers-fsync: https://elixir.bootlin.com/linux/v6.14-rc6/source/fs/buffer.c#L623
+:uri-req-preflush: https://elixir.bootlin.com/linux/v6.14-rc6/source/include/linux/blk_types.h#L403
+:uri-req-fua: https://elixir.bootlin.com/linux/v6.14-rc6/source/include/linux/blk_types.h#L402
+
+From kernel filesystem code, there's some standard ways one can request a FLUSH to be issued:
+
+1. Call {uri-blkdev-issue-flush}[`blkdev_issue_flush`], which is the most "official" public API for this.
+2. Invoke {uri-generic-file-fsync}[`generic_file_fsync`], which is a small wrapper around `blkdev_issue_flush` in `libfs.c`, which is meant to be used from other filesystem code.
+3. Invoke {uri-generic-buffers-fsync}[`generic_buffers_fsync`], which is similar but only used by `ext` filesystems for some reason.
+4. Submit a block IO request with {uri-req-preflush}[`REQ_PREFLUSH`], which is what `blkdev_issue_flush` is doing internally.
+5. FUA-based durability requires submitting a block IO request with the {uri-req-fua}[`REQ_FUA`] bit set.
+
+Scraping Linux's fs/ directory for hits of these functions, we can construct the list of filesystems that do each of these:
+
+[horizontal]
+Call `blkdev_issue_flush`:: exfat, ext4, f2fs, fat, hfsplus, jbd2, nilfs2, ocfs2, xfs, zonefs
+Call `generic_file_fsync`:: adfs, bfs, exfat, fat, minix, ntfs3, omfs, qnx4, qnx6, sysv, udf, ufs
+Call `generic_buffers_fsync`:: ext2,ext4
+Use `REQ_PREFLUSH`:: bcachefs, btrfs, exfat, ext4, f2fs, gfs2, jbd2, nilfs2, xfs
+Use `REQ_FUA`:: bcachefs, btrfs, exfat, ext4, f2fs, gfs2, iomap, jbd2, nilfs2, xfs
+
+Which leaves us with a long list of subdirectories in `fs/` which don't superficially contain any way of invoking a FLUSH command: 9p, affs, afs, autofs, befs, cachefiles, ceph, coda, configfs, cramfs, crypto, debugfs, devpts, dlm, ecryptfs, efivarfs, efs, erofs, exportfs, ext2, freevxfs, fuse, hfs, hostfs, hpfs, hugetlbfs, isofs, jffs2, jfs, kernfs, lockd, netfs, nfs, nfsd, nls, openpromfs, orangefs, overlayfs, proc, pstore, quota, ramfs, romfs, smb, squashfs, sysfs, tests, tracefs, ubifs, unicode, vboxsf, verity.  For many of these, durability doesn't make sense anyway, like romfs being read-only, nfs being networked, sysfs being not even a filesystem, or ubifs having its own bespoke storage stack.  For some, it is suspicious.  Mostly the implementations of historic filesystems (Plan9, BeFS, EFS, HPFS, etc.) all lack real durability?
