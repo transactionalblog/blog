@@ -91,6 +91,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://firebolt.io/[Firebolt] (2019)
 * https://cheetahds.com/[CheetahDB] (2018)
 * https://duckdb.org/[DuckDB] (2018) -- github:duckdb/duckdb[]
+* https://brimdata.io/[BrimData] (2018) -- github:brimdata/super[]
 * https://starburst.io/[Starburst] (2017)
 ** Developers of Trino, which forked in 2019 from PrestoDB, itself released 2013.
 * https://hashdata.xyz/[HashData] (2016)
