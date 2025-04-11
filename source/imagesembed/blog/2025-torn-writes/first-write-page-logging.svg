@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 500">
+  <!-- WAL section (on left) -->
+  <rect x="50" y="20" width="300" height="460" fill="#f6ffed" stroke="#52c41a" stroke-width="2" rx="10" />
+  <text x="200" y="50" font-family="Arial" font-size="20" text-anchor="middle" font-weight="bold">Write-Ahead Log</text>
+  
+  <!-- B-tree section (on right) -->
+  <rect x="400" y="20" width="300" height="460" fill="#e6f7ff" stroke="#1890ff" stroke-width="2" rx="10" />
+  <text x="550" y="50" font-family="Arial" font-size="20" text-anchor="middle" font-weight="bold">B-Tree</text>
+  
+  <!-- Initial Write Section -->
+  <line x1="50" y1="80" x2="700" y2="80" stroke="#999" stroke-width="1" stroke-dasharray="5,5" />
+  <text x="100" y="100" font-family="Arial" font-size="16" font-weight="bold">Initial Write:</text>
+  
+  <!-- Full Page V2 in WAL (initial write) -->
+  <rect x="100" y="120" width="200" height="80" fill="#b7eb8f" stroke="#52c41a" stroke-width="2" rx="5" />
+  <text x="200" y="145" font-family="Arial" font-size="16" text-anchor="middle">Page V2 (Full Content)</text>
+  <text x="200" y="165" font-family="Arial" font-size="14" text-anchor="middle">Log Sequence Number: 200</text>
+  <text x="200" y="185" font-family="Arial" font-size="12" text-anchor="middle" font-style="italic">Full page logged</text>
+  
+  <!-- Page V1 (original) in B-tree -->
+  <rect x="450" y="120" width="200" height="80" fill="#91caff" stroke="#1890ff" stroke-width="2" rx="5" />
+  <text x="550" y="145" font-family="Arial" font-size="16" text-anchor="middle">Page V1 (original)</text>
+  <text x="550" y="165" font-family="Arial" font-size="14" text-anchor="middle">Log Sequence Number: 100</text>
+  <text x="550" y="185" font-family="Arial" font-size="12" text-anchor="middle">Initial version</text>
+  
+  <!-- Page V1 (to be replaced) in B-tree -->
+  <rect x="450" y="120" width="200" height="80" fill="#91caff" stroke="#1890ff" stroke-width="2" rx="5" opacity="0.3" />
+  
+  <!-- Page V2 in B-tree after replacement -->
+  <rect x="450" y="220" width="200" height="80" fill="#b7eb8f" stroke="#52c41a" stroke-width="2" rx="5" />
+  <text x="550" y="245" font-family="Arial" font-size="16" text-anchor="middle">Page V2</text>
+  <text x="550" y="265" font-family="Arial" font-size="14" text-anchor="middle">Log Sequence Number: 200</text>
+  <text x="550" y="285" font-family="Arial" font-size="12" text-anchor="middle" font-style="italic">After update</text>
+  
+  <!-- Initial arrow -->
+  <path d="M 300 160 L 380 160 L 380 230 L 430 230" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="360" y="145" font-family="Arial" font-size="14" text-anchor="middle">1. Log Full Page</text>
+  
+  <!-- Subsequent Write Section -->
+  <line x1="50" y1="320" x2="700" y2="320" stroke="#999" stroke-width="1" stroke-dasharray="5,5" />
+  <text x="100" y="340" font-family="Arial" font-size="16" font-weight="bold">Subsequent Write:</text>
+  
+  <!-- Delta update in WAL - now for Page V3 -->
+  <rect x="100" y="360" width="200" height="80" fill="#ffe58f" stroke="#fa8c16" stroke-width="2" rx="5" />
+  <text x="200" y="385" font-family="Arial" font-size="16" text-anchor="middle">Delta Update for Page V3</text>
+  <text x="200" y="405" font-family="Arial" font-size="14" text-anchor="middle">Log Sequence Number: 300</text>
+  <text x="200" y="425" font-family="Arial" font-size="12" text-anchor="middle" font-style="italic">Insert new tuple</text>
+  
+  <!-- Page V3 in B-tree after delta (was Page V2') -->
+  <rect x="450" y="360" width="200" height="80" fill="#ffe58f" stroke="#fa8c16" stroke-width="2" rx="5" />
+  <text x="550" y="385" font-family="Arial" font-size="16" text-anchor="middle">Page V3</text>
+  <text x="550" y="405" font-family="Arial" font-size="14" text-anchor="middle">Log Sequence Number: 300</text>
+  <text x="550" y="425" font-family="Arial" font-size="12" text-anchor="middle" font-style="italic">After delta update</text>
+  
+  <!-- Delta arrow -->
+  <path d="M 300 400 L 380 400 L 430 400" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="360" y="385" font-family="Arial" font-size="14" text-anchor="middle">2. Log Delta Only</text>
+  
+  <!-- Arrowhead marker -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+    </marker>
+  </defs>
+</svg>

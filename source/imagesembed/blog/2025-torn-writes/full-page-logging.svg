@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 340">
+  <!-- WAL section (now on left) -->
+  <rect x="50" y="20" width="300" height="300" fill="#f6ffed" stroke="#52c41a" stroke-width="2" rx="10" />
+  <text x="200" y="50" font-family="Arial" font-size="20" text-anchor="middle" font-weight="bold">Write-Ahead Log</text>
+  
+  <!-- B-tree section (now on right) -->
+  <rect x="400" y="20" width="300" height="300" fill="#e6f7ff" stroke="#1890ff" stroke-width="2" rx="10" />
+  <text x="550" y="50" font-family="Arial" font-size="20" text-anchor="middle" font-weight="bold">B-Tree</text>
+  
+  <!-- Page V2 in WAL (now on left) -->
+  <rect x="100" y="90" width="200" height="80" fill="#b7eb8f" stroke="#52c41a" stroke-width="2" rx="5" />
+  <text x="200" y="120" font-family="Arial" font-size="16" text-anchor="middle">Page V2 (New Data)</text>
+  <text x="200" y="140" font-family="Arial" font-size="14" text-anchor="middle">Log Sequence Number: 200</text>
+  <text x="200" y="160" font-family="Arial" font-size="12" text-anchor="middle" font-style="italic">Safely written to log first</text>
+  
+  <!-- Page V1 (original) in B-tree (now on right) -->
+  <rect x="450" y="90" width="200" height="80" fill="#91caff" stroke="#1890ff" stroke-width="2" rx="5" />
+  <text x="550" y="135" font-family="Arial" font-size="16" text-anchor="middle">Page V1 (original)</text>
+  
+  <!-- Page V1 (to be replaced) in B-tree (now on right) -->
+  <rect x="450" y="90" width="200" height="80" fill="#91caff" stroke="#1890ff" stroke-width="2" rx="5" opacity="0.3" />
+  
+  <!-- Page V2 in B-tree after replacement (now on right) -->
+  <rect x="450" y="190" width="200" height="80" fill="#b7eb8f" stroke="#52c41a" stroke-width="2" rx="5" />
+  <text x="550" y="220" font-family="Arial" font-size="16" text-anchor="middle">Page V2 (New Data)</text>
+  <text x="550" y="240" font-family="Arial" font-size="14" text-anchor="middle">Log Sequence Number: 200</text>
+  <text x="550" y="260" font-family="Arial" font-size="12" text-anchor="middle" font-style="italic">Recovery can redo write from log</text>
+  
+  <!-- Arrows and process flow (direction reversed) -->
+  <!-- Arrow 1: WAL write -->
+  <path d="M 300 130 L 380 130 L 380 200 L 430 200" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="350" y="115" font-family="Arial" font-size="14" text-anchor="middle">1. Log First</text>
+  
+  <!-- Arrow 2: B-tree update -->
+  <path d="M 550 180 L 550 190" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="620" y="190" font-family="Arial" font-size="14" text-anchor="middle">2. Update B-tree</text>
+  
+  <!-- Arrowhead marker -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+    </marker>
+  </defs>
+</svg>

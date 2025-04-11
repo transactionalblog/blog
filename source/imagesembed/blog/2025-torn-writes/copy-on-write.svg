@@ -1,0 +1,59 @@
+<svg width="550" height="280" xmlns="http://www.w3.org/2000/svg">
+
+  <defs>
+    <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5"
+        markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333" />
+    </marker>
+     <marker id="writearrowhead" viewBox="0 0 10 10" refX="5" refY="5"
+        markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d9534f" />
+    </marker>
+  </defs>
+
+  <!-- Column 1: Initial State -->
+  <g id="initial-state">
+    <!-- Root V1 -->
+    <rect x="50" y="40" width="90" height="50" rx="5" fill="#91caff" stroke="#1890ff" stroke-width="1.5"/>
+    <text x="95" y="70" font-family="sans-serif" font-size="14px" text-anchor="middle" fill="#333">Root V1</text>
+
+    <!-- Page V1 -->
+    <rect x="50" y="150" width="90" height="50" rx="5" fill="#91caff" stroke="#1890ff" stroke-width="1.5"/>
+    <text x="95" y="180" font-family="sans-serif" font-size="14px" text-anchor="middle" fill="#333">Page V1</text>
+
+    <!-- Pointer: Root V1 -> Page V1 -->
+    <line x1="95" y1="90" x2="95" y2="150" stroke="#333" stroke-width="1.5" marker-end="url(#arrowhead)" />
+  </g>
+
+  <!-- Column 2: Write Page V2 (Grayed out) -->
+  <g id="write-page-v2-placeholder" opacity="0.5">
+    <!-- Page V2 (placeholder) -->
+    <rect x="230" y="150" width="90" height="50" rx="5" fill="#b7eb8f" stroke="#52c41a" stroke-width="1.5"/>
+    <text x="275" y="180" font-family="sans-serif" font-size="14px" text-anchor="middle" fill="#333">Page V2</text>
+  </g>
+
+  <!-- Column 3: Final State -->
+  <g id="final-state">
+      <!-- Root V2 -->
+    <rect x="410" y="40" width="90" height="50" rx="5" fill="#b7eb8f" stroke="#52c41a" stroke-width="1.5"/>
+    <text x="455" y="70" font-family="sans-serif" font-size="14px" text-anchor="middle" fill="#333">Root V2</text>
+
+      <!-- Page V2 (Final) -->
+    <rect x="410" y="150" width="90" height="50" rx="5" fill="#b7eb8f" stroke="#52c41a" stroke-width="1.5"/>
+    <text x="455" y="180" font-family="sans-serif" font-size="14px" text-anchor="middle" fill="#333">Page V2</text>
+
+     <!-- Pointer: Root V2 -> Page V2 -->
+    <line x1="455" y1="90" x2="455" y2="150" stroke="#333" stroke-width="1.5" marker-end="url(#arrowhead)" />
+  </g>
+
+  <!-- Write Order Arrows -->
+  <!-- Arrow 1: Page V1 -> Page V2 (Indicates V2 written based on V1, pointing to placeholder) -->
+   <path d="M 145 175 Q 190 210 225 175" stroke="#d9534f" stroke-width="2" fill="none" marker-end="url(#writearrowhead)" stroke-dasharray="4 2"/>
+   <text x="185" y="225" font-family="sans-serif" font-size="12px" text-anchor="middle" fill="#d9534f">1. Write New Page</text>
+
+  <!-- Arrow 2: Page V2 (placeholder) -> Root V2 (Indicates Root V2 written after Page V2) -->
+  <path d="M 325 175 Q 370 130 405 65" stroke="#d9534f" stroke-width="2" fill="none" marker-end="url(#writearrowhead)" stroke-dasharray="4 2"/>
+  <text x="365" y="125" font-family="sans-serif" font-size="12px" text-anchor="middle" fill="#d9534f">2. Update Root</text>
+
+</svg>
+

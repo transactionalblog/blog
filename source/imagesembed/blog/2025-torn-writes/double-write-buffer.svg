@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400">
+  <!-- Column 1: Write-Ahead Log -->
+  <rect x="50" y="50" width="200" height="300" fill="#f6ffed" stroke="#52c41a" stroke-width="2" rx="5" ry="5"/>
+  <text x="150" y="80" text-anchor="middle" font-family="Arial" font-size="16" font-weight="bold">Write-Ahead Log</text>
+  
+  <!-- Log entry -->
+  <rect x="70" y="140" width="160" height="60" fill="#b7eb8f" stroke="#52c41a" stroke-width="2"/>
+  <text x="150" y="160" text-anchor="middle" font-family="Arial" font-size="12">Page V2 (New Data)</text>
+  <text x="150" y="185" text-anchor="middle" font-family="Arial" font-size="12">Log Sequence Number: 200</text>
+  
+  <!-- Column 2: Double-Write Buffer -->
+  <rect x="300" y="50" width="200" height="300" fill="#ffe58f" stroke="#fa8c16" stroke-width="2" rx="5" ry="5"/>
+  <text x="400" y="80" text-anchor="middle" font-family="Arial" font-size="16" font-weight="bold">Double-Write Buffer</text>
+  
+  <!-- During write -->
+  <rect x="320" y="170" width="160" height="60" fill="#b7eb8f" stroke="#52c41a" stroke-width="2"/>
+  <text x="400" y="195" text-anchor="middle" font-family="Arial" font-size="12">Page V2</text>
+  <text x="400" y="215" text-anchor="middle" font-family="Arial" font-size="12">(Updated Version of Page V1)</text>
+  
+  <!-- Column 3: B-Tree -->
+  <rect x="550" y="50" width="200" height="300" fill="#e6f7ff" stroke="#1890ff" stroke-width="2" rx="5" ry="5"/>
+  <text x="650" y="80" text-anchor="middle" font-family="Arial" font-size="16" font-weight="bold">B-Tree</text>
+  
+  <!-- Original Page V1 -->
+  <rect x="570" y="170" width="160" height="40" fill="#91caff" stroke="#1890ff" stroke-width="2"/>
+  <text x="650" y="195" text-anchor="middle" font-family="Arial" font-size="12">Page V1 (Original)</text>
+  
+  <!-- Updated Page (now Page V2) -->
+  <rect x="570" y="230" width="160" height="40" fill="#b7eb8f" stroke="#52c41a" stroke-width="2"/>
+  <text x="650" y="255" text-anchor="middle" font-family="Arial" font-size="12">Page V2 (Replaces Page V1)</text>
+  
+  <!-- Arrows -->
+  <!-- WAL to Double-Write Buffer -->
+  <path d="M 230 170 L 320 210" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Double-Write Buffer to B-Tree -->
+  <path d="M 480 210 L 570 250" fill="none" stroke="#333" stroke-width="2" marker-end="url(#arrowhead)"/>
+  
+  <!-- Arrow Marker -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+    </marker>
+  </defs>
+</svg>

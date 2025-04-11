@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 280">
+  <!-- Original Page (Before) -->
+  <rect x="20" y="40" width="240" height="220" fill="#d1e7dd" stroke="#0d6efd" stroke-width="2" rx="5" ry="5" />
+  <text x="140" y="30" font-family="Arial" font-size="18" text-anchor="middle" font-weight="bold">Page (Before)</text>
+  
+  <!-- Sectors in Page A -->
+  <g>
+    <rect x="30" y="50" width="220" height="20" fill="#adb5bd" stroke="#495057" stroke-width="1" />
+    <text x="140" y="65" font-family="Arial" font-size="12" text-anchor="middle">Sector 1 (512 bytes)</text>
+    
+    <rect x="30" y="75" width="220" height="20" fill="#adb5bd" stroke="#495057" stroke-width="1" />
+    <text x="140" y="90" font-family="Arial" font-size="12" text-anchor="middle">Sector 2 (512 bytes)</text>
+    
+    <rect x="30" y="100" width="220" height="20" fill="#adb5bd" stroke="#495057" stroke-width="1" />
+    <text x="140" y="115" font-family="Arial" font-size="12" text-anchor="middle">Sector 3 (512 bytes)</text>
+    
+    <rect x="30" y="125" width="220" height="20" fill="#adb5bd" stroke="#495057" stroke-width="1" />
+    <text x="140" y="140" font-family="Arial" font-size="12" text-anchor="middle">Sector 4 (512 bytes)</text>
+    
+    <rect x="30" y="150" width="220" height="20" fill="#adb5bd" stroke="#495057" stroke-width="1" />
+    <text x="140" y="165" font-family="Arial" font-size="12" text-anchor="middle">Sector 5 (512 bytes)</text>
+    
+    <rect x="30" y="175" width="220" height="20" fill="#adb5bd" stroke="#495057" stroke-width="1" />
+    <text x="140" y="190" font-family="Arial" font-size="12" text-anchor="middle">Sector 6 (512 bytes)</text>
+    
+    <rect x="30" y="200" width="220" height="20" fill="#adb5bd" stroke="#495057" stroke-width="1" />
+    <text x="140" y="215" font-family="Arial" font-size="12" text-anchor="middle">Sector 7 (512 bytes)</text>
+    
+    <rect x="30" y="225" width="220" height="20" fill="#adb5bd" stroke="#495057" stroke-width="1" />
+    <text x="140" y="240" font-family="Arial" font-size="12" text-anchor="middle">Sector 8 (512 bytes)</text>
+  </g>
+  
+  <!-- Destination Page (After) -->
+  <rect x="380" y="40" width="240" height="220" fill="#f8d7da" stroke="#dc3545" stroke-width="2" rx="5" ry="5" />
+  <text x="500" y="30" font-family="Arial" font-size="18" text-anchor="middle" font-weight="bold">Page (After)</text>
+  
+  <!-- Sectors in Page B -->
+  <g>
+    <rect x="390" y="50" width="220" height="20" fill="#0d6efd" stroke="#495057" stroke-width="1" />
+    <text x="500" y="65" font-family="Arial" font-size="12" text-anchor="middle" fill="white">Sector 1 (512 bytes) - Updated</text>
+    
+    <rect x="390" y="75" width="220" height="20" fill="#0d6efd" stroke="#495057" stroke-width="1" />
+    <text x="500" y="90" font-family="Arial" font-size="12" text-anchor="middle" fill="white">Sector 2 (512 bytes) - Updated</text>
+    
+    <rect x="390" y="100" width="220" height="20" fill="#0d6efd" stroke="#495057" stroke-width="1" />
+    <text x="500" y="115" font-family="Arial" font-size="12" text-anchor="middle" fill="white">Sector 3 (512 bytes) - Updated</text>
+    
+    <rect x="390" y="125" width="220" height="20" fill="#0d6efd" stroke="#495057" stroke-width="1" />
+    <text x="500" y="140" font-family="Arial" font-size="12" text-anchor="middle" fill="white">Sector 4 (512 bytes) - Updated</text>
+    
+    <rect x="390" y="150" width="220" height="20" fill="#adb5bd" stroke="#495057" stroke-width="1" />
+    <text x="500" y="165" font-family="Arial" font-size="12" text-anchor="middle">Sector 5 (512 bytes) - Not Updated</text>
+    
+    <rect x="390" y="175" width="220" height="20" fill="#adb5bd" stroke="#495057" stroke-width="1" />
+    <text x="500" y="190" font-family="Arial" font-size="12" text-anchor="middle">Sector 6 (512 bytes) - Not Updated</text>
+    
+    <rect x="390" y="200" width="220" height="20" fill="#adb5bd" stroke="#495057" stroke-width="1" />
+    <text x="500" y="215" font-family="Arial" font-size="12" text-anchor="middle">Sector 7 (512 bytes) - Not Updated</text>
+    
+    <rect x="390" y="225" width="220" height="20" fill="#adb5bd" stroke="#495057" stroke-width="1" />
+    <text x="500" y="240" font-family="Arial" font-size="12" text-anchor="middle">Sector 8 (512 bytes) - Not Updated</text>
+  </g>
+  
+  <!-- Write operation arrow -->
+  <path d="M 260 140 L 380 140" stroke="#000000" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#000000" />
+    </marker>
+  </defs>
+  <text x="320" y="130" font-family="Arial" font-size="16" text-anchor="middle">Write Operation</text>
+  
+  <!-- Power failure lightning bolt -->
+  <path d="M 320 120 L 335 90 L 325 85 L 345 45 L 350 50 L 335 90 L 345 95 Z" fill="#ffc107" stroke="#000000" stroke-width="1" />
+  <text x="320" y="35" font-family="Arial" font-size="14" text-anchor="middle" fill="#dc3545" font-weight="bold">Power Failure!</text>
+</svg>

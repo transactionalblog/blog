@@ -1,0 +1,298 @@
+= Torn Write Detection and Protection
+:revdate: 2025-04-11
+:draft: true
+:toc: right
+:page-hook-preamble: false
+:page-aside: With credit to Phil Eaton for some of the sources and links, Tanel Poder for Oracle's torn write detection mechanism and the pointer to AlloyDB Omni's use of RWF_ATOMIC, and Claude for generating reasonable SVG diagrams with minimal effort.
+
+Disks have a unit of data at which they promise atomicity: the sector.  Historically, this was 512 bytes. Disks also accept write requests for multiple contiguous sectors at a time.  In the event of a power failure, this can lead to only a subset of the sectors being written: a _torn write_. Databases operate on 4KB or larger pages, and the thus are vulnerable to torn writes.  A database page affected by a torn write is called a _torn page_.  Various databases have different opinions and strategies on detecting torn pages during recovery, and how to restore the page to a correct, full page image.
+
+image::torn-write-example.svg[inline=true]
+
+For more explanation of what a torn write or torn page is, see content elsewhere such as
+https://www.joshodgers.com/tag/torn-write/[blog posts],
+https://learn.microsoft.com/en-us/troubleshoot/sql/database-engine/database-file-operations/logging-data-storage-algorithms#torn-page-detection[product documentation],
+https://www.youtube.com/watch?v=OtxCzIHOMk4[videos],
+or chat with your favorite LLM offering.
+
+////
+Using the color scheme of:
+
+* Write ahead log background fill="#f6ffed" stroke="#52c41a"
+* B-Tree background fill="#e6f7ff" stroke="#1890ff"
+* Page A background fill="#91caff" stroke="#1890ff"
+* Page B background fill="#b7eb8f" stroke="#52c41a"
+* Page C background fill="#ffe58f" stroke="#fa8c16"
+
+Describe the write-ahead log using the title "Write-Ahead Log".
+Describe the double-write buffer using the title "Double-Write Buffer".
+Describe the B-Tree using the title "B-Tree".
+
+Do not include a title for the diagram, nor a summary at the bottom.
+Do not set a background for the diagram as a whole.
+
+////
+
+== Detection Only
+
+Identifying that a page is invalid because it had been subject to a torn write can be done in cheaper ways than treating it as a corruption caught by checksums.  One can include in written sectors a counter, which is required to be incremented by any amount on each write. If a page is read, and the counters don't match, then a torn page has been identified, and the page should be treated as corrupt or invalid.
+
+image::torn-write-detection.svg[inline=true,align=center]
+
+////
+Make an SVG diagram showing torn write detection, via having a small counter at the beginning of every sector in a page write.  Show a page on the left being updated into a page on the right, where the page on the left is broken into 8 sectors, each of which starts with a small counter.  The page on the right should show the first half of the sectors as updated, and the second half as the same as before.  Put both pages within a B-Tree box.
+
+Use the color scheme of:
+
+* B-Tree background fill="#e6f7ff" stroke="#1890ff"
+* Page (Before) background fill="#91caff" stroke="#1890ff"
+* Page (After) background fill="#b7eb8f" stroke="#52c41a"
+
+Describe the B-Tree using the title "B-Tree".
+
+Do not include a title for the diagram, nor a summary at the bottom.
+Do not set a background for the diagram as a whole.
+////
+
+
+:uri-sqlserver-page-size: https://learn.microsoft.com/en-us/sql/relational-databases/pages-and-extents-architecture-guide?view=sql-server-ver16#pages
+:uri-sqlserver-torn-page-detection: https://learn.microsoft.com/en-us/troubleshoot/sql/database-engine/database-file-operations/logging-data-storage-algorithms#torn-page-detection
+:uri-sqlserver-suspect-pages: https://learn.microsoft.com/en-us/sql/relational-databases/system-tables/suspect-pages-transact-sql?view=sql-server-ver16
+:uri-sqlserver-page-restore: https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/restore-pages-sql-server?view=sql-server-ver16
+
+SQL Server has an {uri-sqlserver-page-size}[8KB page size], making it vulnerable to torn writes even with 4KB sectors.  {uri-sqlserver-torn-page-detection}[Torn page detection] is a feature that can be enabled or disabled in SQL Server, which takes the first two bits of each sector, concatenates them into one 32bit value, and stores it in the page header.  The first two bits are then replaced with a 2-bit counter that is incremented on each page write. Torn pages have counter values which don't match across sectors. Pages that have failed the torn page detection check are logged in a {uri-sqlserver-suspect-pages}[suspect pages table], and {uri-sqlserver-page-restore}[page restore] seems to be the most recommended solution for repairing the pages.  Torn page detection has been largely superseded by page-level checksums (`PAGE_VERIFY=CHECKSUM`), which is also a valid way to view torn pages: it's just another type of potential data corruption.
+
+:uri-oracle-bbed: https://www.orafaq.com/papers/dissassembling_the_data_block.pdf
+:uri-oracle-dbms-repair: https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/repairing-corrupted-data.html
+:uri-oracle-rman: https://docs.oracle.com/en/database/oracle/oracle-database/19/bradv/rman-block-media-recovery.html
+:uri-oracle-db-block-checksum: https://docs.oracle.com/en/database/oracle/oracle-database/23/refrn/DB_BLOCK_CHECKSUM.html
+:uri-lmdb-sector-order: https://www.openldap.org/lists/openldap-devel/201410/msg00004.html
+:uri-lmdb-sector-fsync: https://lists.openldap.org/hyperkitty/list/openldap-devel@openldap.org/thread/YUUKXVYXA347IWW3UKRS6NJHBU4FEE6M/
+
+Oracle has an 8KB page size as well. The structure of data pages was only published as part of the {uri-oracle-bbed}[Block Browser and Editor documentation].  Oracle RDBMS can detect torn writes by comparing the System Change Number in the header of a page with a copy of it stored in the tail of the page.{nospace}sidenote:ref[]  (See pages 10-12 of the linked PDF.) After a torn page is detected, an administrator must perform _media recovery_ using {uri-oracle-dbms-repair}[DBMS_REPAIR] or {uri-oracle-rman}[RMAN] to fix the corrupt blocks. {uri-oracle-db-block-checksum}[`DB_BLOCK_CHECKSUM=TYPICAL`] will cause torn pages to be detected as checksum failures, but the head and tail SCNs can still catch torn pages even with the checksumming disabled.
+[.aside]#sidenote:def[]Note that this assumes that sectors will be written and persisted by the firmware sequentially, in order, and that's not actually a promised property.  Howard Chu, of LMDB fame, has made a couple arguments {uri-lmdb-sector-order}[[1\]] {uri-lmdb-sector-fsync}[[2\]] over time that relying on such behavior is safe in practice.#
+
+:uri-ssd-power-fault: https://6826.csail.mit.edu/2017/papers/fast13-final80.pdf
+
+There exists an argument that enterprise SSDs which include supercapacitors for power-loss safety, the same ones that are well discussed for allowing `fsync()` to complete asynchronously, are also immune from torn writes.  The ATA/SATA/SCSI/NVME protocols themselves allow write commands to span multiple logical blocks, so a multi-block write command is either received or not. Even in the event of a power loss, the drive is expected to have enough power left to flush its volatile cache, and the argument is that includes finishing any in-flight requests. The lack of the Force Unit Access flag on those writes means there's no explicit contract that they must have been fully persisted. This argument assumes perfectly working firmware, which is not a generally recommended assumption.{nospace}sidenote:ref[] However, in such real world situations, torn writes leading to torn pages have been sufficiently uncommon in practice that widely deployed databases like Oracle and SQL Server have managed to get away with no automatic mitigation for torn pages.
+[.aside]#sidenote:def[] I'm in the process of working through SSD failure analysis papers, but {uri-ssd-power-fault}[Understanding the Robustness of SSDs under Power Fault] includes testing of a 2009 SSD with capacitors that exhibited torn writes under power failure. I'll update this once I've concluded my paper series reading.#
+
+== Sector-Sized Pages
+
+:uri-nvme-nvm-spec: https://nvmexpress.org/wp-content/uploads/NVMe-NVM-Command-Set-Specification-1.0a-2021.07.26-Ratified.pdf
+:uri-4kb-lba: https://www.bjonnh.net/article/20210721_nvme4k/
+
+Relying on the storage specification requiring drives to provide sector atomicity is the only "free" torn page protection strategy that exists.  Storage device specifications require disks to make writes of an individual sector atomic.  If the sector size of the disk and the database page size match, then torn writes become impossible!  Historically, this would have meant a 512 byte page size, which is small enough to not be a reasonable database page size.
+
+These days, some NVMe SSDs do natively support a 4096 byte physical sector size{nospace}sidenote:ref[], even among those made for the consumer market. SSDs with Phison controllers are highly likely to support 4096 byte logical block addressing, Western Digital and SanDisk are likely to have support, and some SK Hynix and Kingston drives do as well.  However, cloud support for this is questionable, as AWS's i4i line was confirmed to not support 4096 byte logical blocks.{nospace}sidenote:ref[] One may check NVMe drives' support by using `nvme-cli id-ns` and change it using `nvme-cli format` {uri-4kb-lba}[as described elsewhere].
+[.aside]#sidenote:def[] And I'd love to hear reports on if other instance types or other cloud vendors' instances do or don't support 4096 byte sectors.#
+[.aside]#sidenote:def[] Note that the {uri-nvme-nvm-spec}[NVMe NVM Command Set Specification]'s 2.1.4 Atomic Operation specifies that Atomic Write Unit Power Fail is defined in terms of the number of logical blocks, so configuring a 4KB logical block side does require 4KB writes to be atomic as per the NVMe spec.#
+ 
+:uri-aws-torn-write-prevention: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/storage-twp.html
+:uri-gcp-torn-write-prevention: https://price2meet.com/gcp/docs/compute_docs_tutorials_16kb-mysql-best-practices.pdf
+:uri-alicloud-torn-write: https://www.alibabacloud.com/help/en/rds/apsaradb-rds-for-mysql/optimized-write
+
+The story in the cloud is a bit better when using the persistent disk offerings.  AWS advertises {uri-aws-torn-write-prevention}[torn write prevention] which permits configuring EBS volumes to support database page sized atomic writes.  GCP had {uri-gcp-torn-write-prevention}[experimented with similar support], which they've since retracted from their own docs. Alibaba appears to include it as a {uri-alicloud-torn-write}[write optimization feature] as part of their AsparaDB RDS for MySQL offering.  As IOPS and throughput are limited on cloud persistent disks, it's a good feature to take advantage of if it's available.
+
+== Log Full Pages
+
+A simple way to be able to fix torn pages is to write the entire updated page into the write-ahead log, for each page that is updated.  If a failure causes a torn write, the recovery process will re-apply the pages from the WAL to the B-Tree, thus fixing the torn page.
+
+image::full-page-logging.svg[inline=true,align=center]
+
+The downsides to this simplicity are notable. This incurs a 2x write amplification, as every page is now being written twice. Space amplification is significant, as now the entire page is being written instead of just the tuple modification. But, simplicity is often a worthwhile benefit.
+
+:uri-sqlite-wal: https://sqlite.org/wal.html
+
+SQLite follows this approach to torn page protection. In {uri-sqlite-wal}[WAL mode], updates to pages cause the full page to be placed into the WAL.  During a checkpoint, perfomed at COMMIT or after 1000 pages are written, all pages are applied from the WAL back to the B-Tree.  Checkpointing can thus only be done when there are no open transactions, and long-running write transactions can cause the WAL to grow significantly.
+
+== Log Page on First Write
+
+Rather than placing the entire page into the log on every write, one can place a copy of a page into the WAL before it is first modified.  Then, if a torn write later causes a torn page, the older version of the page can be fetched from the WAL and all deltas applied to produce the correct page contents.
+
+image::first-write-page-logging.svg[inline=true,align=center]
+
+:uri-postgres-full-page-writes: https://wiki.postgresql.org/wiki/Full_page_writes
+:uri-reading-is-writing: https://blog.danslimmon.com/2025/03/14/did-u-ever-read-so-hard-u-accidentally-wrote/
+:uri-edb-full-page-writes: https://www.enterprisedb.com/blog/impact-full-page-writes
+:uri-aws-full-page-writes: https://www.slideshare.net/slideshow/full-page-writes-in-postgresql-pgconfeu-2022/253854027
+
+Copying the page to the WAL only once per checkpoint lowers the expected costs drastically. The normal state will trend towards ~1x write amplification, and most of the WAL can remain descriptions of page changes rather than full page images which helps space amplification.
+
+Postgres utilizes this torn write protection technique, which it calls {uri-postgres-full-page-writes}[full page writes]. The impact of `full_page_writes` has been studied in detail across blog posts such as {uri-edb-full-page-writes}[On the impact of full page writes] or talks like {uri-aws-full-page-writes}[Full page Writes in PostgreSQL]. For a tale of an interaction with full page writes causing issues, see {uri-reading-is-writing}[did u ever read so hard u accidentally wrote?]
+
+== Double-Write Buffer
+
+Rather than relying on the write-ahead log, it's possible to move the torn write protection responsibility entirely to the B-Tree.  By first writing all b-tree pages to a dedicated scratch space, one can ensure that any torn page has a full and correct copy of the page in the scratch space to recover from instead.  The cost of this is that one needs to write every B-Tree page twice, and fsync the double-write buffer before writing to the btree.
+
+image::double-write-buffer.svg[inline=true,align=center]
+
+:uri-mysql-double-write-buffer: https://dev.mysql.com/doc/refman/5.7/en/innodb-doublewrite-buffer.html
+:uri-percona-benchmark: https://www.percona.com/blog/improve-innodb-performance-write-bound-loads/
+:uri-mysql-wl: https://dev.mysql.com/worklog/task/?id=5655
+:uri-mysql-bug: https://bugs.mysql.com/bug.php?id=81376
+:uri-mysql-new-dbw: http://dimitrik.free.fr/blog/posts/mysql-80-perf-new-dblwr.html
+
+MySQL's InnoDB is the most well known user of the {uri-mysql-double-write-buffer}[double write buffer] strategy, and the only user (including its XtraDB fork). Utilizing a double write buffer has the advantage of not blocking commits on writing full page images into the WAL.  It maintains the notable downside of 2x the write latency and 2x write amplification.
+
+I've had a few conversations with Sunny Bains, who worked on InnoDB including the double write buffer implementation, and so to forward on some wisdom on the subject:
+
+* When looking at {uri-mysql-double-write-buffer}[benchmarks implying the double-write buffer is a significant slowdown], be aware that the double-write buffer was a source of mutex contention under high write throughput. This was addressed in MySQL 8.0 by {uri-mysql-wl}[WL#5655] and see bug tracker discussion like {uri-myql-bug}[Bug #81376]. {uri-mysql-new-dbw}[The New InnoDB Double Write Buffer in Action] shows the impact of the improvement.
+* The last time the double-write buffer code was being overhauled, Intel Optane was coming out and it was thought that one would be able to place the double-write buffer on a separate Optane drive, thus utilizing its infinite IOPS and fast fsync()s to minimize the overhead of the double-write buffer. Instead, Intel killed Optane and running MySQL on EBS became popular, where IOPS on EBS are instead highly constrained.
+
+== Copy on Write
+
+////
+Create an SVG diagram showing Copy on Write being used as a way to avoid torn pages on failure.  It should show an initial B-Tree page of Page V1 and a Root V1 pointing to it in a leftmost column, and then Page V2 being written as the middle column, and then Root V2 being written in the rightmost column.  Connect Page V1 and Page V2 with an arrow, and Page V2 and Root V2 with an arrow to show the write order.
+
+Use the color scheme of:
+
+* B-Tree background fill="#e6f7ff" stroke="#1890ff"
+* Page V1 background fill="#91caff" stroke="#1890ff"
+* Page V2 background fill="#b7eb8f" stroke="#52c41a"
+* Root Page background fill="#ffe58f" stroke="#fa8c16"
+
+Do not include a title for the diagram, nor a summary at the bottom.
+Do not set a background for the diagram as a whole.
+////
+
+A torn write can only turn into a torn page if it occurs while overwriting a page.  The torn write must affect a page being updated in-place in the B-Tree.{nospace}sidenote:ref[] This provides a clear way around the issue of torn writes: never update a page in-place. When one wishes to modify a B-Tree page, allocate a new page in the file, place the updated copy of the page there, and then adjust the parent to point to the newly "updated" child. Adjusting the parent is also an update, and so the copying will recurse up to the root of the B-Tree. Copy-on-Write B-Trees typically omit a write-ahead log, and instead all pages except the root are written first, and then a successful write of a new B-Tree root marks them all as committed updates to the file. This technique is also known as _shadow paging_.
+[.aside]#sidenote:def[] This is also why this entire post is about B-Trees.  LSMs are structured entirely as append-only write-once files.  The lack of in-place page updates in an LSM means they're immune to torn pages, by design.#
+
+image::copy-on-write.svg[inline=true,align=center]
+
+:uri-how-append-only-btree-works: https://www.bzero.se/ldapd/btree.html
+:uri-wandering-trees: https://www.klennet.com/notes/2024-06-16-wandering-trees.aspx
+:uri-lmdb: http://www.lmdb.tech/doc/
+:uri-lmdb-whitepaper: https://www.openldap.org/pub/hyc/mdb-paper.pdf
+:uri-lmdb-talk: https://www.youtube.com/watch?v=tEa5sAh-kVk
+:uri-lmdb-freelist: https://github.com/erigontech/erigon/wiki/LMDB-freelist-illustrated-guide
+
+For a better illustration of how Copy-on-Write B-Trees work, see {uri-how-append-only-btree-works}[how the append-only btree works] or {uri-wandering-trees}[Copy-on-Write, wandering trees, and data recovery].
+
+A major advantage of Copy-on-Write B-Trees are their simplicity. There are no torn pages to worry about, no separate write-ahead log, and any set of pages can be updated atomically in the tree.  The downside is everything else.  Copying from leaf to root means higher write amplification for single page updates.  Each update requires two `fsync()` latencies before it can be considered durable, rather than one with a write-ahead log.  There's no clear way to allow multiple updates across the tree concurrently, as any update will eventually contend on updating the root node, which includes pointers to all of its children.
+
+{uri-lmdb}[LMDB] is one of the most widely known Copy-on-Write B-Tree implementations. More details on LMDB internals can be found in {uri-lmdb-whitepaper}[its whitepaper], {uri-lmdb-talk}[talks], or {uri-lmdb-freelist}[third party blog posts].
+
+== Copy on First Write
+
+:uri-orioledb-cow-checkpoint: https://github.com/orioledb/orioledb/blob/main/doc/architecture/overview.mdx#copy-on-write-checkpoints
+
+////
+Create an SVG diagram showing Copy on First Write being used as a way to avoid torn pages on failure.  It should show a Write-Ahead Log on the left, and a B-Tree on the right. The B-Tree should have an initial Root V1 and Page V1 in it, with the root pointing to the page, at Log Sequence Number 100.  The Delta for Page V2 should be written to the Write-Ahead Log at Log Sequence Number 200, and should cause Root V2 and Page V2 to be written to the B-Tree.  Then a subsequent write should have the delta for Page V3 written to the WAL at Log Sequence Number 300, and the B-Tree should then reflect Root V2 pointing to Page V3.
+
+Use the color scheme of:
+
+* Write ahead log background fill="#f6ffed" stroke="#52c41a"
+* B-Tree background fill="#e6f7ff" stroke="#1890ff"
+* Page V1 background fill="#91caff" stroke="#1890ff"
+* Page V2 background fill="#b7eb8f" stroke="#52c41a"
+* Page V3 background fill="#ffe58f" stroke="#fa8c16"
+
+Do not include a title for the diagram, nor a summary at the bottom.
+Do not set a background for the diagram as a whole.
+////
+
+Once can extend the Copy on Write technique to mitigate the throughput and latency issues mentioned above: use copy-on-write only for the first update of a page within each checkpoint interval. This is analogous to Log Page on First Write, except the page is maintained in the B-Tree instead of being copied into the WAL. If a torn write affects a page that was updated in-place, all of the deltas in the write-ahead log can be applied to the copied-from, older versioned page to produce the correct page contents.
+
+image::copy-on-first-write.svg[inline=true,align=center]
+
+Copy on First Write blends together the advantages of Log on First Write and Double Wrie Buffer. In the usual case, it has only a 1x write amplification and no penalty to write latency. After a checkpoint, new writes do need to do extra work of copying data in the B-Tree, but those writes do not block the commit into the WAL. The notable disadvantage is that old pages must be maintained for the duration until the next checkpoint completes, thus causing there to be space amplification on the order of the working set between checkpoints.
+
+:uri-orioledb: https://www.orioledb.com/
+:uri-orioledb-cow-checkpoints: https://www.orioledb.com/docs/architecture/overview#copy-on-write-checkpoints
+:uri-orioledb-free-space: https://www.orioledb.com/docs/architecture/fsm
+
+{uri-orioledb}[OrioleDB] is the only database I'm aware of which uses this strategy (and reading its code is how I learned about it).  They have {uri-orioledb-cow-checkpoints}[well illustrated documents] which better describe its behavior. Reading about {uri-orioledb-free-space}[free space management] is also insightful, as copied-from pages can only be recycled into free space once a checkpoint completes, which makes tracking free blocks more complicated.
+
+== Atomic (Multi-)Block Writes
+
+:uri-lwn-atomic-write: https://lwn.net/Articles/963742/
+:uri-xfs-large-atomic-writes: https://patchwork.kernel.org/project/xfs/cover/20250102140411.14617-1-john.g.garry@oracle.com/
+:uri-xfs-fix: https://patchwork.kernel.org/project/xfs/patch/20250102140411.14617-6-john.g.garry@oracle.com/
+:uri-alloydb-omni: https://cloud.google.com/alloydb/omni
+:uri-alloydb-atomic-writes: https://cloud.google.com/alloydb/omni/16.3.0/docs/improve-database-performance-using-io-acceleration#torn-write-protection
+:uri-bsky-alloydb-broken: https://bsky.app/profile/alexmillerdb.bsky.social/post/3lmgecyjf4s2w
+
+Linux has been recently introducing support for {uri-lwn-atomic-write}[atomic writes for torn write protection]. man:pwritev2[2] has gained a `RWF_ATOMIC` flag, used to indicate that the submitted writes should be performed atomically. Linux 6.11 marked the introduction of `RWF_ATOMIC` and man:statx[2] being extended to allow checking for support.  XFS and ext4 gained support for `RWF_ATOMIC` with 6.13.  Work is slated to merge into 6.15 to allow {uri-xfs-large-atomic-writes}[atomic writes of data larger than the filesystem block size].
+
+To utilize this feature, first invoke man:statx[2], and check the returned fields:
+
+* `stx_atomic_write_unit_min`: The minimum size in bytes supported an atomic write. Guaranteed to be a power of 2.
+* `stx_atomic_write_unit_max`: The maximum size in bytes supported an atomic write. Guaranteed to be a power of 2.
+* `stx_atomic_write_segments_max`: The number of writes, within the min and max above, which can be submitted as part of `pwritev2()` that will be persisted together, atomically.
+
+The values returned will include the result of querying the underlying storage hardware for what it supports.
+
+Writes should then be performed via man:pwritev2[2] with `RWF_ATOMIC` specified in the flags, on a file descriptor opened with `O_DIRECT`, and the writes must match an alignment the same as the size of the write. Invocations of `pwritev2()` must voluntarily stay within the limits of the min and the max atomic write unit. If the vector count exceeds max write segments, `pwritev2()` will return `-EINVAL`, but if the size of a write exceeds the max atomic write unit, it is currently filesystem dependant as to if the `pwritev2()` will return an error or silently complete with lower guarantees.{nospace}sidenote:ref[]  There is no promise made on a specified level of write amplification or number of write latencies involved.
+[.aside]#sidenote:def[] As of 6.13, ext4 will return an error, and XFS won't. XFS {uri-xfs-fix}[will be fixed], and then checking `statx()` first won't be mandatory.#
+
+The currently in-progress extension of `RWF_ATOMIC` to multi-block atomicity in Linux 6.15+ will function via an approach similar to copy-on-write: the data will first be written to a new extent, and then the extent tree will be modified to remap the overwritten offset of the file to point to the new data.  Relying on this likely means the equivalent of two `fsync()` latencies, and increased overhead of extent metadata and offset lookup cost, so using one of the "on first write" torn write protection strategies described above will still yield better performance for the database.
+
+{uri-alloydb-omni}[AlloyDB Omni] has {uri-alloydb-atomic-writes}[recently announced support] for `RWF_ATOMIC`{nospace}sidenote:ref[].  They advertise that enabling `alloydb_omni_atomic` means that one may disable `full_page_writes`, to avoid the overhead of the "Log Page on First Write" approach described above. Note that this still currently requires a storage device which supports atomically writing 8KB.
+[.aside]#sidenote:def[] Which it {uri-bsky-alloydb-broken}[appears to use unsafely]. AlloyDB checks to see if a `RWF_ATOMIC` write to a test file succeeds, but Linux 6.13 XFS permits block-sized `RWF_ATOMIC` writes even if the underlying disk doesn't support that level of atomicity.#
+
+== Comparison
+
+Our comparison is conducted along three dimensions:
+
+* *Write Latency*: What is the minimum number of `fsync()` latencies required for a single row update to be made durable?
+* *Write Amplification*: A single B-Tree leaf page update produces how many additional page-sized writes?
+* *Space Amplification*: How much extra space, as compared to the total size of the database, does this approach require?
+
+[cols="1,1,1,1"]
+|===
+|
+h| Write Latency
+h| Write Amplification
+h| Space Amplification
+
+| Detection Only
+| 1x
+| 1x
+| 1x
+
+| Sector-Sized Pages
+| 1x
+| 1x
+| 1x
+
+| Log Full Pages
+| 1x
+| 2x
+| 10x-100x^[1]^
+
+| Log Page on First Write
+| ~1x
+| ~1x
+| O(2x)
+
+| Double-Write Buffer
+| 2x
+| 2x
+| 1x
+
+| Copy on Write
+| 2x
+| O(height of B-Tree)
+| O(2x)
+
+| Copy on First Write
+| ~1x
+| ~1x
+| O(2x)
+
+| Atomic Block Writes
+| 1x
+| 1x
+| 1x
+
+| Atomic Multi-Block Writes
+| 2x
+| 1x + ~1^[2]^
+| ~1x^[3]^
+|===
+
+[1]: Technically it'd be `size of page / average size of update`, and the larger WAL records put more pressure on checkpointing to keep the WAL size manageable. +
+[2]: Or whatever approximate constant the total write amplification of an extent update in the average filesystem works out to be. +
+[3]: There will be some extra space overhead in storing extent metadata for every 8KB or 16KB page rather than at intervals of MB of data.
