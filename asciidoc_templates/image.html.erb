@@ -7,9 +7,8 @@
     img_attrs = "#{width_attr}#{height_attr}#{role_attr})"
     if ((attr? 'format', 'svg') || (target.include? '.svg')) && document.safe < SafeMode::SECURE
       if attr? 'inline'
-        puts "Inline not supported because asciidoctor"
-        exit
-        img = (read_svg_contents node, target) || %(<span class="alt">#{alt}</span>)
+        contents = read_contents target, start: (document.attr 'imagesembeddir'), normalize: true, label: 'SVG', warn_if_empty: true
+        img = contents || %(<span class="alt">#{alt}</span>)
       elsif attr? 'interactive'
         fallback = (attr? 'fallback') ? %(<img src="#{image_uri @attributes['fallback']}" alt="#{alt}"#{img_attrs}#{void_element_slash}>) : %(<span class="alt">#{alt}</span>)
         img = %(<object type="image/svg+xml" data="#{src = image_uri target}"#{img_attrs}>#{fallback}</object>)
@@ -27,6 +26,7 @@
     id_attr = id ? %( id="#{id}") : ''
     classes = ['imageblock']
     classes << (@attributes['float']) if attr? 'float'
+    classes << (@attributes['class']) if attr? 'class'
     classes << %(text-#{@attributes['align']}) if attr? 'align'
     class_attr = %( class="#{classes.join ' '}")
     title_el = title? ? %(\n<div class="imagetitle">#{@title}</div>) : ''
