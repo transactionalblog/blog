@@ -1,5 +1,6 @@
 = ANALYZE
 :revdate: 2025-01-11
+:draft: true
 :page-features: font-awesome
 :page-hook-preamble: false
 :page-tag: optimizer
