@@ -178,7 +178,7 @@ image::copy-on-write.svg[inline=true,align=center]
 :uri-wandering-trees: https://www.klennet.com/notes/2024-06-16-wandering-trees.aspx
 :uri-cowr-cows: https://smalldatum.blogspot.com/2015/08/different-kinds-of-copy-on-write-for-b.html
 
-For a better illustration of how Copy-on-Write B-Trees work, see {uri-how-append-only-btree-works}[how the append-only btree works] or {uri-wandering-trees}[Copy-on-Write, wandering trees, and data recovery]. Note that there are two {uri-cowr-cows][different kinds of copy-on-write for a b-tree: CoW-Random and CoW-Sequential].
+For a better illustration of how Copy-on-Write B-Trees work, see {uri-how-append-only-btree-works}[how the append-only btree works] or {uri-wandering-trees}[Copy-on-Write, wandering trees, and data recovery]. Note that there are two {uri-cowr-cows}[different kinds of copy-on-write for a b-tree: CoW-Random and CoW-Sequential].
 
 A major advantage of Copy-on-Write B-Trees is their simplicity. There are no torn pages to worry about, no separate write-ahead log, and any set of pages can be updated atomically in the tree.  The downside is everything else.  Copying from leaf to root means higher write amplification for single-page updates.  Each update requires two `fsync()` latencies before it can be considered durable, rather than one with a write-ahead log.  There's no clear way to allow multiple updates across the tree concurrently, as any update will eventually contend on updating the root node, which includes pointers to all of its children.
 
