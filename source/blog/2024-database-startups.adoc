@@ -1,6 +1,6 @@
 = Database Startups
 :revdate: 2024-08-13
-:updated: 2024-10-31
+:updated: 2025-04-13
 :page-hook-preamble: false
 :toc: right
 
@@ -11,7 +11,7 @@ The requirements to be on the list is that the company must fall in one of the t
 
 And also be alive, or their product still supported if acquired. If it's an OSS project largely developed by some company where their main product is something else (e.g. a project released by Baidu or LinkedIn), then it's excluded from the scope.  If it's an OSS project with many equal contributors, that's amazing for OSS, but this list is focusing on companies and not technology.  If it's a DBaaS company which just provides RDS-like hosting, but does no further development of and around the product, then it too is excluded.  Also no ledger/blockchain.
 
-The categorizations are clearly subjective.  I'm aware that some companies fit into more than one category, some companies belong in their own category, etc.  This mostly exists as dbdb.io doesn't give a similarly easy way to filter and sort by some arbitrary sense of category, and has a narrower definition of database than what I'm interested in.  Some companies pivoted to a database offering, and so the data is either their founding as a database company, or the first release of their database product.
+The categorizations are clearly subjective.  I'm aware that some companies fit into more than one category, some companies belong in their own category, etc.  This mostly exists as dbdb.io doesn't give a similarly easy way to filter and sort by some arbitrary sense of category, and has a narrower definition of database than what I'm interested in.  Some companies pivoted to a database offering, and so the date is either their founding as a database company, or the first release of their database product.
 
 == OLTP/RDBMS Server/Hosted/Serverless
 
@@ -67,6 +67,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://paradedb.com/[ParadeDB] (2023)
 ** DuckDB-in-Postgres via github:paradedb/pg_analytics[]
 * https://motherduck.com/[MotherDuck] (2022)
+* https://glaredb.com/[GlareDB] (2022) -- github:GlareDB/glaredb[]
 * https://velodb.io/[VeloDB] (2022) -- Built on Apache Doris
 * https://seafowl.io/[Splitgraph] (2022) -- Acquired by EDB
 ** Datafusion-in-Postgres via github:splitgraph/seafowl[]
@@ -124,7 +125,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 * https://endatabas.com[Endatabas] (2023)
 * https://fireproof.storage/[Fireproof Storage] (2022)
-* https://sneller.ai/[Sneller] (2021)
+* https://sneller.ai/[Sneller] (2021-2024)
 * https://stately.cloud/[Stately] (2021)
 * https://ferretdb.com/[FerretDB] (2021)
 * https://xtdb.com/[XTDB] (2018)
@@ -144,6 +145,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == Graph
 
+* https://kuzudb.com/[Kùzu] (2023)
 * https://falkordb.com/[FalkorDB] (2023) -- Fork of RedisGraph
 * https://arcadedb.com/[ArcadeDB] (2021) -- Fork of OrientDB
 ** OrientDB was founded in 2012, acquired by CallidusCloud in 2017, itself acquired by SAP in 2018.  SAP dropped support in 2021, so founder started ArcadeDB to continue OrientDB.
@@ -200,7 +202,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == Search
 
-* https://quickwit.io/[Quickwit] (2021)
+* https://quickwit.io/[Quickwit] (2021-2025) -- Acquired by Datadog
 * https://meilisearch.com/[Meilisearch] (2018)
 * https://manticoresearch.com[Manticore Search] (2017)
 ** A fork of https://sphinxsearch.com/[Sphinx Search]
@@ -216,6 +218,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://polypheny.com/[Polypheny] (2022) -- Multi-model
 * https://tigerbeetle.com/[TigerBeetle] (2022) -- Financial
 * https://dragonflydb.io/[Dragonfly] (2021) -- Redis
+* https://eloqdata.com/[EloqData] (2021) -- Multi-model
 * https://surrealdb.org/[Surreal] (2021) -- Multi-model
 * https://authzed.com[AuthZed] (2020) -- Authorization
 * https://evitadb.io/[EvitaDB] (2020) -- E-commerce
