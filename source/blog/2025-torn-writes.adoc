@@ -1,9 +1,8 @@
 = Torn Write Detection and Protection
-:revdate: 2025-04-11
-:draft: true
+:revdate: 2025-04-12
 :toc: right
 :page-hook-preamble: false
-:page-aside: With credit to Phil Eaton for some of the sources and links, Tanel Poder for Oracle's torn write detection mechanism and the pointer to AlloyDB Omni's use of RWF_ATOMIC, and Claude for generating reasonable SVG diagrams with minimal effort.
+:page-aside: With credit to Phil Eaton for some of the sources and links, Tanel Poder for Oracle's torn write detection mechanism and details on AlloyDB Omni's use of RWF_ATOMIC, Andres Freund for more details on Postgres's full page logging, and Claude for generating reasonable SVG diagrams with minimal effort.
 
 Disks have a unit of data at which they promise atomicity: the sector.  Historically, this was 512 bytes. Disks also accept write requests for multiple contiguous sectors at a time.  In the event of a power failure, this can lead to only a subset of the sectors being written: a _torn write_. Databases operate on 4KB or larger pages, and thus are vulnerable to torn writes.  A database page affected by a torn write is called a _torn page_.  Various databases have different opinions and strategies on detecting torn pages during recovery, and how to restore the page to a correct, full page image.
 
@@ -123,8 +122,9 @@ image::first-write-page-logging.svg[inline=true,align=center]
 
 As checkpointing removes previous write-ahead log files, pages will need to be copied to the write-ahead log on their first modification following each checkpoint. But copying the page to the write-ahead log only once per checkpoint still lowers the expected costs drastically. The normal state will trend towards ~1x write amplification, and most of the WAL can remain descriptions of page changes rather than full page images which helps space amplification.
 
-Postgres has an 8KB page size{nospace}sidenote:ref[] and utilizes this torn write protection technique, which it calls {uri-postgres-full-page-writes}[full page writes]. The impact of `full_page_writes` has been studied in detail across blog posts such as {uri-edb-full-page-writes}[On the impact of full page writes] or talks like {uri-aws-full-page-writes}[Full page Writes in PostgreSQL]. For a tale of an interaction with full page writes causing issues, see {uri-reading-is-writing}[did u ever read so hard u accidentally wrote?]
+Postgres has an 8KB page size{nospace}sidenote:ref[] and utilizes this torn write protection technique, which it calls {uri-postgres-full-page-writes}[full page writes]. The page images are compressed before being written into the write-ahead log. During recovery, postgres unconditionally{nospace}sidenote:ref[] applies the save full page images and re-applies all logged changes to the pages to avoid the random IO on the write-ahead log. The impact of `full_page_writes` has been studied in detail across blog posts such as {uri-edb-full-page-writes}[On the impact of full page writes] or talks like {uri-aws-full-page-writes}[Full page Writes in PostgreSQL]. For a tale of an interaction with full page writes causing issues, see {uri-reading-is-writing}[did u ever read so hard u accidentally wrote?]
 [.aside]#sidenote:def[] The page size can be changed at compile time, with {uri-postgres-page-size}[4KB being the lowest probably safe value]. EBS charges for IOPS in units of rounding up to the nearest 16KB, so I'm surprised we don't see more 16KB page size postgres being deployed in the cloud.#
+[.aside]#sidenote:def[] This has tangential advantages of pre-populating the buffer pool during recovery, thus lessening the cold cache latency effect of a restarted postgres instance. Postgres replication is also WAL-based, and thus benefits similarly.#
 
 == Double-Write Buffer
 
@@ -144,10 +144,11 @@ Double-write buffering takes an opposite set of trade-offs as logging pages into
 MySQL's InnoDB has a 16KB page size{nospace}sidenote:ref[] and is the most well-known user of the {uri-mysql-double-write-buffer}[double write buffer] strategy, and the only user (including its XtraDB fork). Using a double write buffer has the advantage of not blocking commits on writing full page images into the WAL.  It maintains the notable downside of 2x the write latency and 2x write amplification.
 [.aside]#sidenote:def[] The InnoDB page size can be changed at compile time.  Percona once benchmarked the effect of {uri-innodb-page-size}[using a 4KB InnoDB page size].#
 
-I've had a few conversations with Sunny Bains, who worked on InnoDB including the double write buffer implementation, and so to forward some wisdom on the subject:
+I've had a few conversations with Sunny Bains, who worked on InnoDB including the double write buffer implementation, and so to forward some historical context and wisdom on the subject:
 
-* When looking at {uri-mysql-double-write-buffer}[benchmarks implying the double-write buffer is a significant slowdown], be aware that the double-write buffer was a source of mutex contention under high write throughput. This was addressed as part of MySQL 8.0.23 in 2021 by {uri-mysql-wl}[WL#5655] and see bug tracker discussion like {uri-mysql-bug}[Bug #81376]. {uri-mysql-new-dbw}[The New InnoDB Double Write Buffer in Action] shows the impact of the improvement.
+* When looking at {uri-mysql-double-write-buffer}[benchmarks implying the double-write buffer is a significant slowdown], be aware that the double-write buffer was a source of mutex contention under high write throughput for single page flushes. This was addressed as part of MySQL 8.0.23 in 2021 by {uri-mysql-wl}[WL#5655] and see bug tracker discussion like {uri-mysql-bug}[Bug #81376]. {uri-mysql-new-dbw}[The New InnoDB Double Write Buffer in Action] shows the impact of the improvement.
 * The last time the double-write buffer code was being overhauled, Intel Optane was coming out and it was thought that one would be able to place the double-write buffer on a separate Optane drive, thus utilizing its infinite IOPS and fast fsync()s to minimize the overhead of the double-write buffer. Instead, Intel killed Optane, and running MySQL on EBS became popular, where IOPS on EBS are instead highly constrained.
+* Some prominent MySQL users had production environments where MySQL was already replicated, and replacing a replica was a sufficiently fast "fix" for torn pages. Thus, `innodb_doublewrite=DETECT_ONLY` was added to only check pages for torn writes during recovery but not do the full double-write buffer process to permit automatically fixing them. 
 
 == Copy on Write
 
