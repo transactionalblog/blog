@@ -183,19 +183,18 @@ module AsciidoctorBibtex
 
     # Build the asciidoc text for a single bibliography item
     def build_biblink_text(key, arg)
-      begin
-        if @biblio[key].nil?
-          puts "Unknown reference: #{key}"
+      if @biblio[key].nil?
+        raise "Unknown reference: #{key}"
+      else
+        begin
+            cptext = @citeproc.render :bibliography, id: key
+            cptext = cptext.first
+        rescue Exception => e
+          puts "Failed to render #{key}: #{e}"
           cptext = key
-        else
-          cptext = @citeproc.render :bibliography, id: key
-          cptext = cptext.first
         end
-      rescue Exception => e
-        puts "Failed to render #{key}: #{e}"
-        cptext = key
       end
-      refname = if @biblio[key].has_field? 'refname' then @biblio[key].refname.to_s else @biblio[key].title.to_s end
+      refname = if @biblio[key]&.has_field? 'refname' then @biblio[key].refname.to_s else @biblio[key].title.to_s end
       result = ''
 
       if @biblio[key]&.has_field? 'scholarcluster'
