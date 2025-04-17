@@ -381,9 +381,9 @@ the keys in the read or write set -- to find a single timestamp,
 consistent with the strict serial order of transactions, to assign
 the transaction's reads and writes, as follows:
 
-1. [.txn-order]#The TAPIR client selects a proposed timestamp.# Proposed
+1. [.txn-order]#The TAPIR client selects a proposed timestamp. Proposed
 timestamps must be unique, so clients use a tuple of their
-local time and their client id.
+local time and their client id.#
 2. The TAPIR client invokes `Prepare(txn, timestamp)` as an
 IR consensus operation, where `timestamp` is the proposed
 timestamp and `txn` includes the transaction id (`txn.id`)
