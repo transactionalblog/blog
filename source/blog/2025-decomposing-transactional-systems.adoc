@@ -68,13 +68,13 @@ Now, let's burn through some real world examples.
 ++++
 <style>
 blockquote {
-    padding-right: 120px;
+    padding-right: 100px;
 }
 /* Styling for each annotation widget (line + label) */
 .annotation-widget {
     position: absolute; /* Positioned relative to annotations-container */
     right: 10px;      /* Positioned from the right edge of the container */
-    width: 90px;      /* Takes up most of the container width */
+    width: 70px;      /* Takes up most of the container width */
     display: flex;
     align-items: center; /* Vertically center content (line and label) */
     pointer-events: auto;
