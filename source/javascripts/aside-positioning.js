@@ -1,3 +1,5 @@
+const asidesPositionedEvent = new CustomEvent('asidesPositioned');
+
 function compareAsides(lhs, rhs) {
     const classOrder = ['.postmeta', '.postaside', '.toc', '.aside'];
     if (lhs.className == '.aside' && rhs.className == '.aside') {
@@ -51,6 +53,7 @@ function positionAsideElements(_) {
             }
         }
     });
+    document.dispatchEvent(asidesPositionedEvent);
 }
 
 // Run it twice because some content (particularly charts) can take

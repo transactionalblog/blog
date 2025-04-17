@@ -1,28 +1,28 @@
 = Decomposing Transactional Systems
-:revdate: 2025-04-13
-:draft: true
+:revdate: 2025-04-16
 :bibtex-file: 2025-decomposing-transactional-systems.bib
 :page-hook-preamble: false
+:page-aside: With thanks to Stu Hood, Giorgos Xanthakis, Phil Eaton, and Devan Benz for early reads and feedback.
 :page-hook: Every transactional system must execute, order, validate, and durably record transactions.
 
 :section: §
 
 Every transactional system does four things:
 
-1. It _executes_ transactions.
-2. It _orders_ transactions.
-3. It _validates_ transactions.
-4. It makes transactions _durable_.
+* It _executes_ transactions.
+* It _orders_ transactions.
+* It _validates_ transactions.
+* It _persists_ transactions.
 
-Executing a transaction means evaluating the body of the transaction to produce the intended reads and writes.  There is still notable variety across systems within only how the body of a transaction is executed.  Writes might be applied to storage during this phase, or they might be buffered locally and submitted as a batch at the end.  A transaction might be executed more than once for different purposes.
+_Executing_ a transaction means evaluating the body of the transaction to produce the intended reads and writes.  There is still notable variety across systems as to how the body of a transaction is executed.  Writes might be applied to storage during this phase, or they might be buffered locally and submitted as a batch at the end.  A transaction might be executed more than once for different purposes.
 
-Ordering a transaction means assigning the transaction some notion of a time at which it occurred.  This could be a version, a timestamp, a log sequence number, or a more complex description of transaction IDs it happened before or after.  MVCC databases may assign an initial read version, which can be a non-trivial process, but always pay close attention to which version is used as the commit version -- the time at which the database claims all reads and writes occurred atomically.
+_Ordering_ a transaction means assigning the transaction some notion of a time at which it occurred.  This could be a version, a timestamp, a log sequence number, or a more complex description of transaction IDs it happened before or after.  MVCC databases may assign two versions: an initial read version, and a final commit version. In this case, we're mainly focused on the specific point at which the commit version is chosen -- the time at which the database claims all reads and writes occurred atomically.
 
-Validating a transaction means enforcing concurrency control, or more rarely, domain-specific semantics.  If a transaction is going to be rejected for a system defined reason, such as having serializability conflicts with existing transactions, it will happen here.  When validation happens after ordering, it checks to see if the assigned order is valid.  When validation happens before ordering, it provides a range of acceptable commit versions, and the ordering step chooses one of them.
+_Validating_ a transaction means enforcing concurrency control, or more rarely, domain-specific semantics.  If a transaction is going to be rejected for a system defined reason, such as having serializability conflicts with existing transactions, it will happen here.  When validation happens after ordering, it checks to see if the assigned order is valid.  When validation happens before ordering, it provides a range of acceptable commit versions, and the ordering step chooses one of them.
 
-Making a transaction durable means persisting it, generally to disk.  Sometimes writes are incrementally made durable transaction execution, but pay specific attention to when all writes _and_ the commit record marking the transaction as committed are durable.  Often this is noting how the system performs replication and persists the outcome of its atomic commitment protocol.  (And sometimes the lines between those two aren't very clear.)
+_Persisting_ a transaction makes making it durable, generally to disk.  Sometimes writes are incrementally made durable during transaction execution, but the key point in persistence is when all writes _and_ the commit record marking the transaction as committed are durable.  Often this is noting how the system performs replication and persists the outcome of its atomic commitment protocol.  (And sometimes the lines between those two aren't very clear.)
 
-All four of these things must be done before one may acknowledge a transaction's result to a client.  However, these steps can be done in any order.  They can be done concurrently.  Different systems achieve different tradeoffs by reordering these steps.
+All four of these things must be done before the system may acknowledge a transaction's result to a client.  However, these steps can be done in any order.  They can be done concurrently.  Different systems achieve different tradeoffs by reordering these steps.
 
 ////
 two benefits:
@@ -41,12 +41,13 @@ Classic optimistic concurrency control databases break down as:
 OCC: Execute
 OCC: Order
 OCC: Validate
-OCC: Durable
+OCC: Persist
 ----
 
 A classic pessimistic concurrency control database executes a transaction and acquires locks as it runs to exclude conflicting transactions.  When the transaction finishes, it acquires a commit version, and then is persisted to disk.  Then it releases the locks.
 
-Classic pessimistic concurrency control databases break down as:
+Classic pessimistic concurrency control databases break down as:{nospace}sidenote:ref[]
+[.aside]#sidenote:def[] Don't try to infer anything out of these diagrams other than the just how the steps relate to each other.  These diagrams have no relationship to the performance or efficiency of different designs.  Thinner diagrams or more concurrent of steps aren't necessarily better.#
 
 [dbdiag-spans]
 ----
@@ -58,11 +59,160 @@ PCC: Execute EX
 PCC: END EX
 ]
 PCC: Order
-PCC: Durable 
+PCC: Persist
 PCC: END CC
 ----
 
-Get the idea?  Great.  Now, let's burn through some real world examples.
+Now, let's burn through some real world examples.
+
+++++
+<style>
+blockquote {
+    padding-right: 120px;
+}
+/* Styling for each annotation widget (line + label) */
+.annotation-widget {
+    position: absolute; /* Positioned relative to annotations-container */
+    right: 10px;      /* Positioned from the right edge of the container */
+    width: 90px;      /* Takes up most of the container width */
+    display: flex;
+    align-items: center; /* Vertically center content (line and label) */
+    pointer-events: auto;
+    /* top and height will be set by JavaScript */
+}
+
+/* Styling the vertical line */
+.annotation-line {
+    display: inline-block; /* Allow height and border */
+    height: 100%;          /* Takes the full height of the parent widget */
+    border-left: 2px solid #555; /* Create the line using a border */
+    margin-right: 8px;     /* Space between line and label */
+    flex-shrink: 0;        /* Prevent line from shrinking if label is long */
+}
+/* Common styles for the horizontal serifs (top/bottom lines) */
+.annotation-line::before,
+.annotation-line::after {
+    content: ''; /* Required for pseudo-elements to show */
+    position: absolute;
+    background-color: #555; /* Same color as the border */
+    width: 6px;  /* Width/length of the horizontal serif */
+    height: 2px; /* Thickness of the serif (match border-left thickness) */
+    /* Position the serifs relative to the main element's border */
+    left: -6px; /* Move left by the width of the serif */
+                /* Adjust if border-thickness changes */
+}
+
+/* Position the top serif */
+.annotation-line::before {
+    top: 0;
+    /* Optional slight adjustment for visual alignment with border*/
+    /* top: -1px; */
+}
+
+/* Position the bottom serif */
+.annotation-line::after {
+    bottom: 0;
+     /* Optional slight adjustment for visual alignment with border*/
+    /* bottom: -1px; */
+}
+</style>
+<script>
+class_to_label_mapping = {
+    "txn-execute": "Execute",
+    "txn-order": "Order",
+    "txn-validate": "Validate",
+    "txn-persist": "Persist"
+};
+document.addEventListener('DOMContentLoaded', () => {
+    const blockquotes = document.querySelectorAll('div.quoteblock');
+
+    if (!blockquotes) {
+        console.error("Required wrapper or container elements not found.");
+        return;
+    }
+
+    main_element = document.querySelector('main');
+    if (main_element === null) {
+        console.error("main element not found");
+        return;
+    }
+
+    function createAnnotations() {
+        baseline = main_element.getBoundingClientRect().top;
+        blockquotes.forEach( annotationsContainer => {
+            annotationsContainer
+                .querySelectorAll('.annotation-widget')
+                .forEach(element => annotationsContainer.removeChild(element));
+
+            const annotatedElements = annotationsContainer.querySelectorAll('.txn-execute, .txn-order, .txn-validate, .txn-persist');
+            annotatedElements.forEach(element => {
+                const elementClasses = element.getAttribute("class").split(" ");
+                var labels = [];
+                var offset = false;
+                elementClasses.forEach(classname => {
+                    if (classname == '.offset-left') {
+                        offset = true;
+                    } else {
+                        labels.push(class_to_label_mapping[classname])
+                    }
+                });
+                const label = labels.join("\n");
+
+                // --- Calculate Position and Height (No changes here) ---
+                const elemRect = element.getBoundingClientRect();
+                const top = elemRect.top - baseline;
+                const height = element.offsetHeight;
+
+                // --- Create Annotation Widget ---
+                const widget = document.createElement('div');
+                widget.className = 'annotation-widget';
+                widget.style.top = `${top}px`;
+                // Set height of the widget to match the text span's height
+                widget.style.height = `${height}px`;
+                console.log(`${elementClasses} top=${elemRect.top} baseline=${baseline} newtop=${top} height=${height}`)
+
+                // --- Create Vertical Line Element ---
+                const line = document.createElement('span'); // Simple span is enough
+                line.className = 'annotation-line';
+                if (offset) { line.style.marginLeft = '-5px'; }
+                // CSS handles the actual line drawing and height:100%
+
+                // --- Create Label ---
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'annotation-label';
+                labelSpan.textContent = label;
+
+                // --- Assemble ---
+                widget.appendChild(line); // Add the line element
+                widget.appendChild(labelSpan);
+                annotationsContainer.appendChild(widget);
+            });
+        });
+        console.log('-----')
+    }
+
+    // --- Debounce function for resize (No changes here) ---
+    function debounce(func, wait = 50) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+    let debounced = debounce(createAnnotations);
+    
+    // Run once asides are inlined or not.
+    document.addEventListener('asidesPositioned', debounced);
+
+    // Re-create annotations on window resize
+    window.addEventListener('resize', debounced);
+    const detailsElements = document.querySelectorAll("details");
+    detailsElements.forEach(function (element) {
+        element.addEventListener("toggle", createAnnotations);
+    });
+});
+</script>
+++++
 
 === FoundationDB
 
@@ -75,26 +225,26 @@ A client transaction starts by contacting one of the Proxies to obtain
 a read version (i.e., a timestamp). The Proxy then asks the Sequencer
 for a read version that is guaranteed to be no less than any
 previously issued transaction commit version, and this read version
-is sent back to the client. Then the client may issue multiple reads
+is sent back to the client. [.txn-execute]#Then the client may issue multiple reads
 to StorageServers and obtain values at that specific read version.
-Client writes are buffered locally without contacting the cluster.
+Client writes are buffered locally without contacting the cluster.#
 At commit time, the client sends the transaction data, including
 the read and write sets (i.e., key ranges), to one of the Proxies
 and waits for a commit or abort response from the Proxy. If the
 transaction cannot commit, the client may choose to restart the
 transaction from the beginning again.
 
-A Proxy commits a client transaction in three steps. First, the
+A Proxy commits a client transaction in three steps. [.txn-order]#First, the
 Proxy contacts the Sequencer to obtain a commit version that is
-larger than any existing read versions or commit versions. The
+larger than any existing read versions or commit versions.# The
 Sequencer chooses the commit version by advancing it at a rate of
-one million versions per second. Then, the Proxy sends the transaction
+one million versions per second. [.txn-validate]#Then, the Proxy sends the transaction
 information to range-partitioned Resolvers, which implement
 FDB's optimistic concurrency control by checking for read-write
-conflicts. If all Resolvers return with no conflict, the transaction
+conflicts#. If all Resolvers return with no conflict, the transaction
 can proceed to the final commit stage. Otherwise, the Proxy marks
-the transaction as aborted. Finally, committed transactions are sent
-to a set of LogServers for persistence. A transaction is considered
+the transaction as aborted. [.txn-persist]#Finally, committed transactions are sent
+to a set of LogServers for persistence#. A transaction is considered
 committed after all designated LogServers have replied to the
 Proxy, which reports the committed version to the Sequencer (to
 ensure that later transactions' read versions are after this commit)
@@ -103,7 +253,7 @@ continuously pull mutation logs from LogServers and apply committed
 updates to disks.
 ____
 
-Breaking this down, we see
+So from breaking down this part of the paper, we see
 
 . A client executes a transaction.
 . The proxy acquires a commit version.
@@ -117,15 +267,16 @@ All as sequential steps.
 FoundationDB: Execute
 FoundationDB: Order
 FoundationDB: Validate
-FoundationDB: Durable
+FoundationDB: Persist
 ----
 
 A familiar diagram!  FoundationDB operates as a classic optimistic concurrency control database.  With this in mind, if you're trying to understand one piece of the system (e.g. distributed conflict checking in the resolvers), you can replace the other pieces temporarily with the minimal equivalents from the most simplistic optimistic database implementation (e.g. replace the log servers with appending to a single WAL on one disk).
 
 === Spanner
 
-biblink:[Spanner]{nospace}sidenote:ref[] is Google's flagship database, used extensively within Google, and inspired a generation of NewSQL databases that followed in its architectural footsteps of partitioned Paxos and distributed transactions.  For Spanner's description of its transaction protocol, we see {section}4.2.1 Read-Write Transactions:
+biblink:[Spanner]{nospace}sidenote:ref[] is Google's flagship database, used extensively within Google, and inspired a generation of NewSQL databases that followed in its architectural footsteps{nospace}sidenote:ref[] of partitioned Paxos and distributed transactions.  For Spanner's description of its transaction protocol, we see {section}4.2.1 Read-Write Transactions:
 [.aside]#sidenote:def[] bibitem:[Spanner]#
+[.aside]#sidenote:def[] And comparing specifically how CockroachDB, TiDB, and YugabyteDB all differ from Spanner and each other is an insightful adventure.#
 
 [quote]
 ____
@@ -135,33 +286,34 @@ in a transaction do not see the effects of the transaction's
 writes. This design works well in Spanner because a read
 returns the timestamps of any data read, and uncommitted writes have not yet been assigned timestamps.
 
-Reads within read-write transactions use woundwait to avoid deadlocks. The client issues reads
+Reads within read-write transactions use wound-wait to avoid deadlocks.
+[.txn-execute.txn-validate]#The client issues reads
 to the leader replica of the appropriate group, which
 acquires read locks and then reads the most recent
 data. While a client transaction remains open, it sends
 keepalive messages to prevent participant leaders from
 timing out its transaction. When a client has completed
 all reads and buffered all writes, it begins two-phase
-commit. The client chooses a coordinator group and
+commit.# The client chooses a coordinator group and
 sends a commit message to each participant's leader with
 the identity of the coordinator and any buffered writes.
 Having the client drive two-phase commit avoids sending data twice across wide-area links.
 
-A non-coordinator-participant leader first acquires
-write locks. It then chooses a prepare timestamp that
+[.txn-validate]#A non-coordinator-participant leader first acquires
+write locks.# It then chooses a prepare timestamp that
 must be larger than any timestamps it has assigned to previous transactions (to preserve monotonicity), and logs a
 prepare record through Paxos. Each participant then notifies the coordinator of its prepare timestamp.
 
 The coordinator leader also first acquires write locks,
-but skips the prepare phase. It chooses a timestamp for
-the entire transaction after hearing from all other participant leaders. The commit timestamp s must be greater or
+but skips the prepare phase. [.txn-order]#It chooses a timestamp for
+the entire transaction after hearing from all other participant leaders.# The commit timestamp s must be greater or
 equal to all prepare timestamps (to satisfy the constraints
 discussed in Section 4.1.3), greater than TT.now().latest
 at the time the coordinator received its commit message,
 and greater than any timestamps the leader has assigned
-to previous transactions (again, to preserve monotonicity). The coordinator leader then logs a commit record
+to previous transactions (again, to preserve monotonicity). [.txn-persist]#The coordinator leader then logs a commit record
 through Paxos (or an abort if it timed out while waiting
-on the other participants).
+on the other participants).#
 
 Before allowing any coordinator replica to apply
 the commit record, the coordinator leader waits until
@@ -171,16 +323,16 @@ based on TT.now().latest, and now waits until that timestamp is guaranteed to be
 is at least 2 * epsilon. This wait is typically overlapped with
 Paxos communication. After commit wait, the coordinator sends the commit timestamp to the client and all
 other participant leaders. Each participant leader logs the
-transaction's outcome through Paxos. All participants
-apply at the same timestamp and then release locks.
+transaction's outcome through Paxos. [.txn-validate]#All participants
+apply at the same timestamp and then release locks.#
 ____
 
-So Spanner is a bit more complicated, but breaks down as:
+Spanner is a bit more complicated, partly because lock-related operations involved in transaction validation are stretched across the whole text.  It also tries to trick you by talking about details out of execution order, so make sure to always read closely for "then" to give hints on the ordering of the steps.
 
 . The execute and validate steps seem to be intertwined, as read locks are acquired while the transaction executes.
 . Writes are buffered until the client is ready to commit.
-. 2PC is started to check if the transaction can commit on all participants.
-. After the coordinator has heard all of the minimum required timestamps from its participants during the 2PC Prepare, it decides the final commit version.
+. Two-phase commit is started to check if the transaction can commit on all participants.
+. After the coordinator has heard all of the minimum required timestamps from its participants during the two-phase commit's prepare, it decides the final commit version.
 . The transaction is then made durable.
 . Finally, read and write locks are released.
 
@@ -196,7 +348,7 @@ Spanner: Execute EX
 Spanner: END EX
 ]
 Spanner: Order
-Spanner: Durable 
+Spanner: Persist
 Spanner: END CC
 ----
 
@@ -209,7 +361,7 @@ biblink:[TAPIR]{nospace}sidenote:ref[] is a strictly serializable database adver
 
 [quote]
 ____
-We begin with TAPIR's protocol for executing transactions.
+[.txn-execute]#We begin with TAPIR's protocol for executing transactions.#
 
 1. For `Write(key, object)`, the client buffers `key` and `object` in
 the write set until commit and returns immediately.
@@ -229,7 +381,7 @@ the keys in the read or write set -- to find a single timestamp,
 consistent with the strict serial order of transactions, to assign
 the transaction's reads and writes, as follows:
 
-1. The TAPIR client selects a proposed timestamp. Proposed
+1. [.txn-order]#The TAPIR client selects a proposed timestamp.# Proposed
 timestamps must be unique, so clients use a tuple of their
 local time and their client id.
 2. The TAPIR client invokes `Prepare(txn, timestamp)` as an
@@ -244,25 +396,31 @@ through ExecConsensus) first checks its transaction log for
 committed or ABORT if the transaction aborted.
 4. Otherwise, the replica checks if txn.id is already in its
 prepared list. If found, it returns PREPARE-OK.
-5. Otherwise, the replica runs TAPIR's OCC validation
+5. [.txn-validate]#Otherwise, the replica runs TAPIR's OCC validation
 checks, which check for conflicts with the transaction's
-read and write sets at timestamp, shown in Figure 8.
+read and write sets at timestamp, shown in Figure 8.#
 6. Once the TAPIR client receives results from all shards, the
 client sends `Commit(txn, timestamp)` if all shards replied
 PREPARE-OK or `Abort(txn, timestamp)` if any shards
 replied ABORT or ABSTAIN. If any shards replied RETRY,
 then the client retries with a new proposed timestamp (up
 to a set limit of retries).
-7. On receiving a Commit, the TAPIR replica: (1) commits the
+7. [.txn-persist]#On receiving a Commit, the TAPIR replica: (1) commits the
 transaction to its transaction log, (2) updates its versioned
 store with w, (3) removes the transaction from its prepared
-list (if it is there), and (4) responds to the client.
+list (if it is there), and (4) responds to the client.#
 8. On receiving a Abort, the TAPIR replica: (1) logs the
 abort, (2) removes the transaction from its prepared list (if
 it is there), and (3) responds to the client.
 ____
 
-Which initially feels like a lot of description to work through, but it breaks down into separable pieces pretty well.  The first half describes executing the transaction, so Execute goes first.  (1) of the second half says "pick a proposed timestamp", which is used for transaction commit, so Order goes next.  The core of the TAPIR protocol then describes each replica running an OCC check (Validate) and persisting its result (Durable), we'll say those are concurrent operations. Thus, our diagram looks like:
+Which initially feels like a lot of description to work through, but it breaks down into separable pieces pretty well:
+
+. The transaction is executed.
+. The clients picks a proposed commit timestamp.
+. Each replica then concurrently runs an OCC check and persists the data to the prepare log.
+
+pick a proposed timestamp", which is used for transaction commit, so Order goes next.  The core of the TAPIR protocol then describes each replica concurrently running an OCC check (Validate) followed by  (Durable), we'll say those are concurrent operations. Thus, our diagram looks like:
 
 [dbdiag-spans]
 ----
@@ -272,44 +430,17 @@ TAPIR: Order
 TAPIR: Validate CC
 TAPIR: Durable DR
 ]
-[
-TAPIR: END DR
 TAPIR: END CC
-]
+TAPIR: END DR
 ----
 
 This also highlights the key aspect of TAPIR: its blending of the concurrency control validation and commit outcome persistence protocols.
 
-Tangentially, TAPIR was the inspiration behind this way of decomposing databases, as it included a nice diagram which I occasionally fell back to when reading papers:
+Tangentially, TAPIR was the inspiration behind this way of decomposing databases, as it included a nice diagram which I occasionally fell back to when reading papers I struggled to make sense of:
 
 image::tapir-diagram.png[embed=true,align=center]
 
 And this taxonomy is just adding transaction execution, and looking at how those layers are executed across a dimension of time as well.
-////
-=== CockroachDB
-
-The CockroachDB paper focuses more on the novel optimizations they applied to the transaction protocol (statement pipelining, parallel commit, and read restarts) than the core of the transaction protocol itself.  I'll instead pull quotes from the CockroachDB's design doc, specifically the Lock-Free Distributed Transactions section.
-
-[quote]
-____
-____
-
-[dbdiag-spans]
-----
-Cockroach: Order
-[
-Cockroach: Validate CC
-Cockroach: Execute EX
-]
-[
-Cockroach: END EX
-Cockroach: END CC
-]
-Cockroach: Durable
-----
-
-With "Classic Optimistic Concurrency Control" and FoundationDB, we looked at _backwards-validating OCC_.  Cockroach utilized _forward-validating OCC_, which as we see executes similarly to pessimistic concurrency control.
-////
 
 === Calvin
 
@@ -320,11 +451,11 @@ biblink:[Calvin]{nospace}sidenote:ref[] is the iconic system for deterministic d
 ____
 The essence of Calvin lies in separating the system into three separate layers of processing:
 
-• The sequencing layer (or “sequencer”) intercepts transactional inputs and places them into a global transactional input
-sequence—this sequence will be the order of transactions to
+• [.txn-order]#The sequencing layer (or “sequencer”) intercepts transactional inputs and places them into a global transactional input
+sequence#—this sequence will be the order of transactions to
 which all replicas will ensure serial equivalence during their
-execution. The sequencer therefore also handles the replication and logging of this input sequence.
-• The scheduling layer (or “scheduler”) orchestrates transaction execution using a deterministic locking scheme to guarantee equivalence to the serial order specified by the sequencing layer while allowing transactions to be executed concurrently by a pool of transaction execution threads. (Although
+execution. [.txn-persist]#The sequencer therefore also handles the replication and logging of this input sequence.#
+• The scheduling layer (or “scheduler”) [.txn-validate.txn-execute]#orchestrates transaction execution using a deterministic locking scheme to guarantee equivalence to the serial order specified by the sequencing layer while allowing transactions to be executed concurrently by a pool of transaction execution threads#. (Although
 they are shown below the scheduler components in Figure 1,
 these execution threads conceptually belong to the scheduling layer.)
 • The storage layer handles all physical data layout. Calvin
@@ -344,7 +475,7 @@ This means Calvin breaks down as:
 [dbdiag-spans]
 ----
 Calvin: Order
-Calvin: Durable
+Calvin: Persist
 Calvin: Validate CC
 Calvin: Execute
 Calvin: END CC
@@ -354,38 +485,68 @@ Calvin is the most well known example of a database which does *not* execute tra
 
 === CURP
 
-biblink:[CommutativeRaft]{nospace}sidenote:ref[] defines a Consistent Unordered Replication Protocol (CURP), that allows clients to replicate requests that have not yet been ordered, as long as they are commutative. {section}2 "Separating Durability from Ordering" offers a quick definition of the system:
+biblink:[CommutativeRaft]{nospace}sidenote:ref[] defines a Consistent Unordered Replication Protocol (CURP), that allows clients to replicate requests that have not yet been ordered, as long as they are commutative. Stitching together a few paragraphs from {section}3.2 Normal operation:
 [.aside]#sidenote:def[] bibitem:[CommutativeRaft]#
 
 [quote]
 ____
-The key idea of CURP is to separate durability and
-consistent ordering, so update operations can be done in 1
-RTT in the normal case. Instead of replicating totally ordered
-operations in 2 RTTs, CURP achieves durability without
-ordering and uses the commutativity of operations to defer
-agreement on operation order.
+Client interaction with masters is generally the same as it
+would be without CURP. [.txn-execute]#Clients send update RPC requests
+to masters.# If a client cannot receive a response, it retries the
+update RPC. If the master crashes, the client may retry the
+RPC with a different server.
 
-To achieve durability in 1 RTT, CURP clients directly
-record their requests in temporary storage, called a witness,
-without serializing them through masters. As shown in Figure 1,
-witnesses do not carry ordering information, so clients
-can directly record operations into witnesses in parallel with
-sending operations to masters so that all requests will finish in
-1 RTT. In addition to the unordered replication to witnesses,
-masters still replicate ordered data to backups, but do so
-asynchronously after sending the execution results back to the
-clients. 
+For 1 RTT updates, masters return to clients before replication to
+backups. [.txn-persist]#To ensure durability, clients directly record
+their requests to witnesses concurrently while waiting for
+responses from masters. Once all f witnesses have accepted
+the requests, clients are assured that the requests will survive
+master crashes, so clients complete the operations with the
+results returned from masters.#
+
+[.txn-validate]#A witness accepts a new record RPC from a client only
+if the new operation is commutative with all operations that
+are currently saved in the witness. If the new request doesn't
+commute with one of the existing requests, the witness must
+reject the record RPC since the witness has no way to order
+the two noncommutative operations consistent with the
+execution order in masters. For example, if a witness already
+accepted “x←1”, it cannot accept “x←5”.#
+
+Each of f witnesses operates independently; witnesses
+need not agree on either ordering or durability of operations.
+In an asynchronous network, record RPCs may arrive at
+witnesses in different order, which can cause witnesses to
+accept and reject different sets of operations. However, this
+does not endanger consistency. First, as mentioned in §3.2.1,
+a client can proceed without waiting for sync to backups
+only if all f witnesses accepted its record RPCs. Second,
+requests in each witness are required to be commutative
+independently, and only one witness is selected and used
+during recovery (described in §3.3).
+
+The role of masters in CURP is similar to their role in
+traditional primary-backup replications. Masters in CURP
+receive, serialize, and execute all update RPC requests from
+clients. [.txn-order]#If an executed operation updates the system state, the
+master synchronizes (syncs) its current state with backups by
+replicating the updated value or the log of ordered operations.#
 ____
 
-Clients broadcast the read and write set of an executed transaction (Execute is first) to both the leader and all the followers of a replication group.  Each replica checks for conflicts and records the transaction locally (Validate and Durable).  After replying to the client, the transactions are ordered (Order).  Thus, we have:
+Thus, we can decompose CURP into its pieces:
+
+. Clients read from the master and send the writes to both the leader and all the followers of a replication group.
+. Each replica concurrently checks for conflicts and records the transaction locally.
+. After replying to the client, the transactions are ordered.
+
+Thus, we have:
 
 [dbdiag-spans]
 ----
 CURP: Execute
 [
 CURP: Validate CC
-CURP: Durable DR
+CURP: Persist DR
 ]
 [
 CURP: END DR
@@ -406,26 +567,26 @@ Sounds cool.  Stitching together some pieces of text from {section}3.2 Protocol 
 
 [quote]
 ____
-In the read phase, the DBMS maintains a separate read set and write set of tuples for each transaction. During this phase, accessed tuples are
+[.txn-execute]#In the read phase, the DBMS maintains a separate read set and write set of tuples for each transaction. During this phase, accessed tuples are
 copied to the read set and modified tuples are written to the write
 set, which is only visible to the current transaction. Each entry in
 the read or write set is encoded as {tuple, data, wts, rts}, where
 tuple is a pointer to the tuple in the database, data is the data value
-of the tuple, and wts and rts are the timestamps copied from the tuple when it was accessed by the transaction. For a read set entry, TicToc maintains the invariant that the version is valid from wts to rts in timestamp order.
+of the tuple, and wts and rts are the timestamps copied from the tuple when it was accessed by the transaction. For a read set entry, TicToc maintains the invariant that the version is valid from wts to rts in timestamp order.#
 
 The first step of the validation phase is to lock
 all the tuples in the transaction's write set in their primary key order
 to prevent other transactions from updating the rows concurrently.
 Using this fixed locking order guarantees that there are no deadlocks with other transactions committing at the same time.
 
-The second step in the validation phase is to compute the transaction's commit timestamp from the timestamps stored within each
-tuple entry in its read/write sets. For a
+[.txn-order]#The second step in the validation phase is to compute the transaction's commit timestamp from the timestamps stored within each
+tuple entry in its read/write sets.# For a
 tuple in the read set but not in the write set, the commit timestamp
 should be no less than its wts since the tuple would have a different version before this timestamp. For a tuple in the transaction's
 write set, however, the commit timestamp needs to be no less than
 its current rts + 1 since the previous version was valid till rts.
 
-In the last step, the algorithm validates the tuples in the transaction's read set. If the transaction's commit_ts is less than or equal
+[.txn-validate.txn-order]#In the last step, the algorithm validates the tuples in the transaction's read set. If the transaction's commit_ts is less than or equal
 to the rts of the read set entry, then the invariant wts ≤ commit_ts
 ≤ rts holds. This means that the tuple version read by the transaction is valid at commit_ts, and thus no further action is required.
 If the entry's rts is less than commit_ts, however, it is not clear
@@ -433,10 +594,9 @@ whether the local value is still valid or not at commit_ts. It is possible that 
 between the local rts and commit_ts, which means the transaction
 has to abort. Otherwise, if no other transaction has modified the
 tuple, rts can be extended to be greater than or equal to commit_ts,
-making the version valid at commit_ts.
+making the version valid at commit_ts.#
 
-Finally, if all of the tuples that the transaction accessed pass validation, then the transaction enters the write phase. In this phase the transaction's write set is written to the
-database.
+[.txn-persist]#Finally, if all of the tuples that the transaction accessed pass validation, then the transaction enters the write phase. In this phase the transaction's write set is written to the database.#
 ____
 
 And so breaking that down, we see:
@@ -444,7 +604,7 @@ And so breaking that down, we see:
 . The transaction is executed, with writes buffered until commit.
 . _While_ the transaction executes, timestamps are recorded which narrow the possible range of commit versions.
 . Once validation begins, a final commit timestamp is chosen and checked for conflicts.
-. If all other steps are successful, the transaction is finally made durable.
+. If all other steps are successful, the transaction is finally persisted.
 
 Thus, the diagram looks something like:
 
@@ -458,7 +618,7 @@ TicToc: END EX
 TicToc: Validate CC
 TicToc: END OD
 TicToc: END CC
-TicToc: Durable
+TicToc: Persist
 ----
 
 TicToc does _dynamic timestamp assignment_.  Instead of choosing a choosing a timestamp before execution, or proposing a timestamp right before commit, it narrows ranges of possible commit timestamps as it executes.
@@ -466,7 +626,7 @@ TicToc does _dynamic timestamp assignment_.  Instead of choosing a choosing a ti
 == Homework
 
 With this in mind, here's a completely arbitrary sampling{nospace}sidenote:ref[] of some further systems from the top of my mind which all do transaction processing in rather different ways that you can use for practice:
-[.aside]#sidenote:def[] Feel free to send me your favorite wacky transaction processing papers for inclusion too!#
+[.aside]#sidenote:def[] Feel free to link:/about.html[send me] your favorite wacky transaction processing papers for inclusion too!#
 
 * https://dl.acm.org/doi/pdf/10.1145/3318464.3386134[CockroachDB: The Resilient Geo-Distributed SQL Database]
 ** But start with https://www.cockroachlabs.com/docs/stable/architecture/transaction-layer[the transaction layer docs], and then add the parallel commit and read restarts optimizations as a later step.
@@ -478,7 +638,7 @@ With this in mind, here's a completely arbitrary sampling{nospace}sidenote:ref[]
 
 == Composing Transactional Systems
 
-A fun part of such a decomposition is that it can be inverted to raise fun questions.  Draw an arbitrary diagram.  Now answer the question: how would I need to design a database such that it would decompose to this diagram?
+A fun part of such a decomposition is that it can be inverted to raise fun questions.  Draw any made up diagram of a possible ordering or interleaving of execute, order, validate, and persist.  Now answer the question: how would I need to design a database such that it would decompose to this diagram?
 
 From all the possible orderings and sets of concurrently executing steps, there's ~74 different types of databases that can exist.  We've covered only a few of those, but each of them derives some interesting property from its different ordering of the steps of transaction processing.  Looking for a novel transactional system to build and publish about?  Find an ordering which hasn't been well explored in the literature before, design a system that executes transactions in that fashion, and then figure out what it's uniquely good and bad at.
 
@@ -486,84 +646,84 @@ From all the possible orderings and sets of concurrently executing steps, there'
 [%collapsible]
 ====
 ----
-Execute -> Order -> Durable -> Validate
-Execute -> Order -> Validate -> Durable
-Execute -> Durable -> Order -> Validate
-Execute -> Durable -> Validate -> Order
-Execute -> Validate -> Order -> Durable
-Execute -> Validate -> Durable -> Order
-Order -> Execute -> Durable -> Validate
-Order -> Execute -> Validate -> Durable
-Order -> Durable -> Execute -> Validate
-Order -> Durable -> Validate -> Execute
-Order -> Validate -> Execute -> Durable
-Order -> Validate -> Durable -> Execute
-Durable -> Execute -> Order -> Validate
-Durable -> Execute -> Validate -> Order
-Durable -> Order -> Execute -> Validate
-Durable -> Order -> Validate -> Execute
-Durable -> Validate -> Execute -> Order
-Durable -> Validate -> Order -> Execute
-Validate -> Execute -> Order -> Durable
-Validate -> Execute -> Durable -> Order
-Validate -> Order -> Execute -> Durable
-Validate -> Order -> Durable -> Execute
-Validate -> Durable -> Execute -> Order
-Validate -> Durable -> Order -> Execute
+Execute -> Order -> Persist -> Validate
+Execute -> Order -> Validate -> Persist
+Execute -> Persist -> Order -> Validate
+Execute -> Persist -> Validate -> Order
+Execute -> Validate -> Order -> Persist
+Execute -> Validate -> Persist -> Order
+Order -> Execute -> Persist -> Validate
+Order -> Execute -> Validate -> Persist
+Order -> Persist -> Execute -> Validate
+Order -> Persist -> Validate -> Execute
+Order -> Validate -> Execute -> Persist
+Order -> Validate -> Persist -> Execute
+Persist -> Execute -> Order -> Validate
+Persist -> Execute -> Validate -> Order
+Persist -> Order -> Execute -> Validate
+Persist -> Order -> Validate -> Execute
+Persist -> Validate -> Execute -> Order
+Persist -> Validate -> Order -> Execute
+Validate -> Execute -> Order -> Persist
+Validate -> Execute -> Persist -> Order
+Validate -> Order -> Execute -> Persist
+Validate -> Order -> Persist -> Execute
+Validate -> Persist -> Execute -> Order
+Validate -> Persist -> Order -> Execute
 
-{Execute, Order} -> Durable -> Validate
-Execute -> {Durable, Order} -> Validate
-Execute -> Order -> {Durable, Validate}
-{Execute, Order} -> Validate -> Durable
-Execute -> {Order, Validate} -> Durable
-{Durable, Execute} -> Order -> Validate
-Execute -> Durable -> {Order, Validate}
-{Durable, Execute} -> Validate -> Order
-Execute -> {Durable, Validate} -> Order
-{Execute, Validate} -> Order -> Durable
-Execute -> Validate -> {Durable, Order}
-{Execute, Validate} -> Durable -> Order
-Order -> {Durable, Execute} -> Validate
-Order -> Execute -> {Durable, Validate}
-Order -> {Execute, Validate} -> Durable
-{Durable, Order} -> Execute -> Validate
-Order -> Durable -> {Execute, Validate}
-{Durable, Order} -> Validate -> Execute
-Order -> {Durable, Validate} -> Execute
-{Order, Validate} -> Execute -> Durable
-Order -> Validate -> {Durable, Execute}
-{Order, Validate} -> Durable -> Execute
-Durable -> {Execute, Order} -> Validate
-Durable -> Execute -> {Order, Validate}
-Durable -> {Execute, Validate} -> Order
-Durable -> Order -> {Execute, Validate}
-Durable -> {Order, Validate} -> Execute
-{Durable, Validate} -> Execute -> Order
-Durable -> Validate -> {Execute, Order}
-{Durable, Validate} -> Order -> Execute
-Validate -> {Execute, Order} -> Durable
-Validate -> Execute -> {Durable, Order}
-Validate -> {Durable, Execute} -> Order
-Validate -> Order -> {Durable, Execute}
-Validate -> {Durable, Order} -> Execute
-Validate -> Durable -> {Execute, Order}
+{Execute, Order} -> Persist -> Validate
+Execute -> {Persist, Order} -> Validate
+Execute -> Order -> {Persist, Validate}
+{Execute, Order} -> Validate -> Persist
+Execute -> {Order, Validate} -> Persist
+{Persist, Execute} -> Order -> Validate
+Execute -> Persist -> {Order, Validate}
+{Persist, Execute} -> Validate -> Order
+Execute -> {Persist, Validate} -> Order
+{Execute, Validate} -> Order -> Persist
+Execute -> Validate -> {Persist, Order}
+{Execute, Validate} -> Persist -> Order
+Order -> {Persist, Execute} -> Validate
+Order -> Execute -> {Persist, Validate}
+Order -> {Execute, Validate} -> Persist
+{Persist, Order} -> Execute -> Validate
+Order -> Persist -> {Execute, Validate}
+{Persist, Order} -> Validate -> Execute
+Order -> {Persist, Validate} -> Execute
+{Order, Validate} -> Execute -> Persist
+Order -> Validate -> {Persist, Execute}
+{Order, Validate} -> Persist -> Execute
+Persist -> {Execute, Order} -> Validate
+Persist -> Execute -> {Order, Validate}
+Persist -> {Execute, Validate} -> Order
+Persist -> Order -> {Execute, Validate}
+Persist -> {Order, Validate} -> Execute
+{Persist, Validate} -> Execute -> Order
+Persist -> Validate -> {Execute, Order}
+{Persist, Validate} -> Order -> Execute
+Validate -> {Execute, Order} -> Persist
+Validate -> Execute -> {Persist, Order}
+Validate -> {Persist, Execute} -> Order
+Validate -> Order -> {Persist, Execute}
+Validate -> {Persist, Order} -> Execute
+Validate -> Persist -> {Execute, Order}
 
-{Execute, Order} -> {Durable, Validate}
-{Execute, Validate} -> {Durable, Order}
-{Durable, Execute} -> {Order, Validate}
-{Durable, Order} -> {Execute, Validate}
-{Order, Validate} -> {Durable, Execute}
-{Durable, Validate} -> {Execute, Order}
+{Execute, Order} -> {Persist, Validate}
+{Execute, Validate} -> {Persist, Order}
+{Persist, Execute} -> {Order, Validate}
+{Persist, Order} -> {Execute, Validate}
+{Order, Validate} -> {Persist, Execute}
+{Persist, Validate} -> {Execute, Order}
 
-Execute -> {Order, Durable, Validate}
-{Order, Durable, Validate} -> Execute
-Order -> {Execute, Durable, Validate}
-{Execute, Durable, Validate} -> Order
-Durable -> {Execute, Order, Validate}
-{Execute, Order, Validate} -> Durable
-Validate -> {Execute, Order, Durable}
-{Execute, Order, Durable} -> Validate
+Execute -> {Order, Persist, Validate}
+{Order, Persist, Validate} -> Execute
+Order -> {Execute, Persist, Validate}
+{Execute, Persist, Validate} -> Order
+Persist -> {Execute, Order, Validate}
+{Execute, Order, Validate} -> Persist
+Validate -> {Execute, Order, Persist}
+{Execute, Order, Persist} -> Validate
 
-{Execute, Order, Durable, Validate}
+{Execute, Order, Persist, Validate}
 ----
 ====
