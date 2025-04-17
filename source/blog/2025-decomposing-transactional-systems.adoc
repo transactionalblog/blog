@@ -3,7 +3,7 @@
 :bibtex-file: 2025-decomposing-transactional-systems.bib
 :page-hook-preamble: false
 :page-aside: With thanks to Stu Hood, Giorgos Xanthakis, Phil Eaton, and Devan Benz for early reads and feedback.
-:page-hook: Every transactional system must execute, order, validate, and durably record transactions.
+:page-hook: Every transactional system must execute, order, validate, and persist transactions.
 
 :section: §
 
