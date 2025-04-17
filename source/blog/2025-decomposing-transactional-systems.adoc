@@ -640,7 +640,7 @@ With this in mind, here's a completely arbitrary sampling{nospace}sidenote:ref[]
 
 A fun part of such a decomposition is that it can be inverted to raise fun questions.  Draw any made up diagram of a possible ordering or interleaving of execute, order, validate, and persist.  Now answer the question: how would I need to design a database such that it would decompose to this diagram?
 
-From all the possible orderings and sets of concurrently executing steps, there's ~74 different types of databases that can exist.  We've covered only a few of those, but each of them derives some interesting property from its different ordering of the steps of transaction processing.  Looking for a novel transactional system to build and publish about?  Find an ordering which hasn't been well explored in the literature before, design a system that executes transactions in that fashion, and then figure out what it's uniquely good and bad at.
+From all the possible orderings and sets of concurrently executing steps, there's at least 74 different types of databases that can exist.  We've covered only a few of those, but each of them derives some interesting property from its different ordering of the steps of transaction processing.  Looking for a novel transactional system to build and publish about?  Find an ordering which hasn't been well explored in the literature before, design a system that executes transactions in that fashion, and then figure out what it's uniquely good and bad at.
 
 .A Big List of Every Possible Ordering
 [%collapsible]
