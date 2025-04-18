@@ -420,7 +420,7 @@ Which initially feels like a lot of description to work through, but it breaks d
 . The clients picks a proposed commit timestamp.
 . Each replica then concurrently runs an OCC check and persists the data to the prepare log.
 
-pick a proposed timestamp", which is used for transaction commit, so Order goes next.  The core of the TAPIR protocol then describes each replica concurrently running an OCC check (Validate) followed by  (Durable), we'll say those are concurrent operations. Thus, our diagram looks like:
+Thus, our diagram looks like:
 
 [dbdiag-spans]
 ----
@@ -428,7 +428,7 @@ TAPIR: Execute
 TAPIR: Order
 [
 TAPIR: Validate CC
-TAPIR: Durable DR
+TAPIR: Persist DR
 ]
 TAPIR: END CC
 TAPIR: END DR
