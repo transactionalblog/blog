@@ -44,14 +44,18 @@ async function ops_to_svg(ops, embed) {
     <td>
       <textarea x-model.debounce="ops" rows=10 cols=20 x-bind:placeholder="ops">
       </textarea>
-      <span style="display: block">
-        <input x-model="embed" type="checkbox" id="embed" />
-        <label style="display: inline" for="embed">Force px for older browsers</label>
-      </span>
     </td>
     <td>
       <span x-html="await ops_to_svg(ops, embed)">
       Loading...
+      </span>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <span style="display: block">
+        <input x-model="embed" type="checkbox" id="embed" />
+        <label style="display: inline" for="embed">Force px for older browsers</label>
       </span>
     </td>
   </tr>
@@ -131,6 +135,37 @@ A: END M
 ----
 |===
 
+If you want to have multiple operations start or end at the same time, wrap them in `[]`.
+
+[cols="1,3"]
+|===
+a|----
+[
+A: DoMany() M
+A: One() A
+]
+A: Two() B
+A: one A
+[
+A: two B
+A: END M
+]
+----
+.^a|[dbdiag-spans]
+----
+[
+A: DoMany() M
+A: One() A
+]
+A: Two() B
+A: one A
+[
+A: two B
+A: END M
+]
+----
+|===
+
 When multiple operations are concurrent, use markers to show how operations serialize in the given example:
 
 [cols="1,3"]
@@ -173,8 +208,10 @@ A: EVENT B
 B: EVENT BZ
 A: END B
 A: Push(c) C
+[
 A: END C
 A: END ALL
+]
 B: Ok(b) BZ
 ----
 .^a|[dbdiag-spans,role=fit-content]
@@ -189,8 +226,10 @@ A: EVENT B
 B: EVENT BZ
 A: END B
 A: Push(c) C
+[
 A: END C
 A: END ALL
+]
 B: Ok(b) BZ
 ----
 |===
