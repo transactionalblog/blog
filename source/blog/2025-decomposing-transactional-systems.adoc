@@ -636,6 +636,10 @@ With this in mind, here's a completely arbitrary sampling{nospace}sidenote:ref[]
 * https://dl.acm.org/doi/pdf/10.1145/3318464.3386134[CockroachDB: The Resilient Geo-Distributed SQL Database]
 ** But start with https://www.cockroachlabs.com/docs/stable/architecture/transaction-layer[the transaction layer docs], and then add the parallel commit and read restarts optimizations as a later step.
 
+:uri-this-page-source: https://github.com/transactionalblog/blog/blob/272739f039809924ca73aed10467f87a2460bc17/source/blog/2025-decomposing-transactional-systems.adoc?plain=1#L425
+
+The diagrams in this post came from my link:/blog/2022-dbdiag-ophistory.html[Concurrent Operation Diagram Generator] tool.  Feel free to use it to generate your own!  There's an interactive web version of it on the page, and you can see the {uri-this-page-source}[source for this blog post] for extra examples on how to use it.
+
 == Composing Transactional Systems
 
 A fun part of such a decomposition is that it can be inverted to raise fun questions.  Draw any made up diagram of a possible ordering or interleaving of execute, order, validate, and persist.  Now answer the question: how would I need to design a database such that it would decompose to this diagram?
