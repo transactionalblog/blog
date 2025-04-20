@@ -2,7 +2,8 @@
 :revdate: 2025-04-19
 :page-order: 84
 :stem: latexmath
-:page-features: stem
+:icons: font
+:page-features: stem, font-awesome
 
 == Archival Note
 
@@ -133,8 +134,6 @@ A `ColumnarTable` first stores how many rows the table has in the `num_rows` mem
 
 [TIP]
 ====
-*TIP*
-
 Run all the following commands in the root directory of this project.
 ====
 
@@ -165,8 +164,6 @@ Now, you can run the tests:
 
 [TIP]
 ====
-*TIP*
-
 If you want to use Ninja Multi-Config as the generator. The commands will look like:
 
 ----
