@@ -6,7 +6,9 @@ layout: none
   <title>Transactional</title>
   <id>https://transactional.blog/</id>
   <updated><%= Time.now.utc.rfc3339 %></updated>
-  <author>Alex Miller</author>
+  <author>
+    <name>Alex Miller</name>
+  </author>
   <link href="<%= join_paths(config[:domain], config[:http_prefix], "feed.xml") %>" rel="self" type="application/rss+xml"/>
 <% category_name = blog.articles
   .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft }
