@@ -2,14 +2,13 @@
 layout: none
 ---
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
-<channel>
+<feed xmlns="http://www.w3.org/2005/Atom">
   <title>Transactional</title>
+  <id>https://transactional.blog</id>
   <description>databases</description>
-  <link><%= config[:domain] %></link>
-  <lastBuildDate><%= Time.now.utc.rfc2822 %></lastBuildDate>
+  <updated><%= Time.now.utc.rfc2822 %></updated>
   <language>en-us</language>
-  <atom:link href="<%= join_paths(config[:domain], config[:http_prefix], "feed.xml") %>" rel="self" type="application/rss+xml"/>
+  <link href="<%= join_paths(config[:domain], config[:http_prefix], "feed.xml") %>" rel="self" type="application/rss+xml"/>
 <% category_name = blog.articles
   .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft }
   .select {|a| a.path.end_with? 'index.html'}
@@ -25,17 +24,16 @@ layout: none
   <item>
     <% category_heading = if post.data.category != 'blog' then category_name[post.data.category] + ": " else "" end %>
     <title><%= category_heading + post.title %></title>
-    <link><%= join_paths(config[:domain], config[:http_prefix], post.url) %></link>
-    <guid><%= join_paths(config[:domain], config[:http_prefix], post.url) %></guid>
-    <category><%= post.data.category %></category>
-    <pubDate><%= date.rfc2822 %></pubDate>
+    <link ref="<%= join_paths(config[:domain], config[:http_prefix], post.url) %>" type="text/html"/>
+    <id><%= join_paths(config[:domain], config[:http_prefix], post.url) %></id>
+    <category term="<%= post.data.category %>" scheme="section" label="<%= category_name[post.data.category] %>" />
+    <published><%= date.rfc2822 %></published>
     <% if post.summary %>
     <% summary_text = html_to_text(post.summary.strip.delete("\n")) %>
-    <% if summary_text %>
-    <description><%= summary_text %></description>
+    <% if summary_text != "" %>
+    <summary><%= summary_text %></summary>
     <% end %>
     <% end %>
   </item>
 <% end %>
-</channel>
-</rss>
+</feed>
