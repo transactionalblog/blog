@@ -14,6 +14,15 @@ https://learn.microsoft.com/en-us/troubleshoot/sql/database-engine/database-file
 https://www.youtube.com/watch?v=OtxCzIHOMk4[videos],
 or chat with your favorite LLM offering.
 
+// There's more attention paid to torn writes because it's the only checksum error that's 100% permitted as part of a correctly functioning device and software.
+////
+Can torn writes still occur if the database page size matches the file system block size? Or do file systems make no such guarantees - requiring writes to align with the device's block size instead?
+
+There's three sizes at play: database page sizes, filesystem block size, and disk sector size.  If db page size > block size, the OS might tear your writes.  If FS block size (or DB page size) > sector size, then the drive might tear the write.
+The exact filesystem guarantees, unsurprisingly, depend on the filesystem.  Ext4 data=journaled gives promises that the FS will protect you from torn writes.  Ext4 data=ordered (the default) doesn't.  Most FSs only protect their own metadata, but not file data.
+https://lwn.net/Articles/1009548/ and https://lwn.net/Articles/974578/ give some of the OS-centric view of this topic. From my databases-only perspective, there's not much of a reason for me to ever think about the FS block size, but RWF_ATOMIC might be changing that.
+////
+
 ////
 Using the color scheme of:
 
@@ -141,7 +150,7 @@ image::double-write-buffer.svg[inline=true,align=center]
 
 Double-write buffering takes an opposite set of trade-offs as logging pages into the write-ahead log.  There's no extra work involved with the write-ahead log, and instead, all responsibility is moved to the B-Tree page writes themselves. The cost though is the database must write every B-Tree page twice, and fsync the double-write buffer before writing to the B-Tree. In the best case, the working set fits in the page cache, and B-Tree pages will only _need_ to be persisted once per checkpoint.  In the worst case, the workload is largely out of memory, and the double-write buffer causing double the writes could be very noticeable. 
 
-MySQL's InnoDB has a 16KB page size{nospace}sidenote:ref[] and is the most well-known user of the {uri-mysql-double-write-buffer}[double write buffer] strategy, and the only user (including its XtraDB fork). Using a double write buffer has the advantage of not blocking commits on writing full page images into the WAL.  It maintains the notable downside of 2x the write latency and 2x write amplification.
+MySQL's InnoDB has a 16KB page size{nospace}sidenote:ref[] and is the most well-known user of the {uri-mysql-double-write-buffer}[double write buffer] strategy, with the other users being the MySQL fork XtraDB and CedarDB. Using a double write buffer has the advantage of not blocking commits on writing full page images into the WAL.  It maintains the notable downside of 2x the write latency and 2x write amplification.
 [.aside]#sidenote:def[] The InnoDB page size can be changed at database initialization time.  Percona once benchmarked the effect of {uri-innodb-page-size}[using a 4KB InnoDB page size].#
 
 I've had a few conversations with Sunny Bains, who worked on InnoDB including the double write buffer implementation, and so to forward some historical context and wisdom on the subject:
