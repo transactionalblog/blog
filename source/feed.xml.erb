@@ -15,6 +15,12 @@ layout: none
   .select {|a| a.path.end_with? 'index.html'}
   .map {|a| [a.data.category, a.title]}
   .to_h %>
+<% category_topic = blog.articles
+  .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft }
+  .select {|a| a.path.end_with? 'index.html'}
+  .select {|a| !a.data.topic.nil?}
+  .map {|a| [a.data.category, a.data.topic]}
+  .to_h %>
 <% blog.articles
   .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft}
   .select {|a| !(a.path.end_with? 'index.html')}
@@ -27,7 +33,10 @@ layout: none
     <title><%= category_heading + post.title %></title>
     <link href="<%= join_paths(config[:domain], config[:http_prefix], post.url) %>" type="text/html"/>
     <id><%= join_paths(config[:domain], config[:http_prefix], post.url) %></id>
-    <category term="<%= post.data.category %>" scheme="https://transactional.blog/" label="<%= category_name[post.data.category] %>" />
+    <% page_topic = post.data.topic || category_topic[post.data.category] %>
+    <% if !page_topic.nil? %>
+    <category term="<%= page_topic %>" scheme="https://transactional.blog/" label="<%= page_topic %>" />
+    <% end %>
     <published><%= date.rfc3339 %></published>
     <updated><%= date.rfc3339 %></updated>
     <% post_summary = post.summary %>
