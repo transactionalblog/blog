@@ -30,8 +30,9 @@ layout: none
     <category term="<%= post.data.category %>" scheme="https://transactional.blog/" label="<%= category_name[post.data.category] %>" />
     <published><%= date.rfc3339 %></published>
     <updated><%= date.rfc3339 %></updated>
-    <% if post.summary %>
-    <% summary_text = html_to_text(post.summary.strip.delete("\n")) %>
+    <% post_summary = post.summary %>
+    <% if post_summary %>
+    <% summary_text = html_to_text(post_summary.strip.delete("\n")) %>
     <% if summary_text != "" %>
     <summary><%= summary_text %></summary>
     <% end %>
