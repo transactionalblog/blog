@@ -9,7 +9,7 @@ layout: none
   <author>
     <name>Alex Miller</name>
   </author>
-  <link href="<%= join_paths(config[:domain], config[:http_prefix], "feed.xml") %>" rel="self" type="application/rss+xml"/>
+  <link href="<%= join_paths(config[:domain], config[:http_prefix], "feed.xml") %>" rel="self" type="application/atom+xml"/>
 <% category_name = blog.articles
   .select {|a| !(@app.environment? :transactionalblog) || !a.data.draft }
   .select {|a| a.path.end_with? 'index.html'}
