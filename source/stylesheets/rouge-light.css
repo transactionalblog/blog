@@ -1,3 +1,4 @@
+/* ipygments xcode.css */
 pre { line-height: 125%; }
 td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
 span.linenos { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
@@ -66,3 +67,15 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 .highlight .vi { color: #000000 } /* Name.Variable.Instance */
 .highlight .vm { color: #000000 } /* Name.Variable.Magic */
 .highlight .il { color: #1C01CE } /* Literal.Number.Integer.Long */
+.highlight .gd {
+  color: #82071e;
+  background-color: #ffebe9;
+}
+.highlight .gi {
+  color: #116329;
+  background-color: #dafbe1;
+}
+.highlight .gh {
+  color: #0550ae;
+  font-weight: bold;
+}
