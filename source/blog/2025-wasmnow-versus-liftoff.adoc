@@ -1,0 +1,635 @@
+= WasmNow Versus Liftoff
+:revdate: 2025-04-28
+:draft: true
+:page-topic: compilers
+:page-hook-preamble: false
+:page-hook: Does copy-and-patch beat a handwritten baseline JIT in execution time?  Not really.
+
+== Compilation Differences
+
+=== Liftoff Tier-Up Checks
+
+=== Stack Safety
+
+=== Div Safety
+
+WasmNow and Liftoff differ in terms of what code they generate for divide operations.  We can see this by just having a very simple program implementing `quotient = divident / divisor`.
+
+[source]
+----
+(module
+  (func $main
+    (local $dividend i32)
+    (local $divisor i32)
+    (local $quotient i32)
+
+    (local.set $dividend (i32.const 10))
+    (local.set $divisor (i32.const 0))
+
+    (local.get $dividend)
+    (local.get $divisor)
+    (i32.div_u)
+    (local.set $quotient)
+  )
+  (export "_start" (func $main))
+)
+----
+
+Running this program under WasmNow and Liftoff produces two notably different effects:
+
+.WasmNow
+----
+535409 Floating point exception(core dumped)
+----
+
+.Liftoff
+----
+wasm-function[0]:0x31: RuntimeError: divide by zero
+RuntimeError: divide by zero
+    at wasm://wasm/0b909e92:wasm-function[0]:0x31
+    at safediv.js:25:16
+----
+
+The reasoning for this is apparent from the assembly: Liftoff inserts a check that the divisor isn't zero, and bails if it is.  WasmNow divides unconditionally, and allows the program to crash.
+
+[%header,cols="1,3,3"]
+|===
+| ^| WasmNow ^| Liftoff
+
+.^a|
+Prologue
+a|
+[source,nasm,role=nopadding]
+----
+----
+a|
+[source,nasm,role=nopadding]
+----
+0x40  xorl r12,r12
+0x43  call 0x3aa76c01b170  (jump table)
+0x48  REX.W subq rsp,0x8
+0x4f  REX.W cmpq rsp,[r13-0x60]
+0x53  jna 0x7a  <+0x3a>
+0x59  xorl rax,rax
+----
+
+.^a|
+[source,role=nopadding]
+----
+(local.set $dividend
+  (i32.const 10))
+----
+a|
+[source,nasm,role=nopadding]
+----
+0x00  mov ebp,0xa
+0x05  mov [r13+0x8],ebp
+----
+a|
+[source,nasm,role=nopadding]
+----
+0x5b  movl rcx,0xa
+----
+
+.^a|
+[source,role=nopadding]
+----
+(local.set $divisor
+  (i32.const 0))
+----
+a|
+[source,nasm,role=nopadding]
+----
+0x0C  mov ebp,0x0
+0x11  mov [r13+0x10],ebp
+----
+a|
+[source,nasm,role=nopadding]
+----
+0x60  movl r10,rax
+0x63  testl r10,r10
+0x66  jz 0x85  <+0x45>
+----
+
+.^a|
+[source,role=nopadding]
+----
+(local.get $dividend)
+----
+a|
+[source,nasm,role=nopadding]
+----
+0x18  mov ebp,[r13+0x8]
+----
+a|
+[source,nasm,role=nopadding]
+----
+----
+
+.^a|
+[source,role=nopadding]
+----
+(local.get $divisor)
+----
+a|
+[source,nasm,role=nopadding]
+----
+0x1F  mov r12d,[r13+0x10]
+----
+a|
+[source,nasm,role=nopadding]
+----
+----
+
+.^a|
+[source,role=nopadding]
+----
+(i32.div_u)
+----
+a|
+[source,nasm,role=nopadding]
+----
+0x26  mov rax,rbp
+0x29  xor edx,edx
+0x2B  div r12d
+----
+a|
+[source,nasm,role=nopadding]
+----
+0x6c  movl rax,rcx
+0x6e  xorl rdx,rdx
+0x70  divl r10
+----
+
+.^a|
+[source,role=nopadding]
+----
+(local.set $quotient)
+----
+a|
+[source,nasm,role=nopadding]
+----
+0x2E  mov rbp,rax
+0x31  mov [r13+0x18],ebp
+----
+a|
+[source,nasm,role=nopadding]
+----
+0x73  movl rcx,rax
+----
+
+.^a|
+Epilogue
+a|
+[source,nasm,role=nopadding]
+----
+0x38  ret
+----
+a|
+[source,nasm,role=nopadding]
+----
+0x75  REX.W movq rsp,rbp
+0x78  pop rbp
+0x79  retl
+----
+
+.^a|
+Trailing
+a|
+[source,nasm,role=nopadding]
+----
+----
+a|
+[source,nasm,role=nopadding]
+----
+    OOL: WasmStackGuard
+0x7a  call 0x3aa76c01b310  (jump table)
+0x7f  REX.W movq rsi,[rbp-0x10]
+0x83  jmp 0x59  <+0x19>
+    OOL: ThrowWasmTrapDivByZero
+0x85  call 0x3aa76c01b070  (jump table)
+0x8a  nop
+----
+|===
+
+Who is correct?  Unsurprisingly, not the program crash one.
+
+[quote,'https://webassembly.github.io/spec/core/_download/WebAssembly.pdf[WebAssembly Specification]']
+____
+Where the underlying operators are partial, the corresponding instruction will trap when the result is not defined.
+
+idiv_u (i1, i2)
+
+* If i2 is 0, then the result is undefined.
+* Else, return the result of dividing i1 by i2, truncated toward zero
+____
+
+So WasmNow is benefitting in execution speed slightly by not emitting a test and branch on every divide.  Let's fix that.
+
+[source,diff]
+----
+--- a/fastinterp/wasm_int_binary_ops.cpp
++++ b/fastinterp/wasm_int_binary_ops.cpp
+@@ -106,6 +106,11 @@ struct FIIntBinaryOpsImpl
+         else if constexpr(operatorType == WasmIntBinaryOps::Div)
+         {
+             // TODO: signed overflow?
++            if (rhs == 0) {
++              // No need to save registers around this call.
++              typedef void(*ClobberRegsFunc)(void) [[clang::preserve_all]];
++              reinterpret_cast<ClobberRegsFunc>(1)();
++            }
+             result = lhs / rhs;
+         }
+         else if constexpr(operatorType == WasmIntBinaryOps::Rem)
+----
+
+Now there's a proper check and a call to some "trap" routine, which still crashes, but we're looking at performance and not safety here.  With this change, WasmNow instead generates the code:
+
+[source,nasm]
+----
+0x00  mov ebp,0xa
+0x05  mov [r13+0x8],ebp
+0x0C  mov ebp,0x0
+0x11  mov [r13+0x10],ebp
+0x18  mov ebp,[r13+0x8]
+0x1F  mov r12d,[r13+0x10]
+0x26  mov rax,rbp
+ ;; if divisor==0
+0x29  test r12d,r12d
+0x2C  jz 0x3b
+ ;; else
+0x2E  xor edx,edx
+0x30  div r12d
+0x33  mov rbp,rax
+0x36  jmp 0x4f
+ ;; then
+0x3B  push rax
+0x3C  mov ecx,0x1
+0x41  call rcx
+0x43  add rsp,byte +0x8
+0x47  xor edx,edx
+0x49  div r12d
+0x4C  mov rbp,rax
+ ;; endif
+0x4F  mov [r13+0x18],ebp
+0x56  ret
+----
+
+For some reason, clang wishes to duplicate the `div` instruction into both the `then` and `else` branches, but I'm not clear on if there's any actual benefit to doing so here.  We're reliant on clang for codegen
+
+This has the following impact on the PolyBenchC tests:
+
+----
+Graph go here
+----
+
+== WasmNow Quirks
+
+Being a research project, it got to the point of "I can run the specific benchmarks I'm targeting", and then stopped, so just to document the oddities if anyone else tries to play around with it in the future...
+
+=== Incorrect Ifs
+
+It turns out that WasmNow doesn't codegen the wasm `(if ...)` correctly.
+
+[source,wasm]
+----
+(module
+  (func $main
+    (local $a i32)
+    (i32.const 1)
+    (if (then (local.set $a (i32.const 1)))
+        (else (local.set $a (i32.const 2))))
+  )
+  (export "main" (func $main))
+)
+----
+
+[source,nasm]
+----
+00000000  BD01000000        mov ebp,0x1
+00000005  85ED              test ebp,ebp
+00000007  0F840C000000      jz near 0x19 ;; if zero jump to else body
+0000000D  BD01000000        mov ebp,0x1
+00000012  4189AD08000000    mov [r13+0x8],ebp
+                            ;; there should be a jmp over the else body here
+00000019  BD02000000        mov ebp,0x2
+0000001E  4189AD08000000    mov [r13+0x8],ebp
+00000025  C3                ret
+----
+
+Why was this not noticed?  Because PolyBenchC and Coremark only use `br_if`.  So, we must thus also only use `br_if`.
+
+== Comparison
+
+[source]
+----
+(module
+  (func $collatz
+    (local $n i32)
+    (local $count i32)
+
+    ;; Compute the number of steps required for 100 to converge.
+    (local.set $n (i32.const 100))
+
+    (loop $loop
+      ;; If n is 1, return count
+      (i32.eq (local.get $n) (i32.const 1))
+      (if (then
+        (return)
+      ))
+
+      ;; WasmNow appears to have a miscompilation where it omits the
+      ;; jmp from the bottom of the then clause to skip the else, and
+      ;; therefore infinite loops. Repeating the if twice works around it.
+      ;; If n is even
+      (i32.and (local.get $n) (i32.const 1))
+      (if ;; n = n / 2
+        (then (local.set $n (i32.div_u (local.get $n) (i32.const 2)))))
+        ;; If n is odd, n = 3n + 1
+      (i32.xor (i32.and (local.get $n) (i32.const 1)) (i32.const 1))
+      (if (then (local.set $n (i32.add 
+                             (i32.mul (local.get $n) (i32.const 3))
+                             (i32.const 1)))))
+
+      ;; Increment count
+      (local.set $count (i32.add (local.get $count) (i32.const 1)))
+
+      ;; Repeat loop
+      (br $loop)
+    )
+    (return)
+  )
+  (export "main" (func $collatz))
+)
+----
+
+=== V8 Liftoff
+
+----
+d8 --print-code --liftoff --no-tier-up testcase.js
+----
+
+[source,nasm]
+----
+0x37c0dd747840  xorl r12,r12
+0x37c0dd747843  call 0x37c0dd747170  (jump table)
+0x37c0dd747848  REX.W subq rsp,0x10
+0x37c0dd74784f  REX.W cmpq rsp,[r13-0x60]
+0x37c0dd747853  jna 0x37c0dd7478f4  <+0xb4>
+0x37c0dd747859  movl [rbp-0x24],0x64
+0x37c0dd747860  movl [rbp-0x28],0x0
+0x37c0dd747867  movl rax,[rbp-0x24]
+0x37c0dd74786a  cmpl rax,0x1
+0x37c0dd74786d  jnz 0x37c0dd747886  <+0x46>
+0x37c0dd747873  REX.W movq r10,[rsi+0x57]
+0x37c0dd747877  subl [r10],0x6f
+0x37c0dd74787b  js 0x37c0dd747902  <+0xc2>
+0x37c0dd747881  REX.W movq rsp,rbp
+0x37c0dd747884  pop rbp
+0x37c0dd747885  retl
+0x37c0dd747886  movl rax,[rbp-0x24]
+0x37c0dd747889  andl rax,0x1
+0x37c0dd74788c  testl rax,rax
+0x37c0dd74788e  jz 0x37c0dd7478ad  <+0x6d>
+0x37c0dd747894  movl rax,[rbp-0x24]
+0x37c0dd747897  movl rcx,0x2
+0x37c0dd74789c  testl rcx,rcx
+0x37c0dd74789e  jz 0x37c0dd747910  <+0xd0>
+0x37c0dd7478a4  xorl rdx,rdx
+0x37c0dd7478a6  divl rcx
+0x37c0dd7478a8  jmp 0x37c0dd7478b0  <+0x70>
+0x37c0dd7478ad  movl rax,[rbp-0x24]
+0x37c0dd7478b0  movl rcx,rax
+0x37c0dd7478b2  andl rcx,0x1
+0x37c0dd7478b5  xorl rcx,0x1
+0x37c0dd7478b8  testl rcx,rcx
+0x37c0dd7478ba  jz 0x37c0dd7478d0  <+0x90>
+0x37c0dd7478c0  movl rcx,0x3
+0x37c0dd7478c5  imull rcx,rax
+0x37c0dd7478c8  addl rcx,0x1
+0x37c0dd7478cb  jmp 0x37c0dd7478d2  <+0x92>
+0x37c0dd7478d0  movl rcx,rax
+0x37c0dd7478d2  movl rax,[rbp-0x28]
+0x37c0dd7478d5  addl rax,0x1
+0x37c0dd7478d8  REX.W movq r10,[rsi+0x57]
+0x37c0dd7478dc  subl [r10],0x85
+0x37c0dd7478e3  js 0x37c0dd747915  <+0xd5>
+0x37c0dd7478e9  movl [rbp-0x24],rcx
+0x37c0dd7478ec  movl [rbp-0x28],rax
+0x37c0dd7478ef  jmp 0x37c0dd747867  <+0x27>
+0x37c0dd7478f4  call 0x37c0dd747310  (jump table)
+0x37c0dd7478f9  REX.W movq rsi,[rbp-0x10]
+0x37c0dd7478fd  jmp 0x37c0dd747859  <+0x19>
+0x37c0dd747902  call 0x37c0dd747160  (jump table)
+0x37c0dd747907  REX.W movq rsi,[rbp-0x10]
+0x37c0dd74790b  jmp 0x37c0dd747881  <+0x41>
+0x37c0dd747910  call 0x37c0dd747070  (jump table)
+0x37c0dd747915  push rax
+0x37c0dd747916  push rcx
+0x37c0dd747917  call 0x37c0dd747160  (jump table)
+0x37c0dd74791c  pop rcx
+0x37c0dd74791d  pop rax
+0x37c0dd74791e  REX.W movq rsi,[rbp-0x10]
+0x37c0dd747922  jmp 0x37c0dd7478e9  <+0xa9>
+----
+
+=== Copy-and-Patch
+
+ndisasm -b64 0.bin
+
+[source,nasm]
+----
+00000000  mov ebp,0x64
+00000005  mov [r13+0x8],ebp
+0000000C  nop dword [rax+0x0]
+00000013  mov ebp,[r13+0x8]
+0000001A  mov r12d,0x1
+00000020  xor eax,eax
+00000022  cmp ebp,r12d
+00000025  setz al
+00000028  mov rbp,rax
+0000002B  test ebp,ebp
+0000002D  jz near 0x34
+00000033  ret
+00000034  mov ebp,[r13+0x8]
+0000003B  mov r12d,0x1
+00000041  and ebp,r12d
+00000044  test ebp,ebp
+00000046  jz near 0x6b
+0000004C  mov ebp,[r13+0x8]
+00000053  mov r12d,0x2
+00000059  mov rax,rbp
+0000005C  xor edx,edx
+0000005E  div r12d
+00000061  mov rbp,rax
+00000064  mov [r13+0x8],ebp
+0000006B  mov ebp,[r13+0x8]
+00000072  mov r12d,0x1
+00000078  and ebp,r12d
+0000007B  mov r12d,0x1
+00000081  xor ebp,r12d
+00000084  test ebp,ebp
+00000086  jz near 0xad
+0000008C  mov ebp,[r13+0x8]
+00000093  mov r12d,0x3
+00000099  imul ebp,r12d
+0000009D  mov r12d,0x1
+000000A3  add ebp,r12d
+000000A6  mov [r13+0x8],ebp
+000000AD  mov ebp,[r13+0x10]
+000000B4  mov r12d,0x1
+000000BA  add ebp,r12d
+000000BD  mov [r13+0x10],ebp
+000000C4  jmp 0x13
+000000C9  ret
+----
+
+=== Side-by-Side
+
+[%header,cols="1,1"]
+|===
+| Liftoff | Copy-and-Patch
+2+^| Setup
+a|
+[source,nasm]
+----
+----
+a|
+[source,nasm]
+----
+----
+|===
+
+== Appendix
+
+=== V8 Setup
+
+----
+git clone depot_tools
+export PATH=$(pwd)/depot_tools:$PATH
+fetch --nohistory v8
+----
+
+Go install https://bazel.build/install/bazelisk[bazelisk] if you don't hae it already.
+
+And now within v8/, I needed to turn off `-Werror`:
+
+[source,diff]
+----
+diff --git a/bazel/defs.bzl b/bazel/defs.bzl
+index fbd942ba..0eb339bd 100644
+--- a/bazel/defs.bzl
++++ b/bazel/defs.bzl
+@@ -106,7 +106,6 @@ def _default_args():
+             "@v8//bazel/config:is_posix": [
+                 "-fPIC",
+                 "-fno-strict-aliasing",
+-                "-Werror",
+                 "-Wextra",
+                 "-Wno-unneeded-internal-declaration",
+                 "-Wno-unknown-warning-option", # b/330781959
+----
+
+And then build d8 with the disassembler enabled:
+
+----
+bazel build //:noicu/d8 --//:v8_enable_disassembler=true --//:v8_enable_object_print=true --//:v8_code_comments=true
+----
+
+Now wait like 3-4 hours.  V8 Team, please publish precompiled d8 binaries.
+
+`bazel-bin/noicu/d8` will now be your `d8` binary.  It has no dynamically linked dependencies on any of the V8 build, so you can copy it elsewhere (I dropped it in /usr/local/bin to get it on $PATH easily).
+
+=== WasmNow Setup
+
+Clone the repo:
+
+----
+git clone https://github.com/sillycross/WasmNow.git
+----
+
+The build script `pochivm-build` expects to be able to copy `/lib/x86_64-linux-gnu/libtinfo.so.5` from your host system.  Fedora dropped that in version 37, so we have to just hack it out of the script:
+
+[source,diff]
+----
+diff --git a/pochivm-build b/pochivm-build
+index f0aec5f..f4c207c 100755
+--- a/pochivm-build
++++ b/pochivm-build
+@@ -63,7 +63,7 @@ def BuildOrUpdateDockerImage():
+     
+     CreateDirIfNotExist(os.path.join(base_dir, 'shared_libs'))
+     all_shared_libs = [
+-        '/lib/x86_64-linux-gnu/libtinfo.so.5'
++        #'/lib/x86_64-linux-gnu/libtinfo.so.5'
+     ]
+     for shared_lib in all_shared_libs:
+         cmd = 'docker run -v%s:/home/u/PochiVM pochivm-build:latest cp %s /home/u/PochiVM/shared_libs' % (base_dir, shared_lib)
+----
+
+It also turns out that making files shared across a host system and a container is hard, especially when you're running on fedora using rootless podman by default, so I also had to patch in:
+
+[source,diff]
+----
+diff --git a/pochivm-build b/pochivm-build
+index f0aec5f..f4c207c 100755
+--- a/pochivm-build
++++ b/pochivm-build
+@@ -111,7 +111,7 @@ if (op == 'cmake'):
+     CreateDirIfNotExist(GetGeneratedDirFlavor(target))
+     CreateDirIfNotExist(os.path.join(GetGeneratedDirFlavor(target), 'generated'))
+     
+-    cmd = "docker run -v %s:/home/u/PochiVM pochivm-build:latest bash -c 'cd PochiVM/build/%s && cmake ../../ -DBUILD_FLAVOR=%s -GNinja'" % (base_dir, target, target.upper())
++    cmd = "docker run --user root -v %s:/home/u/PochiVM:z pochivm-build:latest bash -c 'cd PochiVM/build/%s && cmake ../../ -DBUILD_FLAVOR=%s -GNinja'" % (base_dir, target, target.upper())
+     r = os.system(cmd)
+     sys.exit(r)
+     
+@@ -146,7 +146,7 @@ if (op == 'make'):
+             if (num_cpus > 4):
+                 parallelism = num_cpus - 2
+         option = ("-j%s" % str(parallelism))
+-    cmd = "docker run -v %s:/home/u/PochiVM pochivm-build:latest bash -c 'cd PochiVM/build/%s && ninja %s'" % (base_dir, target, option)
++    cmd = "docker run --user root -v %s:/home/u/PochiVM:z pochivm-build:latest bash -c 'cd PochiVM/build/%s && ninja %s'" % (base_dir, target, option)
+     r = os.system(cmd)
+     if (r != 0):
+         sys.exit(r)
+----
+
+And now you should be able to 
+
+=== DevEx Setup
+
+.run_d8_wasm
+[source,bash]
+----
+#!/bin/bash
+WATFILE=$1
+WASMFILE="${1%.wat}.wasm"
+JSFILE="${1%.wat}.js"
+
+wat2wasm $WATFILE -o $WASMFILE
+
+cat >$JSFILE <<END
+const bytes = new Uint8Array(
+END
+cat $WASMFILE | node -e "process.stdin.on('data', (data) => console.log([...data]));" >> $JSFILE
+cat >>$JSFILE <<END
+);
+
+const module = new WebAssembly.Module(bytes);
+const instance = new WebAssembly.Instance(module);
+console.log(instance.exports.main());
+END
+d8 --liftoff --no-wasm-tier-up --print-code --code-comments $JSFILE
+----
+
+[source,bash]
+----
+#!/bin/bash
+WATFILE=$1
+WASMFILE="${1%.wat}.wasm"
+wat2wasm $WATFILE -o $WASMFILE
+WASM_TEST_FILE=$WASMFILE ./main --gtest_filter=WasmExecution.from_env
+ndisasm -b64 0.bin
+----
