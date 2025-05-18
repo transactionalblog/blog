@@ -1,0 +1,13 @@
+= Copy-and-Patch
+:revdate: 2025-05-16
+:draft: true
+:page-layout: index
+:page-hook-preamble: false
+:page-aggregate: true
+
+[.display-none]
+== Posts
+
+++++
+<%= partial("partials/index_section", :locals => {}) %>
+++++

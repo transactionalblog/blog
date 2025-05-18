@@ -77,8 +77,26 @@ class SidenoteMacro < Extensions::InlineMacroProcessor
   end
 end
 
+# An inline macro that defines a callout number.
+#
+# Usage
+#
+#   conum:[1] -> [1]
+#
+class ConumMacro < Extensions::InlineMacroProcessor
+  use_dsl
+
+  named :conum
+
+  def process parent, target, attrs
+    text = %(<i class="conum" data-value="#{target}"></i>)
+    create_inline_pass parent, text
+  end
+end
+
 Asciidoctor::Extensions.register do
   inline_macro GitHubMacro
   inline_macro ManMacro
   inline_macro SidenoteMacro
+  inline_macro ConumMacro
 end

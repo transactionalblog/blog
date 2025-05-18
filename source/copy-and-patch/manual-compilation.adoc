@@ -1,0 +1,542 @@
+= Manual Compilation
+:revdate: 2025-05-16
+:draft: true
+:toc: right
+:icons: font
+:page-features: font-awesome
+:page-hook-preamble: false
+
+https://arxiv.org/abs/2011.13127[Copy-and-patch Compilation] is a fascinating way of constructing a baseline JIT by copying pre-compiled stencils of code fragments and patching the stencils to change embedded constants or addresses as needed.  It offers a way of engineering native code generation that barely requires understanding assembly and is only slightly more difficult to write and maintain than an interpreter, but offers potentially significant speedups by removing the interpretation overhead.
+
+As an adventure into understanding how copy-and-patch works, our goal will be to create the function
+
+[source,c]
+----
+int add_a_b(int a, int b) {
+    return a + b
+}
+----
+
+But specialized at runtime to compute `1 + 2`. We'll be doing this by first breaking it down into some bytecode-sized operations:
+
+. const_int_reg1: `a = 1;`
+. const_int_reg2: `b = 2;`
+. add_int1_int2: `c = a + b;`
+. return_int1: `return c;`
+
+So that for each of these, we can define a minimal C function which we expect to compile to exactly the instructions we need, our _stencil_. We can then invoke clang to compile it to native code, and then copy-paste the native code back into a C file with functions to emit the native code to a buffer and use the relocation information to patch it as needed.  Then we can write our little JIT compilation engine to concatenate our stencils and execute the generated function.
+
+Let's get started!
+
+== Bytecode JIT
+
+Our first step is to define our stencils:
+
+.stencils.c
+[source,c]
+----
+#include <stdint.h>
+
+#define STENCIL_FUNCTION __attribute__((preserve_none))
+
+extern char cnp_value_hole[65536];
+extern void cnp_func_hole(void) STENCIL_FUNCTION;
+
+#define STENCIL_HOLE(type) \
+  (type)((uintptr_t)&cnp_value_hole)
+#define DECLARE_STENCIL_OUTPUT(...) \
+  typedef void(*stencil_output_fn)(__VA_ARGS__) STENCIL_FUNCTION; \
+  stencil_output_fn stencil_output = (stencil_output_fn)&cnp_func_hole;
+
+STENCIL_FUNCTION void load_int_reg1() {
+  int a = STENCIL_HOLE(int);
+  DECLARE_STENCIL_OUTPUT(int);
+  stencil_output(a);
+}
+
+STENCIL_FUNCTION void load_int_reg2(int a) {
+  int b = STENCIL_HOLE(int);
+  DECLARE_STENCIL_OUTPUT(int, int);
+  stencil_output(a, b);
+}
+
+STENCIL_FUNCTION void add_int1_int2(int a, int b) {
+  int c = a + b;
+  DECLARE_STENCIL_OUTPUT(int);
+  stencil_output(c);
+}
+
+STENCIL_FUNCTION int return_int1(int a) {
+  return a;
+}
+----
+
+We compile this with `clang -O3 -mcmodel=medium -c stencils.c`, and examine the generated code via `objdump -d -Mintel,x86-64 --disassemble --reloc stencils.o`.  This yields:
+
+[source,nasm]
+----
+0000000000000000 <load_int_reg1>:
+   0:	41 bc 00 00 00 00    	mov    r12d,0x0
+			2: R_X86_64_32	cnp_value_hole
+   6:	e9 00 00 00 00       	jmp    b <load_int_reg1+0xb>
+			7: R_X86_64_PLT32	cnp_func_hole-0x4
+   b:	0f 1f 44 00 00       	nop    DWORD PTR [rax+rax*1+0x0]
+
+0000000000000010 <load_int_reg2>:
+  10:	41 bd 00 00 00 00    	mov    r13d,0x0
+			12: R_X86_64_32	cnp_value_hole
+  16:	e9 00 00 00 00       	jmp    1b <load_int_reg2+0xb>
+			17: R_X86_64_PLT32	cnp_func_hole-0x4
+  1b:	0f 1f 44 00 00       	nop    DWORD PTR [rax+rax*1+0x0]
+
+0000000000000020 <add_int1_int2>:
+  20:	45 01 ec             	add    r12d,r13d
+  23:	e9 00 00 00 00       	jmp    28 <add_int1_int2+0x8>
+			24: R_X86_64_PLT32	cnp_func_hole-0x4
+  28:	0f 1f 84 00 00 00 00 	nop    DWORD PTR [rax+rax*1+0x0]
+  2f:	00 
+
+0000000000000030 <return_int1>:
+  30:	44 89 e0             	mov    eax,r12d
+  33:	c3                   	ret
+----
+
+(The NOP's aren't actually a part of the function, they're just padding added so that each function starts with 16 byte alignment.)
+
+For each of these stencils, we fill in a template to form our stencil generation library to use during JITing.
+
+[source,c]
+----
+uint8_t cnp_stencil_<OP>_code[] = {
+  // Copy the bytes from the top of the function until the jmp.
+};
+
+uint8_t* cnp_copy_<OP>(uint8_t* stencil_start) {
+  const size_t stencil_size = sizeof(cnp_stencil_<OP>_code);
+  memcpy(stencil_start, cnp_stencil_<OP>_code, stencil_size);
+  return stencil_start + stencil_size;
+}
+
+// If any relocations exist for the stencil, fill in the values.
+// If not, just skip writing this function.
+void cnp_patch_<OP>(uint8_t* stencil_start, /* ... */ ) {
+  memcpy(stencil_start + /*relocation_offset*/, &value, /* relocation_size */);
+}
+----
+
+So let's get started!
+
+.cnp_jit.c
+[source,c]
+----
+#include <stdint.h>
+
+uint8_t cnp_stencil_load_int_reg1_code[] = {
+   0x41, 0xbc, 0x00, 0x00, 0x00, 0x00, // mov r12d,0x0
+};
+uint8_t* cnp_copy_load_int_reg1(uint8_t* stencil_start) {
+  const size_t stencil_size = sizeof(cnp_stencil_load_int_reg1_code);
+  memcpy(stencil_start, cnp_stencil_load_int_reg1_code, stencil_size);
+  return stencil_start + stencil_size;
+}
+void cnp_patch_load_int_reg1(uint8_t* stencil_start, int value) {
+  // 2: R_X86_64_32 cnp_value_hole  ->  0x02 offset
+  memcpy(stencil_start + 0x2, &value, sizeof(value));
+}
+
+uint8_t cnp_stencil_load_int_reg2_code[] = {
+   0x41, 0xbd, 0x00, 0x00, 0x00, 0x00, // mov r13d,0x0
+};
+uint8_t* cnp_copy_load_int_reg2(uint8_t* stencil_start) {
+  const size_t stencil_size = sizeof(cnp_stencil_load_int_reg2_code);
+  memcpy(stencil_start, cnp_stencil_load_int_reg2_code, stencil_size);
+  return stencil_start + stencil_size;
+}
+void cnp_patch_load_int_reg2(uint8_t* stencil_start, int value) {
+  // 12: R_X86_64_32 cnp_value_hole  ->  0x12 - 0x10 base = 0x2
+  memcpy(stencil_start + 0x2, &value, sizeof(value));
+}
+
+uint8_t cnp_stencil_add_int1_int2_code[] = {
+  0x45, 0x01, 0xec, // add r12d,r13d
+};
+uint8_t* cnp_copy_add_int1_int2(uint8_t* stencil_start) {
+  const size_t stencil_size = sizeof(cnp_stencil_add_int1_int2_code);
+  memcpy(stencil_start, cnp_stencil_add_int1_int2_code, stencil_size);
+  return stencil_start + stencil_size;
+}
+// No patching needed
+
+uint8_t cnp_stencil_return_int1_code[] = {
+  0x44, 0x89, 0xe0, // mov eax,r12d
+  0xc3,             // ret
+};
+uint8_t* cnp_copy_return_int1(uint8_t* stencil_start) {
+  const size_t stencil_size = sizeof(cnp_stencil_return_int1_code);
+  memcpy(stencil_start, cnp_stencil_return_int1_code, stencil_size);
+  return stencil_start + stencil_size;
+}
+// No patching needed
+----
+
+And now, we can use our code generation functions to build our runtime specialized adder:
+
+.cnp_jit.c
+[source,c]
+----
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+
+typedef int(*jit_func)() __attribute__((preserve_none));
+
+jit_func create_add_1_2() {
+  uint8_t* codedata = mmap(NULL, 256, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
+  assert (codedata != MAP_FAILED);
+  jit_func ret = (jit_func)codedata;
+  
+  uint8_t* load_int_reg1_location = codedata;
+  codedata = cnp_copy_load_int_reg1(codedata);
+  uint8_t* load_int_reg2_location = codedata;
+  codedata = cnp_copy_load_int_reg2(codedata);
+  codedata = cnp_copy_add_int1_int2(codedata);
+  codedata = cnp_copy_return_int1(codedata);
+
+  cnp_patch_load_int_reg1(load_int_reg1_location, 1);
+  cnp_patch_load_int_reg2(load_int_reg2_location, 2);
+
+  int rc = mprotect(ret, 256, PROT_READ | PROT_EXEC);
+  if (rc) {
+    perror("mprotect");
+  }
+  return ret;
+}
+
+int main() {
+  jit_func add_1_2 = create_add_1_2();
+  int result = add_1_2();
+  printf("JIT'd 1 + 2 = %d\n", result);
+  return 0;
+}
+----
+
+And now we can compile and run that!
+
+----
+$ clang cnp_jit.c -o cnp_jit
+$ ./cnp_jit
+JIT'd 1 + 2 = 3
+----
+
+We've successfully built runtime code generation, while letting clang do the hard work of actually writing the assembly code, and our JIT compiler is just a bunch of memcpy calls!
+
+== How It Works
+
+=== Stencil Creation
+
+All of the idioms around creating stencils are about abusing features of clang as much as possible to be able to generate functions as only the specific sequences of instructions we want.  There's number of tricks involved:
+
+First, we rely on the calling convention to be able to force values into known registers. Our goal is to be able to form programs by concatenating stencils, and so we must be able to match the outputs of one stencil to the inputs of another. By making the stencil inputs be the function arguments, and ending each function with a (tail)call to another function, we can rely on the calling convention to place input and output values into consistent registers. This ending call can be easily identified and trimmed off from the stencil. As a minor optimization we rely on specifically the GHC / `preserve_none` calling convention, which tries to pass as many arguments in registers as possible.  This maximizes our ability to keep values in registers, and minimizes the chance that the compiler will try to generate a stack frame as we won't be pushing arguments to a stack.
+
+Second, we rely on compiler optimizations to elide the stack frame prologue/epilogue and to turn the ending call into a tailcall. Setting up and tearing down a stack frame is a notable overhead on the small stencil functions, and means each setup must have a paired teardown. Ending the stencil with a tailcall is what allows us to trivially elide the jump instruction and fall through into the next concatenated stencil, as well as helping to ensure that any stack operations have been undone before the jump.
+
+Third, we extensively abuse dynamic relocations to allow stencils to declare holes for values to be filled in at JIT compile time, and when compiling the stencil the C compiler will tell us how/where to patch in constants or addresses into the code that it generated.  If we wish to be able to patch in an integer constant, we can declare an `extern int some_constant`, and then cast _the address of that variable_ to an int. By paying attention to the name of the extern symbol being referenced, we can more intelligently disambiguate its intended use and treat certain references specially. The machine code model has a significant impact on the relocations generated, and we'll discuss that more later.
+
+To show how these all fit together, let us consider a stencil which swaps its two arguments between its input and output, and multiplies them by a patchable constant:
+
+[source,c]
+----
+#include <stdint.h>
+extern void hole_for_stencil_output(void) __attribute__((preserve_none));
+extern int hole_for_int;
+
+__attribute__((preserve_none))
+void swap_and_multiply(int a, int b) {
+  const int hole_value = (int)((uintptr_t)&hole_for_int);
+  int c = a * hole_value;
+  a = b * hole_value;
+  b = c;
+
+  typedef void(*outfn_type)(int, int) __attribute__((preserve_none));
+  outfn_type stencil_output = (outfn_type)&hole_for_stencil_output;
+  stencil_output(a, b);
+}
+----
+
+We compile this with `clang -mcmodel=medium -O3 -c swap_and_multiply.c`, and examine the generated code with `objdump -d -Mintel,x86-64 --disassemble --reloc swap_and_multiply.o`:
+
+[source,nasm]
+----
+0000000000000000 <swap_and_multiply>:
+   0:	44 89 e0             	mov    eax,r12d
+   3:	41 bc 00 00 00 00    	mov    r12d,0x0
+			5: R_X86_64_32	hole_for_int
+   9:	41 0f af c4          	imul   eax,r12d
+   d:	45 0f af e5          	imul   r12d,r13d
+  11:	41 89 c5             	mov    r13d,eax
+  14:	e9 00 00 00 00       	jmp    19 <swap_and_multiply+0x19>
+			15: R_X86_64_PLT32	hole_for_stencil_output-0x4
+----
+
+And thus we have achieved our exact goals in stencil creation. The function body is only our targeted set of instructions.  There's no stack frame setup or teardown.  The relocation information tells us exactly how and where to patch in our integer constant at JIT compile time. And the use of a unique symbol `hole_for_stencil_output` means the tail call jump is easy to identify and strip off from the generated code, as we end up with a unique pointer to it.
+
+Now, let's unwind each of the techniques involved here to illustrate their individual impact on the generated code.
+
+=== Calling convention
+
+:uri-64bit-cdecl: https://aaronbloomfield.github.io/pdr/book/x86-64bit-ccc-chapter.pdf
+:uri-preserve-none: https://clang.llvm.org/docs/AttributeReference.html#preserve-none
+
+The standard x86_64 calling convention places the first six arguments into registers (in order: `rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`), and then the rest go on the stack. There's a very nice overview of the standard (cdecl) calling convention for x86_64 in {uri-64bit-cdecl}[The 64 bit x86 C Calling Convention]. However, the guidance for copy-and-patch stencils is to instead opt in to the {uri-preserve-none}[`preserve_none`] calling convention. Clang/LLVM only supports `preserve_none` on x86_64 and AArch64, and GCC doesn't support it at all (but support is https://gcc.gnu.org/bugzilla/show_bug.cgi?id=119628[being worked on]).
+
+We can look at the difference between `cdecl` and `preserve_none` by building a small stencil which just swaps the order of its inputs:
+
+[%header,cols="1,1"]
+|===
+| cdecl calling convention | preserve_none calling convention
+a|
+[source,c]
+----
+#include <stdint.h>
+extern void hole_fn(void)
+  __attribute__((cdecl));
+
+__attribute__((cdecl))
+void swap_ints(int a, int b) {
+  typedef void(*outfn_type)(int, int)
+    __attribute__((cdecl));
+  outfn_type stencil_output =
+    (outfn_type)&hole_fn;
+  stencil_output(b, a);
+}
+----
+a|
+[source,c]
+----
+#include <stdint.h>
+extern void hole_fn(void)
+  __attribute__((preserve_none));
+
+__attribute__((preserve_none))
+void swap_ints(int a, int b) {
+  typedef void(*outfn_type)(int, int)
+    __attribute__((preserve_none));
+  outfn_type stencil_output =
+    (outfn_type)&hole_fn;
+  stencil_output(b, a);
+}
+----
+a|
+[source,nasm]
+----
+; <swap_ints>:
+mov    eax,edi
+mov    edi,esi
+mov    esi,eax
+jmp    b <swap_ints+0xb>
+;; R_X86_64_PLT32	hole_fn-0x4
+----
+a|
+[source,nasm]
+----
+; <swap_and_multiply>:
+mov    eax,r12d
+mov    r12d,r13d
+mov    r13d,eax
+jmp    e <swap_and_multiply+0xe>
+;; R_X86_64_PLT32	hole_fn-0x4
+----
+|===
+
+Which is... not really all that different.  `preserve_none` is useful though as the number of arguments go up.  As mentioned above, x86_64 provides six registers for arguments, so we can better illustrate the difference by extending swap_ints to 8 parameters:
+
+[source,c]
+----
+#include <stdint.h>
+extern void hole_fn(void)
+  __attribute__((CALLING_CONVENTION));
+
+__attribute__((CALLING_CONVENTION))
+void swap_ints(int a, int b, int c, int d, int e, int f, int g, int h) {
+  typedef void(*outfn_type)(int, int, int, int,
+                            int, int, int, int)
+  __attribute__((CALLING_CONVENTION));
+  outfn_type stencil_output = (outfn_type)&hole_fn;
+  stencil_output(h, g, f, e, d, c, b, a);
+}
+
+// clang -DCALLING_CONVENTION=cdecl -O3 -c
+// clang -DCALLING_CONVENTION=preserve_none -O3 -c
+----
+
+[%header,cols="1,1"]
+|===
+| cdecl calling convention | preserve_none calling convention
+a|
+[source,nasm]
+----
+; <swap_ints>:
+push   rbx
+mov    eax,ecx
+mov    r10d,edx
+mov    r11d,esi
+mov    ebx,edi
+mov    edi,DWORD PTR [rsp+0x18]
+mov    esi,DWORD PTR [rsp+0x10]
+mov    edx,r9d
+mov    ecx,r8d
+mov    r8d,eax
+mov    r9d,r10d
+push   rbx
+push   r11
+call   27 <swap_ints+0x27>
+;; R_X86_64_PLT32	hole_fn-0x4
+add    rsp,0x10
+pop    rbx
+ret
+----
+a|
+[source,nasm]
+----
+; <swap_ints>:
+mov    eax,r15d
+mov    ebx,r14d
+mov    r8d,r13d
+mov    r9d,r12d
+mov    r12d,ecx
+mov    r13d,edx
+mov    r14d,esi
+mov    r15d,edi
+mov    edi,eax
+mov    esi,ebx
+mov    edx,r8d
+mov    ecx,r9d
+jmp    27 <swap_ints+0x27>
+;; R_X86_64_PLT32	hole_fn-0x4
+----
+|===
+
+So it's helpful for when it matters.  It moves us from being able to only define stencils with 6 inputs and outputs to stencils that have 12 inputs and outputs, after which `preserve_none` also runs out of registers and has to start setting up a stack frame.  So if you need to support GCC, stick to 6 or less arguments, and then cdecl on x86_64 will still work okay.
+
+=== Clang Optimization
+
+:uri-clang-musttail: https://clang.llvm.org/docs/AttributeReference.html#musttail
+
+As was mentioned, we rely on clang's optimization passes for two major things: eliding stack frames and converting to tailcalls.  Going back to our `swap_and_multiply` example:
+
+[source,c]
+----
+#include <stdint.h>
+extern void hole_for_stencil_output(void) __attribute__((preserve_none));
+extern int hole_for_int;
+
+__attribute__((preserve_none))
+void swap_and_multiply(int a, int b) {
+  const int hole_value = (int)((uintptr_t)&hole_for_int);
+  int c = a * hole_value;
+  a = b * hole_value;
+  b = c;
+
+  typedef void(*outfn_type)(int, int) __attribute__((preserve_none));
+  outfn_type stencil_output = (outfn_type)&hole_for_stencil_output;
+  stencil_output(a, b);
+}
+----
+
+We can look at the resulting code without optimizations (`-O0`) and with optimizations (`-O3`):
+
+[%header,cols="1,1"]
+|===
+| clang -O0 | clang -O3
+a|
+[source,nasm]
+----
+; <swap_and_multiply>:
+push   rbp <1>
+mov    rbp,rsp
+sub    rsp,0x20
+mov    DWORD PTR [rbp-0x4],r12d
+mov    DWORD PTR [rbp-0x8],r13d
+mov    eax,0x0
+;; R_X86_64_32	hole_for_int
+mov    DWORD PTR [rbp-0xc],eax
+mov    eax,DWORD PTR [rbp-0x4]
+mov    ecx,DWORD PTR [rbp-0xc]
+imul   eax,ecx
+mov    DWORD PTR [rbp-0x10],eax
+mov    eax,DWORD PTR [rbp-0x8]
+mov    ecx,DWORD PTR [rbp-0xc]
+imul   eax,ecx
+mov    DWORD PTR [rbp-0x4],eax
+mov    eax,DWORD PTR [rbp-0x10]
+mov    DWORD PTR [rbp-0x8],eax
+mov    QWORD PTR [rbp-0x18],0x0
+;; R_X86_64_32S	hole_for_stencil_output
+mov    rax,QWORD PTR [rbp-0x18]
+mov    r12d,DWORD PTR [rbp-0x4]
+mov    r13d,DWORD PTR [rbp-0x8]
+call   rax <3>
+add    rsp,0x20
+pop    rbp <2>
+ret
+----
+a|
+[source,nasm]
+----
+; <swap_and_multiply>:
+mov    eax,r12d
+mov    r12d,0x0
+;; R_X86_64_32	hole_for_int
+imul   eax,r12d
+imul   r12d,r13d
+mov    r13d,eax
+jmp    19 <swap_and_multiply+0x19> <3>
+;; R_X86_64_PLT32	hole_for_stencil_output-0x4
+----
+|===
+
+So, clang is obviously doing great work for us. conum:1[] and conum:2[] are the stack frame setup and teardown in the unoptimized version, and they've been elided in the optimized version.  The call at conum:3[] has been replaced with a tailcall jmp at conum:4[].
+
+I'm not aware of a more specific way to request clang to emit the stack frame when it's not necessary.  `-fomit-frame-pointer -momit-leaf-frame-pointer` causes clang to drop the `push rbp`/`pop rbp`, but the `sub rsp,0x20` and `add rsp,0x20` remain as the unoptimized code relies on the stack for local variables.  Maybe running only mem2reg would then suffice, but the whole point here is to get all of LLVM's optimizations for "free" within a stencil anyway.
+
+Clang does support the {uri-clang-musttail}[musttail] attribute to force tailcall generation. However, it _requires_ that the input and output types match, which doesn't fit our needs for stencil creation.
+
+[source,c]
+----
+extern void hole_fn(void) __attribute__((preserve_none));
+
+__attribute__((preserve_none))
+void add_two_ints(int a, int b) {
+  typedef void(*outfn_type)(int) __attribute__((preserve_none));
+  outfn_type stencil_output = (outfn_type)&hole_fn;
+  // Force the tailcall, via an attribute on the return statement.
+  __attribute__((musttail)) return stencil_output(a + b);
+}
+----
+
+----
+$ clang -O3 -c example.c
+example.c:12:29: error: cannot perform a tail call to function 'stencil_output' 
+because its signature is incompatible with the calling function
+   12 |   __attribute__((musttail)) return stencil_output(a + b);
+      |                             ^
+example.c:11:3: note: target function has different number of parameters
+(expected 2 but has 1)
+   11 |   outfn_type stencil_output = (outfn_type)&hole_fn;
+      |   ^
+example.c:12:18: note: tail call required by 'musttail' attribute here
+   12 |   __attribute__((musttail)) return stencil_output(a + b);
+      |                  ^
+----
+
+So, unless that changes in the future, we have to rely on `-O3` magically doing the right thing.
+
+=== Relocations
+
+Copy-and-patch involves copying the stencil and patching the result, and it's now time to look at patching.
+
+== Debugging Help
+
