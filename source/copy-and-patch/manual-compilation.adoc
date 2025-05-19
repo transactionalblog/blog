@@ -1,10 +1,11 @@
-= Manual Compilation
+= Copy-and-Paste Compilation
 :revdate: 2025-05-16
 :draft: true
 :toc: right
 :icons: font
 :page-features: font-awesome
 :page-hook-preamble: false
+:page-order: 1
 
 https://arxiv.org/abs/2011.13127[Copy-and-patch Compilation] is a fascinating way of constructing a baseline JIT by copying pre-compiled stencils of code fragments and patching the stencils to change embedded constants or addresses as needed.  It offers a way of engineering native code generation that barely requires understanding assembly and is only slightly more difficult to write and maintain than an interpreter, but offers potentially significant speedups by removing the interpretation overhead.
 
@@ -250,7 +251,7 @@ To show how these all fit together, let us consider a stencil which swaps its tw
 [source,c]
 ----
 #include <stdint.h>
-extern void hole_for_stencil_output(void) __attribute__((preserve_none));
+extern void hole_fn(void) __attribute__((preserve_none));
 extern int hole_for_int;
 
 __attribute__((preserve_none))
@@ -261,7 +262,7 @@ void swap_and_multiply(int a, int b) {
   b = c;
 
   typedef void(*outfn_type)(int, int) __attribute__((preserve_none));
-  outfn_type stencil_output = (outfn_type)&hole_for_stencil_output;
+  outfn_type stencil_output = (outfn_type)&hole_fn;
   stencil_output(a, b);
 }
 ----
@@ -278,10 +279,10 @@ We compile this with `clang -mcmodel=medium -O3 -c swap_and_multiply.c`, and exa
    d:	45 0f af e5          	imul   r12d,r13d
   11:	41 89 c5             	mov    r13d,eax
   14:	e9 00 00 00 00       	jmp    19 <swap_and_multiply+0x19>
-			15: R_X86_64_PLT32	hole_for_stencil_output-0x4
+			15: R_X86_64_PLT32	hole_fn-0x4
 ----
 
-And thus we have achieved our exact goals in stencil creation. The function body is only our targeted set of instructions.  There's no stack frame setup or teardown.  The relocation information tells us exactly how and where to patch in our integer constant at JIT compile time. And the use of a unique symbol `hole_for_stencil_output` means the tail call jump is easy to identify and strip off from the generated code, as we end up with a unique pointer to it.
+And thus we have achieved our exact goals in stencil creation. The function body is only our targeted set of instructions.  There's no stack frame setup or teardown.  The relocation information tells us exactly how and where to patch in our integer constant at JIT compile time. And the use of a unique symbol `hole_fn` means the tail call jump is easy to identify and strip off from the generated code, as we end up with a unique pointer to it.
 
 Now, let's unwind each of the techniques involved here to illustrate their individual impact on the generated code.
 
@@ -430,7 +431,7 @@ As was mentioned, we rely on clang's optimization passes for two major things: e
 [source,c]
 ----
 #include <stdint.h>
-extern void hole_for_stencil_output(void) __attribute__((preserve_none));
+extern void hole_fn(void) __attribute__((preserve_none));
 extern int hole_for_int;
 
 __attribute__((preserve_none))
@@ -441,7 +442,7 @@ void swap_and_multiply(int a, int b) {
   b = c;
 
   typedef void(*outfn_type)(int, int) __attribute__((preserve_none));
-  outfn_type stencil_output = (outfn_type)&hole_for_stencil_output;
+  outfn_type stencil_output = (outfn_type)&hole_fn;
   stencil_output(a, b);
 }
 ----
@@ -474,7 +475,7 @@ mov    DWORD PTR [rbp-0x4],eax
 mov    eax,DWORD PTR [rbp-0x10]
 mov    DWORD PTR [rbp-0x8],eax
 mov    QWORD PTR [rbp-0x18],0x0
-;; R_X86_64_32S	hole_for_stencil_output
+;; R_X86_64_32S	hole_fn
 mov    rax,QWORD PTR [rbp-0x18]
 mov    r12d,DWORD PTR [rbp-0x4]
 mov    r13d,DWORD PTR [rbp-0x8]
@@ -494,7 +495,7 @@ imul   eax,r12d
 imul   r12d,r13d
 mov    r13d,eax
 jmp    19 <swap_and_multiply+0x19> <3>
-;; R_X86_64_PLT32	hole_for_stencil_output-0x4
+;; R_X86_64_PLT32	hole_fn-0x4
 ----
 |===
 
@@ -536,7 +537,104 @@ So, unless that changes in the future, we have to rely on `-O3` magically doing 
 
 === Relocations
 
-Copy-and-patch involves copying the stencil and patching the result, and it's now time to look at patching.
+:uri-thegreenplace-code-models: https://eli.thegreenplace.net/2012/01/03/understanding-the-x64-code-models
+:uri-maskray-code-models: https://maskray.me/blog/2023-05-14-relocation-overflow-and-code-models
 
-== Debugging Help
+This far, we've examined the "copy" part of copy-and-patch.  It is now time to focus on the "patch" part instead.
 
+A relocation is a bit of information that clang leaves for the dynamic linker when referencing an external symbol, so that when the program is run and the executable and its various libraries are loaded into random addresses in memory, the dynamic linker can patch the executable with the correct addresses of all of the symbols it needs.  In copy-and-patch, we abuse this by referencing an external symbol every time that we want a hole to be inserted into the stencil, and then looking at the relocation information generated after compilation to know what offsets to patch within the generated code to fill the hole at JIT compile time.
+
+We lean heavily on the medium machine code model, which sets the expectation that code can be referenced within +-2GB (32-bit values), and large data needs to be referenced by full 64-bit values. Others have covered the topics of machine code models and relocations before, so please see {uri-thegreenplace-code-models}[Understanding the x64 code models] or {uri-maskray-code-models}[Relocation Overflow and Code Models] for background on this topic. Small views both code and data as 32-bit values, large views both as 64-bit values, and so using medium means we're able to generate holes of either 32-bit or 64-bit depending on if we reference code or data.
+
+I've summarized everything to be aware of within the realm of making holes into one program:
+
+[source,c]
+----
+#include <stdint.h>
+
+extern uint8_t cnp_small_data_array[8];
+extern uint8_t cnp_large_data_array[1000000];
+extern void cnp_function_near(uint32_t, uint64_t);
+extern uint8_t cnp_function_far[1000000];
+
+void stencil_example(void) {
+  uint32_t small = (uint32_t)((uintptr_t)&cnp_small_data_array);
+  uint64_t large = (uint64_t)((uintptr_t)&cnp_large_data_array);
+  typedef void(*fn_ptr_t)(uint32_t, uint64_t);
+  fn_ptr_t near_ptr = &cnp_function_near;
+  near_ptr(small, large);
+
+  uint64_t largefn = (uint64_t)((uintptr_t)&cnp_function_far);
+  asm volatile("" : "+r" (largefn) : : "memory");
+  fn_ptr_t far_ptr = (fn_ptr_t)largefn;
+  far_ptr(small, largefn);
+}
+----
+
+The key part, which I cannot emphasize enough, is that we completely and utterly ignore the actual data referred to by the symbol.  We always take the address of the symbol, and cast it to what we need.  Hence, the use of some macros above to make this friendlier.
+
+We compile this with `clang -O3 -mcmodel=medium -c example.c`, though `-mcmodel=medium` is the default anyway, and view the generated code and relocations with `objdump -d -Mintel,x86-64 --disassemble --reloc example.o` as usual:
+
+[source,nasm]
+----
+0000000000000000 <stencil_example>:
+   0:	50                   	push   rax
+   1:	48 be 00 00 00 00 00 	movabs rsi,0x0
+   8:	00 00 00 
+			3: R_X86_64_64	cnp_large_data_array
+   b:	bf 00 00 00 00       	mov    edi,0x0
+			c: R_X86_64_32	cnp_small_data_array
+  10:	e8 00 00 00 00       	call   15 <stencil_example+0x15>
+			11: R_X86_64_PLT32	cnp_function_near-0x4
+  15:	48 be 00 00 00 00 00 	movabs rsi,0x0
+  1c:	00 00 00 
+			17: R_X86_64_64	cnp_function_far
+  1f:	bf 00 00 00 00       	mov    edi,0x0
+			20: R_X86_64_32	cnp_small_data_array
+  24:	58                   	pop    rax
+  25:	ff e6                	jmp    rsi
+----
+
+When referring to a small piece of data, we'll get a 32-bit hole.  You can see this with the relocation for `cnp_small_data_array` being a `R_X86_64_32`.  Referring to a large piece of data instead gets us a 64-bit hole.  `cnp_large_data_array` was assigned `R_X86_64_64`, and clearly there are more 00 bytes to fill in.`-mlarge-data-threshold=threshold` controls the exact line between how large an array must be for it to be considered "large data" and get 64-bit addressing treatment, but it's safe to just declare a needlessly large extern array as the array won't exist anyway.
+
+When calling a function, the function is expected to be within +-2GB according to the code model, so the invocation of `cnp_function_near` becomes a 32-bit hole of `R_X86_64_PLT32`. When patching references between stencils, it will be important to track the exact offsets of the source jmp/call and the destination, as the offset is relative. If you wish to call back into a function that's a part of the JIT compiler runtime, that function won't likely be within +-2GB.  We need to be able to emit a call/jmp to the full 64-bit address.  It turns out that this is incredibly difficult to do:
+
+[source,c]
+----
+void stencil_example(void) {
+  typedef void(*fn_ptr_t)(uint64_t);
+  fn_ptr_t direct_assign = (fn_ptr_t)((uintptr_t)&cnp_function_far);
+  direct_assign(0);
+
+  uint64_t far_as_int = (uint64_t)((uintptr_t)&cnp_function_far);
+  fn_ptr_t indirect_assign = (fn_ptr_t)far_as_int;
+  indirect_assign(far_as_int);
+
+  uint64_t far_forgettable = (uint64_t)((uintptr_t)&cnp_function_far);
+  // Abuse an empty asm volatile to make clang unable to understand
+  // where the value came from.
+  asm volatile("" : "+r" (far_forgettable) : : "memory");
+  fn_ptr_t forgotten = (fn_ptr_t)far_forgettable;
+  forgotten(far_forgettable);
+}
+----
+
+[source,nasm]
+----
+0000000000000000 <stencil_example>:
+   0:	53                   	push   rbx
+   1:	31 ff                	xor    edi,edi
+   3:	e8 00 00 00 00       	call   8 <stencil_example+0x8>
+			4: R_X86_64_PLT32	cnp_function_far-0x4
+   8:	48 bb 00 00 00 00 00 	movabs rbx,0x0
+   f:	00 00 00 
+			a: R_X86_64_64	cnp_function_far
+  12:	48 89 df             	mov    rdi,rbx
+  15:	e8 00 00 00 00       	call   1a <stencil_example+0x1a>
+			16: R_X86_64_PLT32	cnp_function_far-0x4
+  1a:	48 89 df             	mov    rdi,rbx
+  1d:	5b                   	pop    rbx
+  1e:	ff e7                	jmp    rdi
+----
+
+Of which we see that there's two 32-bit relocations (`R_X86_64_PLT32`) and one 64-bit one (`R_X86_64_64`).  There's 32-bit relocations because clang sees that we turned an external symbol into a function pointer.  Code must be within +-2GB according to the code model, so 32 bits is fine.  Clang is also then smart enough to track this through an assignment to a variable, and although it loads the full 64-bit address into a register as the argument, it then emits a 32-bit relocation for the actual call, because it still knows that the address came from a symbol definition.  The only way I found to make clang "forget" the source of function pointer value was to run it through an empty `asm volatile` so that clang thinks no assumptions are valid anymore, and then it finally is willing to just jump to the 64-bit value in the register.
