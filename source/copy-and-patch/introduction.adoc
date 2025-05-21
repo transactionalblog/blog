@@ -1,0 +1,360 @@
+= Introduction
+:revdate: 2025-05-16
+:draft: true
+:toc: right
+:icons: font
+:page-features: font-awesome
+:page-hook-preamble: false
+:page-order: 1
+:page-hook: If you can ctrl-c and ctrl-v, you can build a JIT.
+
+https://arxiv.org/abs/2011.13127[Copy-and-patch Compilation] is a fascinating way of constructing a baseline JIT{nospace}sidenote:ref[].  It permits incredibly fast runtime compilation of code fragments in a very easy to maintain fashion, requires barely any actual understanding of assembly code, and produces native code of sufficient quality to be within the same range as traditional, hand-written baseline JITs.
+[.aside]#sidenote:def[] Baseline JIT, as in a JIT whose goal is primarily to generate code quickly and gain performance by removing interpretation overhead than generating well optimized code itself.  Baseline JITs can be paired with optimizing JITs, like V8's Liftoff baseline JIT for WASM allowing tiering up into V8's Crankshaft optimizing JIT.#
+
+Copy-and-patch works by writing _stencils_, minimal C functions that implement the desired individual operations such that they compile to concatenate native code fragments. At JIT compile time, one can copy the pre-compiled fragment for each operation back-to-back, patching them change embedded constants or addresses as needed..
+
+As an adventure into understanding how copy-and-patch works, our goal will be to create the function
+
+[source,c]
+----
+int add_a_b(int a, int b) {
+    return a + b
+}
+----
+
+But specialized at runtime to compute `1 + 2`. We'll be doing this by first breaking it down into some bytecode-sized operations:
+
+. const_int_reg1: `a = 1;`
+. const_int_reg2: `b = 2;`
+. add_int1_int2: `c = a + b;`
+. return_int1: `return c;`
+
+And to define our copy-and-patch JIT, we'll take each of these and:
+
+. Implement the operation in C with relocation holes to be later patched to form our stencil.
+. Compile the stencil into native code.
+. Copy-paste the native code back into a C file with functions to emit it to a buffer and patch any relocations.
+
+Then we can write our little JIT compilation engine to concatenate our stencils and execute the generated function. Let's get started!
+
+== Stencils
+
+Our first step is to define our stencils:
+
+.stencils.c
+[source,c]
+----
+#include <stdint.h>
+
+#define STENCIL_FUNCTION __attribute__((preserve_none))
+
+extern char cnp_value_hole[65536];
+extern void cnp_func_hole(void) STENCIL_FUNCTION;
+
+#define STENCIL_HOLE(type) \
+  (type)((uintptr_t)&cnp_value_hole)
+#define DECLARE_STENCIL_OUTPUT(...) \
+  typedef void(*stencil_output_fn)(__VA_ARGS__) STENCIL_FUNCTION; \
+  stencil_output_fn stencil_output = (stencil_output_fn)&cnp_func_hole;
+
+STENCIL_FUNCTION void load_int_reg1() {
+  int a = STENCIL_HOLE(int);
+  DECLARE_STENCIL_OUTPUT(int);
+  stencil_output(a);
+}
+
+STENCIL_FUNCTION void load_int_reg2(int a) {
+  int b = STENCIL_HOLE(int);
+  DECLARE_STENCIL_OUTPUT(int, int);
+  stencil_output(a, b);
+}
+
+STENCIL_FUNCTION void add_int1_int2(int a, int b) {
+  int c = a + b;
+  DECLARE_STENCIL_OUTPUT(int);
+  stencil_output(c);
+}
+
+STENCIL_FUNCTION int return_int1(int a) {
+  return a;
+}
+----
+
+We compile this with `clang -O3 -mcmodel=medium -c stencils.c`, and examine the generated code via `objdump -d -Mintel,x86-64 --disassemble --reloc stencils.o`.  This yields:
+
+[source,nasm]
+----
+0000000000000000 <load_int_reg1>:
+   0:	41 bc 00 00 00 00    	mov    r12d,0x0
+			2: R_X86_64_32	cnp_value_hole
+   6:	e9 00 00 00 00       	jmp    b <load_int_reg1+0xb>
+			7: R_X86_64_PLT32	cnp_func_hole-0x4
+   b:	0f 1f 44 00 00       	nop    DWORD PTR [rax+rax*1+0x0]
+
+0000000000000010 <load_int_reg2>:
+  10:	41 bd 00 00 00 00    	mov    r13d,0x0
+			12: R_X86_64_32	cnp_value_hole
+  16:	e9 00 00 00 00       	jmp    1b <load_int_reg2+0xb>
+			17: R_X86_64_PLT32	cnp_func_hole-0x4
+  1b:	0f 1f 44 00 00       	nop    DWORD PTR [rax+rax*1+0x0]
+
+0000000000000020 <add_int1_int2>:
+  20:	45 01 ec             	add    r12d,r13d
+  23:	e9 00 00 00 00       	jmp    28 <add_int1_int2+0x8>
+			24: R_X86_64_PLT32	cnp_func_hole-0x4
+  28:	0f 1f 84 00 00 00 00 	nop    DWORD PTR [rax+rax*1+0x0]
+  2f:	00 
+
+0000000000000030 <return_int1>:
+  30:	44 89 e0             	mov    eax,r12d
+  33:	c3                   	ret
+----
+
+(The NOP's aren't actually a part of the function, they're just padding added so that each function starts with 16 byte alignment.)
+
+For each of these stencils, we fill in a template to form our stencil generation library to use during JITing.
+
+[source,c]
+----
+uint8_t cnp_stencil_<OP>_code[] = {
+  // Copy the bytes from the top of the function until the jmp.
+};
+
+uint8_t* cnp_copy_<OP>(uint8_t* stencil_start) {
+  const size_t stencil_size = sizeof(cnp_stencil_<OP>_code);
+  memcpy(stencil_start, cnp_stencil_<OP>_code, stencil_size);
+  return stencil_start + stencil_size;
+}
+
+// If any relocations exist for the stencil, fill in the values.
+// If not, just skip writing this function.
+void cnp_patch_<OP>(uint8_t* stencil_start, /* ... */ ) {
+  memcpy(stencil_start + /*relocation_offset*/, &value, /* relocation_size */);
+}
+----
+
+So let's get started!
+
+.cnp_stencils.c
+[source,c]
+----
+#include <stdint.h>
+
+uint8_t cnp_stencil_load_int_reg1_code[] = {
+   0x41, 0xbc, 0x00, 0x00, 0x00, 0x00, // mov r12d,0x0
+};
+uint8_t* cnp_copy_load_int_reg1(uint8_t* stencil_start) {
+  const size_t stencil_size = sizeof(cnp_stencil_load_int_reg1_code);
+  memcpy(stencil_start, cnp_stencil_load_int_reg1_code, stencil_size);
+  return stencil_start + stencil_size;
+}
+void cnp_patch_load_int_reg1(uint8_t* stencil_start, int value) {
+  // 2: R_X86_64_32 cnp_value_hole  ->  0x02 offset
+  memcpy(stencil_start + 0x2, &value, sizeof(value));
+}
+
+uint8_t cnp_stencil_load_int_reg2_code[] = {
+   0x41, 0xbd, 0x00, 0x00, 0x00, 0x00, // mov r13d,0x0
+};
+uint8_t* cnp_copy_load_int_reg2(uint8_t* stencil_start) {
+  const size_t stencil_size = sizeof(cnp_stencil_load_int_reg2_code);
+  memcpy(stencil_start, cnp_stencil_load_int_reg2_code, stencil_size);
+  return stencil_start + stencil_size;
+}
+void cnp_patch_load_int_reg2(uint8_t* stencil_start, int value) {
+  // 12: R_X86_64_32 cnp_value_hole  ->  0x12 - 0x10 base = 0x2
+  memcpy(stencil_start + 0x2, &value, sizeof(value));
+}
+
+uint8_t cnp_stencil_add_int1_int2_code[] = {
+  0x45, 0x01, 0xec, // add r12d,r13d
+};
+uint8_t* cnp_copy_add_int1_int2(uint8_t* stencil_start) {
+  const size_t stencil_size = sizeof(cnp_stencil_add_int1_int2_code);
+  memcpy(stencil_start, cnp_stencil_add_int1_int2_code, stencil_size);
+  return stencil_start + stencil_size;
+}
+// No patching needed
+
+uint8_t cnp_stencil_return_int1_code[] = {
+  0x44, 0x89, 0xe0, // mov eax,r12d
+  0xc3,             // ret
+};
+uint8_t* cnp_copy_return_int1(uint8_t* stencil_start) {
+  const size_t stencil_size = sizeof(cnp_stencil_return_int1_code);
+  memcpy(stencil_start, cnp_stencil_return_int1_code, stencil_size);
+  return stencil_start + stencil_size;
+}
+// No patching needed
+----
+
+In a fully automated setup, all of this work will happen as part of the build system. The stencil compilation and transforming them into a library of copy functions and patch functions happens as part running `make`.
+
+== Your First JIT
+
+With our stencil library in place, we can use our code generation functions to build our runtime specialized adder:
+
+.cnp_jit.c
+[source,c]
+----
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+
+//#include "cnp_stencils.h"
+uint8_t* cnp_copy_load_int_reg1(uint8_t* stencil_start);
+void cnp_patch_load_int_reg1(uint8_t* stencil_start, int value);
+uint8_t* cnp_copy_load_int_reg2(uint8_t* stencil_start);
+void cnp_patch_load_int_reg2(uint8_t* stencil_start, int value);
+uint8_t* cnp_copy_add_int1_int2(uint8_t* stencil_start);
+uint8_t* cnp_copy_return_int1(uint8_t* stencil_start);
+
+typedef int(*jit_func)() __attribute__((preserve_none));
+
+jit_func create_add_1_2() {
+  // Most systems mark memory as non-executable by default
+  // and mprotect() to set memory as executable needs
+  // to be run against mmap-allocated memory.  We start
+  // by allocating it as read/write, and then switch it
+  // to write/execute once we're done writing the code.
+  uint8_t* codedata = mmap(NULL, 256, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
+  assert (codedata != MAP_FAILED);
+  jit_func ret = (jit_func)codedata;
+  
+  uint8_t* load_int_reg1_location = codedata;
+  codedata = cnp_copy_load_int_reg1(codedata);
+  uint8_t* load_int_reg2_location = codedata;
+  codedata = cnp_copy_load_int_reg2(codedata);
+  codedata = cnp_copy_add_int1_int2(codedata);
+  codedata = cnp_copy_return_int1(codedata);
+
+  cnp_patch_load_int_reg1(load_int_reg1_location, 1);
+  cnp_patch_load_int_reg2(load_int_reg2_location, 2);
+
+  int rc = mprotect(ret, 256, PROT_READ | PROT_EXEC);
+  if (rc) {
+    perror("mprotect");
+  }
+  return ret;
+}
+
+int main() {
+  jit_func add_1_2 = create_add_1_2();
+  int result = add_1_2();
+  printf("JIT'd 1 + 2 = %d\n", result);
+  return 0;
+}
+----
+
+And now we can compile and run that!
+
+----
+$ clang cnp_jit.c cnp_stencils.c -o cnp_jit
+$ ./cnp_jit
+JIT'd 1 + 2 = 3
+----
+
+We've successfully built runtime code generation, while letting clang do the hard work of actually writing the assembly code, and our JIT compiler is just a bunch of memcpy calls!
+
+== Try It Yourself
+
+Here's a header to offer some macros to make declaring relocation holes easier:
+
+.cnp_stencils.h
+[source,c]
+----
+#include <stdint.h>
+
+#define STENCIL_FUNCTION __attribute__((preserve_none))
+
+extern void cnp_stencil_output(void) STENCIL_FUNCTION;
+
+#define STENCIL_HOLE32(ordinal, type) \
+  (type)((uintptr_t)&cnp_small_value_hole_##ordinal)
+#define STENCIL_HOLE64(ordinal, type) \
+  (type)((uintptr_t)&cnp_large_value_hole_##ordinal)
+#define STENCIL_FN_NEAR(ordinal, type) \
+  (type)&cnp_near_func_hole_##ordinal
+#define STENCIL_FN_FAR(ordinal, type) \
+  ({ uint64_t _cnp_addr_as_int = (uint64_t)((uintptr_t)&cnp_far_func_hole_##ordinal); \
+  asm volatile("" : "+r" (_cnp_addr_as_int) : : "memory"); \
+  (type)_cnp_addr_as_int; })
+#define DECLARE_STENCIL_OUTPUT(...) \
+  typedef void(*stencil_output_fn)(__VA_ARGS__) STENCIL_FUNCTION; \
+  stencil_output_fn stencil_output = (stencil_output_fn)&cnp_stencil_output;
+
+#define DECLARE_EXTERN_HOLES(ordinal) \
+extern char cnp_large_value_hole_##ordinal[100000]; \
+extern char cnp_small_value_hole_##ordinal[8]; \
+extern void cnp_near_func_hole_##ordinal(void) STENCIL_FUNCTION; \
+extern char cnp_far_func_hole_##ordinal[100000];
+----
+
+(If you're interested in the details of why these macros are the way they are, see the next post in the series!)
+
+Then you can declare as complex of a stencil as you need:
+
+.complex_stencil.h
+[source,c]
+----
+#include "cnp_stencils.h"
+
+// Declare up to the maximum number of holes you need of one type
+// in a function:
+DECLARE_EXTERN_HOLES(1);
+DECLARE_EXTERN_HOLES(2);
+
+STENCIL_FUNCTION
+void fused_multiply_add_squareroot_ifnotzero() {
+  uint32_t a = STENCIL_HOLE32(1, uint32_t);
+  uint32_t b = STENCIL_HOLE32(2, int32_t);
+  uint64_t c = STENCIL_HOLE64(1, uint64_t);
+
+  uint64_t fma = a * b + c;
+
+  if (fma == 0) {
+    void (*div_trap)(void) = STENCIL_FN_NEAR(1, void(*)(void));
+    div_trap();
+  }
+
+  uint64_t (*sqrt)(uint64_t) = STENCIL_FN_FAR(1, uint64_t(*)(uint64_t));
+  uint64_t result = sqrt(c);
+
+  DECLARE_STENCIL_OUTPUT(uint64_t);
+  stencil_output(result);
+}
+----
+
+Which just for completeness sake, compiles into:
+
+----
+0000000000000000 <fused_multiply_add_squareroot_ifnotzero>:
+   0:	50                   	push   rax
+   1:	b8 00 00 00 00       	mov    eax,0x0
+			2: R_X86_64_32	cnp_small_value_hole_2
+   6:	b9 00 00 00 00       	mov    ecx,0x0
+			7: R_X86_64_32	cnp_small_value_hole_1
+   b:	0f af c8             	imul   ecx,eax
+   e:	48 b8 00 00 00 00 00 	movabs rax,0x0
+  15:	00 00 00 
+			10: R_X86_64_64	cnp_large_value_hole_1
+  18:	48 01 c8             	add    rax,rcx
+  1b:	75 05                	jne    22 <fused_multiply_add_squareroot_ifnotzero+0x22>
+  1d:	e8 00 00 00 00       	call   22 <fused_multiply_add_squareroot_ifnotzero+0x22>
+			1e: R_X86_64_PLT32	cnp_near_func_hole_1-0x4
+  22:	48 b8 00 00 00 00 00 	movabs rax,0x0
+  29:	00 00 00 
+			24: R_X86_64_64	cnp_far_func_hole_1
+  2c:	48 bf 00 00 00 00 00 	movabs rdi,0x0
+  33:	00 00 00 
+			2e: R_X86_64_64	cnp_large_value_hole_1
+  36:	ff d0                	call   rax
+  38:	49 89 c4             	mov    r12,rax
+  3b:	58                   	pop    rax
+  3c:	e9 00 00 00 00       	jmp    41 <fused_multiply_add_squareroot_ifnotzero+0x41>
+			3d: R_X86_64_PLT32	cnp_stencil_output-0x4
+----

@@ -1,242 +1,14 @@
-= Copy-and-Paste Compilation
-:revdate: 2025-05-16
+= How It Works
+:revdate: 2025-05-20
 :draft: true
 :toc: right
-:icons: font
-:page-features: font-awesome
 :page-hook-preamble: false
-:page-order: 1
+:page-order: 2
+:page-hook: Clang optimizations, machine code models, relocations!
 
-https://arxiv.org/abs/2011.13127[Copy-and-patch Compilation] is a fascinating way of constructing a baseline JIT by copying pre-compiled stencils of code fragments and patching the stencils to change embedded constants or addresses as needed.  It offers a way of engineering native code generation that barely requires understanding assembly and is only slightly more difficult to write and maintain than an interpreter, but offers potentially significant speedups by removing the interpretation overhead.
+From the introduction, you've followed a set of given rules to produce stencils and relocation holes, with no explanation given as to why the rules are the way they are. We're now going to dive into that reasoning, and look at exactly how each part of the guidance on clang flags and relocation hole macros came to be.
 
-As an adventure into understanding how copy-and-patch works, our goal will be to create the function
-
-[source,c]
-----
-int add_a_b(int a, int b) {
-    return a + b
-}
-----
-
-But specialized at runtime to compute `1 + 2`. We'll be doing this by first breaking it down into some bytecode-sized operations:
-
-. const_int_reg1: `a = 1;`
-. const_int_reg2: `b = 2;`
-. add_int1_int2: `c = a + b;`
-. return_int1: `return c;`
-
-So that for each of these, we can define a minimal C function which we expect to compile to exactly the instructions we need, our _stencil_. We can then invoke clang to compile it to native code, and then copy-paste the native code back into a C file with functions to emit the native code to a buffer and use the relocation information to patch it as needed.  Then we can write our little JIT compilation engine to concatenate our stencils and execute the generated function.
-
-Let's get started!
-
-== Bytecode JIT
-
-Our first step is to define our stencils:
-
-.stencils.c
-[source,c]
-----
-#include <stdint.h>
-
-#define STENCIL_FUNCTION __attribute__((preserve_none))
-
-extern char cnp_value_hole[65536];
-extern void cnp_func_hole(void) STENCIL_FUNCTION;
-
-#define STENCIL_HOLE(type) \
-  (type)((uintptr_t)&cnp_value_hole)
-#define DECLARE_STENCIL_OUTPUT(...) \
-  typedef void(*stencil_output_fn)(__VA_ARGS__) STENCIL_FUNCTION; \
-  stencil_output_fn stencil_output = (stencil_output_fn)&cnp_func_hole;
-
-STENCIL_FUNCTION void load_int_reg1() {
-  int a = STENCIL_HOLE(int);
-  DECLARE_STENCIL_OUTPUT(int);
-  stencil_output(a);
-}
-
-STENCIL_FUNCTION void load_int_reg2(int a) {
-  int b = STENCIL_HOLE(int);
-  DECLARE_STENCIL_OUTPUT(int, int);
-  stencil_output(a, b);
-}
-
-STENCIL_FUNCTION void add_int1_int2(int a, int b) {
-  int c = a + b;
-  DECLARE_STENCIL_OUTPUT(int);
-  stencil_output(c);
-}
-
-STENCIL_FUNCTION int return_int1(int a) {
-  return a;
-}
-----
-
-We compile this with `clang -O3 -mcmodel=medium -c stencils.c`, and examine the generated code via `objdump -d -Mintel,x86-64 --disassemble --reloc stencils.o`.  This yields:
-
-[source,nasm]
-----
-0000000000000000 <load_int_reg1>:
-   0:	41 bc 00 00 00 00    	mov    r12d,0x0
-			2: R_X86_64_32	cnp_value_hole
-   6:	e9 00 00 00 00       	jmp    b <load_int_reg1+0xb>
-			7: R_X86_64_PLT32	cnp_func_hole-0x4
-   b:	0f 1f 44 00 00       	nop    DWORD PTR [rax+rax*1+0x0]
-
-0000000000000010 <load_int_reg2>:
-  10:	41 bd 00 00 00 00    	mov    r13d,0x0
-			12: R_X86_64_32	cnp_value_hole
-  16:	e9 00 00 00 00       	jmp    1b <load_int_reg2+0xb>
-			17: R_X86_64_PLT32	cnp_func_hole-0x4
-  1b:	0f 1f 44 00 00       	nop    DWORD PTR [rax+rax*1+0x0]
-
-0000000000000020 <add_int1_int2>:
-  20:	45 01 ec             	add    r12d,r13d
-  23:	e9 00 00 00 00       	jmp    28 <add_int1_int2+0x8>
-			24: R_X86_64_PLT32	cnp_func_hole-0x4
-  28:	0f 1f 84 00 00 00 00 	nop    DWORD PTR [rax+rax*1+0x0]
-  2f:	00 
-
-0000000000000030 <return_int1>:
-  30:	44 89 e0             	mov    eax,r12d
-  33:	c3                   	ret
-----
-
-(The NOP's aren't actually a part of the function, they're just padding added so that each function starts with 16 byte alignment.)
-
-For each of these stencils, we fill in a template to form our stencil generation library to use during JITing.
-
-[source,c]
-----
-uint8_t cnp_stencil_<OP>_code[] = {
-  // Copy the bytes from the top of the function until the jmp.
-};
-
-uint8_t* cnp_copy_<OP>(uint8_t* stencil_start) {
-  const size_t stencil_size = sizeof(cnp_stencil_<OP>_code);
-  memcpy(stencil_start, cnp_stencil_<OP>_code, stencil_size);
-  return stencil_start + stencil_size;
-}
-
-// If any relocations exist for the stencil, fill in the values.
-// If not, just skip writing this function.
-void cnp_patch_<OP>(uint8_t* stencil_start, /* ... */ ) {
-  memcpy(stencil_start + /*relocation_offset*/, &value, /* relocation_size */);
-}
-----
-
-So let's get started!
-
-.cnp_jit.c
-[source,c]
-----
-#include <stdint.h>
-
-uint8_t cnp_stencil_load_int_reg1_code[] = {
-   0x41, 0xbc, 0x00, 0x00, 0x00, 0x00, // mov r12d,0x0
-};
-uint8_t* cnp_copy_load_int_reg1(uint8_t* stencil_start) {
-  const size_t stencil_size = sizeof(cnp_stencil_load_int_reg1_code);
-  memcpy(stencil_start, cnp_stencil_load_int_reg1_code, stencil_size);
-  return stencil_start + stencil_size;
-}
-void cnp_patch_load_int_reg1(uint8_t* stencil_start, int value) {
-  // 2: R_X86_64_32 cnp_value_hole  ->  0x02 offset
-  memcpy(stencil_start + 0x2, &value, sizeof(value));
-}
-
-uint8_t cnp_stencil_load_int_reg2_code[] = {
-   0x41, 0xbd, 0x00, 0x00, 0x00, 0x00, // mov r13d,0x0
-};
-uint8_t* cnp_copy_load_int_reg2(uint8_t* stencil_start) {
-  const size_t stencil_size = sizeof(cnp_stencil_load_int_reg2_code);
-  memcpy(stencil_start, cnp_stencil_load_int_reg2_code, stencil_size);
-  return stencil_start + stencil_size;
-}
-void cnp_patch_load_int_reg2(uint8_t* stencil_start, int value) {
-  // 12: R_X86_64_32 cnp_value_hole  ->  0x12 - 0x10 base = 0x2
-  memcpy(stencil_start + 0x2, &value, sizeof(value));
-}
-
-uint8_t cnp_stencil_add_int1_int2_code[] = {
-  0x45, 0x01, 0xec, // add r12d,r13d
-};
-uint8_t* cnp_copy_add_int1_int2(uint8_t* stencil_start) {
-  const size_t stencil_size = sizeof(cnp_stencil_add_int1_int2_code);
-  memcpy(stencil_start, cnp_stencil_add_int1_int2_code, stencil_size);
-  return stencil_start + stencil_size;
-}
-// No patching needed
-
-uint8_t cnp_stencil_return_int1_code[] = {
-  0x44, 0x89, 0xe0, // mov eax,r12d
-  0xc3,             // ret
-};
-uint8_t* cnp_copy_return_int1(uint8_t* stencil_start) {
-  const size_t stencil_size = sizeof(cnp_stencil_return_int1_code);
-  memcpy(stencil_start, cnp_stencil_return_int1_code, stencil_size);
-  return stencil_start + stencil_size;
-}
-// No patching needed
-----
-
-And now, we can use our code generation functions to build our runtime specialized adder:
-
-.cnp_jit.c
-[source,c]
-----
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mman.h>
-
-typedef int(*jit_func)() __attribute__((preserve_none));
-
-jit_func create_add_1_2() {
-  uint8_t* codedata = mmap(NULL, 256, PROT_READ | PROT_WRITE,
-      MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, -1, 0);
-  assert (codedata != MAP_FAILED);
-  jit_func ret = (jit_func)codedata;
-  
-  uint8_t* load_int_reg1_location = codedata;
-  codedata = cnp_copy_load_int_reg1(codedata);
-  uint8_t* load_int_reg2_location = codedata;
-  codedata = cnp_copy_load_int_reg2(codedata);
-  codedata = cnp_copy_add_int1_int2(codedata);
-  codedata = cnp_copy_return_int1(codedata);
-
-  cnp_patch_load_int_reg1(load_int_reg1_location, 1);
-  cnp_patch_load_int_reg2(load_int_reg2_location, 2);
-
-  int rc = mprotect(ret, 256, PROT_READ | PROT_EXEC);
-  if (rc) {
-    perror("mprotect");
-  }
-  return ret;
-}
-
-int main() {
-  jit_func add_1_2 = create_add_1_2();
-  int result = add_1_2();
-  printf("JIT'd 1 + 2 = %d\n", result);
-  return 0;
-}
-----
-
-And now we can compile and run that!
-
-----
-$ clang cnp_jit.c -o cnp_jit
-$ ./cnp_jit
-JIT'd 1 + 2 = 3
-----
-
-We've successfully built runtime code generation, while letting clang do the hard work of actually writing the assembly code, and our JIT compiler is just a bunch of memcpy calls!
-
-== How It Works
-
-=== Stencil Creation
+== Stencil Creation
 
 All of the idioms around creating stencils are about abusing features of clang as much as possible to be able to generate functions as only the specific sequences of instructions we want.  There's number of tricks involved:
 
@@ -286,7 +58,7 @@ And thus we have achieved our exact goals in stencil creation. The function body
 
 Now, let's unwind each of the techniques involved here to illustrate their individual impact on the generated code.
 
-=== Calling convention
+== Calling Convention
 
 :uri-64bit-cdecl: https://aaronbloomfield.github.io/pdr/book/x86-64bit-ccc-chapter.pdf
 :uri-preserve-none: https://clang.llvm.org/docs/AttributeReference.html#preserve-none
@@ -422,7 +194,7 @@ jmp    27 <swap_ints+0x27>
 
 So it's helpful for when it matters.  It moves us from being able to only define stencils with 6 inputs and outputs to stencils that have 12 inputs and outputs, after which `preserve_none` also runs out of registers and has to start setting up a stack frame.  So if you need to support GCC, stick to 6 or less arguments, and then cdecl on x86_64 will still work okay.
 
-=== Clang Optimization
+== Clang Optimization
 
 :uri-clang-musttail: https://clang.llvm.org/docs/AttributeReference.html#musttail
 
@@ -535,7 +307,7 @@ example.c:12:18: note: tail call required by 'musttail' attribute here
 
 So, unless that changes in the future, we have to rely on `-O3` magically doing the right thing.
 
-=== Relocations
+== Relocations
 
 :uri-thegreenplace-code-models: https://eli.thegreenplace.net/2012/01/03/understanding-the-x64-code-models
 :uri-maskray-code-models: https://maskray.me/blog/2023-05-14-relocation-overflow-and-code-models

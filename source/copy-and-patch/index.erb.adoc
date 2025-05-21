@@ -11,3 +11,26 @@
 ++++
 <%= partial("partials/index_section", :locals => {}) %>
 ++++
+
+////
+Intro via copy&paste
+details on why it works
+control flow
+register allocation
+benchmarking via wasmnow
+automating with tooling
+
+Appendix:
+exceptions
+debug info
+profiling JITDUMP
+
+-mframe-pointer={'all' if opname == 'shim' else 'reserved'
+from https://github.com/python/cpython/issues/126910#issuecomment-2488846508
+
+__jit_debug_register_code() example
+https://gist.github.com/yyny/4a012029b5889853c18b1efc19bb598e
+
+JITDUMP
+https://coral.googlesource.com/linux-imx/+/refs/heads/4.14.98/tools/perf/Documentation/jitdump-specification.txt
+////
