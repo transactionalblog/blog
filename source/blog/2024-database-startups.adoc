@@ -15,6 +15,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == OLTP/RDBMS Server/Hosted/Serverless
 
+* https://pgdog.dev/[PgDog] (2025) -- github:pgdogdev/pgdog[]
 * https://crystaldb.cloud/[CrystalDB] (2022)
 * https://thenile.dev/[Nile] (2022) -- github:niledatabase/niledatabase[]
 * https://neon.tech[Neon] (2021) -- github:neondatabase/neon[]
@@ -46,8 +47,10 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == HTAP SQL
 
+* https://www.serenedb.com/[SereneDB] (2024)
 * https://cedardb.com/[CedarDB] (2023)
 * https://matrixorigin.io/[MatrixOrigin] (2021) -- github:matrixorigin/matrixone[]
+* https://regatta.dev/[Regatta] (2020)
 * https://timescale.com/[Timescale] (2017) -- github:timescale/timescaledb[]
 * https://yugabyte.com/[YugabyteDB] (2016) -- github:yugabyte/yugabyte-db[]
 * https://pingcap.com/[PingCAP] (2015) -- github:pingcap/tidb[]
@@ -61,7 +64,6 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 * https://mooncake.dev/[Mooncake Labs] (2024)
 ** DuckDB-in-Postgres via github:Mooncake-Labs/pg_mooncake[]
-* https://tablespace.com/[TableSpace] (2024)
 * https://bemidb.com/[Bemi Technologies] (2023) -- github:BemiHQ/BemiDB[]
 * https://pola.rs/[Polars] (2023) -- github:pola-rs/polars[]
 * https://paradedb.com/[ParadeDB] (2023)
@@ -206,7 +208,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://meilisearch.com/[Meilisearch] (2018)
 * https://manticoresearch.com[Manticore Search] (2017)
 ** A fork of https://sphinxsearch.com/[Sphinx Search]
-* https://oncedb.com/[OnceDB] (2016) -- For
+* https://oncedb.com/[OnceDB] (2016) -- Fork of Redis
 * https://typesense.org/[Typesense] (2016)
 * https://algolia.com/[Algolia] (2012)
 * https://elastic.co/[Elastic] (2012)
@@ -214,9 +216,11 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == Other/Multi-Models
 
+* https://tonbo.io/[Tonbo] (2024) -- Arrow/Parquet embedded KV-like store
 * https://spiraldb.com/[SpiralDB] (2023) -- Multi-model analytics
 * https://polypheny.com/[Polypheny] (2022) -- Multi-model
 * https://tigerbeetle.com/[TigerBeetle] (2022) -- Financial
+* https://spacetimedb.com/[SpacetimeDB] (2022) -- SQL Subset + API server
 * https://dragonflydb.io/[Dragonfly] (2021) -- Redis
 * https://eloqdata.com/[EloqData] (2021) -- Multi-model
 * https://surrealdb.org/[Surreal] (2021) -- Multi-model
@@ -235,7 +239,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://datomic.com/[Datomic] (2012) -- Datalog "datomic facts"
 * https://scylladb.com/[ScyllaDB] (2012) -- Wide column. (Cassandra-compatible)
 * https://redis.io/[Redis] (2011)
-** Redis hosting from 2011-2015.  Redis creator joined in 2015, left in 2020.  Now leads development of Redis.
+** Redis hosting from 2011-2015.  Redis creator joined in 2015, left in 2020, re-joined 2024.
 * https://datastax.com/[DataStax] (2010)
 ** Contributes heavily to Cassandra, which is wide column with its own CQL.
 * https://aerospike.com/[Aerospike] (2009) -- Key-Value
