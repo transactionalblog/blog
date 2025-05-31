@@ -1,6 +1,6 @@
 = Disaggregated OLTP Systems
 :revdate: 2024-12-05
-:updated: 2024-03-05
+:updated: 2025-05-30
 :page-hook-preamble: false
 :page-hook: Aurora, Socrates, PolarDB, and Taurus.
 :page-features: stem
@@ -9,7 +9,7 @@
 :toc: right
 :toclevels: 2
 
-These notes were first prepared for an informal presentation on the various cloud-native disaggregated OLTP RDBMS designs that have been getting published and it cherry-picked one paper per notable design decision.  For the papers covered then, I've included a summary of the discussion we had after each paper.  This page is being actively extended to cover all disaggregated OLTP papers, even for papers that are similar between two different vendors. ("Actively" meaning as of 2025-03-05.)
+These notes were first prepared for an informal presentation on the various cloud-native disaggregated OLTP RDBMS designs that have been getting published and it cherry-picked one paper per notable design decision.  For the papers covered then, I've included a summary of the discussion we had after each paper.  This page is being actively extended to cover all disaggregated OLTP papers, even for papers that are similar between two different vendors. ("Actively" meaning as of 2025-05-30.)
 
 If you're looking for a quick overview of the disaggregated OLTP space, just read the papers with a ★.
 
@@ -374,7 +374,67 @@ PolarDB-IMCI's proxy layer plans the query under a row-based cost model.  If the
 
 The evaluation section shows significant speedups of PolarDB-IMCI over row-wise PolarDB for OLAP workloads, as one would expect of an in-memory columnar index versus an on-disk b-tree.  They show performance that's on the same order as Clickhouse, and then demonstrate the minimal impact to OLTP performance and the resource elasticity for OLAP workloads they've enabled.
 
+=== PolarDB-SCC
+// VLDB '23
+// https://www.vldb.org/pvldb/vol16/p3754-chen.pdf
+
+[.gray-bg]
+--
+bibitem:[PolarDBSCC]
+--
+
+SCC stands for _Strongly Consistent Cluster_, and the focus of this paper is removing as much of the delay as possible between a Read-Write node committing a change and the Read-Only node becoming aware of and able to serve reads over it.  They motivate the work with results that disaggregated databases' read-only replicas either have milliseconds of staleness on the read-only replicas, or that strongly consistent reads add 1x-5x additional read lattency. PolarDB-SCC uses three levels of timestamping (global, table, and page) to be able to begin pulling changes from read-write replicas sooner, and RDMA for minimizing the latency and overhead of doing so. This additional latency leads most databases to suggest sending all strongly consistent reads to the leader, thus defeating load balancing and making additional read-only replicas less useful. Allowing such workloads to be served from the read-only replicas is the exact problem PolarDB-SCC is targetting.
+
+.PolarDB-SCC Architecture
+image::PolarDBSCCArchitecture.png[embed=true]
+
+The timestamping scheme treats the read-write node as a timestamp oracle.  On every modification it performs, it records a lamport clock for that modification at the global, table-level, and page-level granularity. A read-only node fetches the current timestamp at the start of a query, and it may batch this operation for many queries at once.  Once the query has been assigned a timestamp, the read-only node may serve read results as long as all referenced global/table/page data is up-to-date locally. Due to the heirarchy, if e.g. the applied table-level timestamp is greater than the query's timestamp, then it is implied that all of the pages are sufficiently up to date and do not need to be checked. The global timestamp is the maximum committed transaction's timestamp. To avoid the overhead of maintaining an extra timestamp per page, the page's Log Sequence Number is used as its timestamp. The Read-write node maintains the timestamps for tables and pages in hashtables, so that they may be quickly and easily queried over one-sided RDMA.
+
+The paper goes into significant detail on the RDMA-based log shipping, which is essentially just a ringbuffer on either side with extra checks to make sure unconsumed log data being overwritten is handled correctly.  The Read-Write node pushes its write-ahead logs into all of the Read-Only nodes.  If any Read-Only node falls to far behind, it reads the logs from storage (PolarFS) instead.  No changes were made to exist log buffer management.
+
+Read-only queries within a transaction can also be sent to read-only nodes, but they must include the effects of writes performed earlier in the transaction.  PolarDB-SCC accomplishes this by having the Read-Write node return the highest LSN generated as part of a write query to the proxy.  The LSN is then attached by the proxy to subsequent read queries within the same transaction, so that the read-only node can ensure that it has the transaction's writes applied.  The load balancer will prefer sending queries to read-only nodes which have already applied up through the maximum write LSN locally.
+
+The evaluation section shows that across SysBench and production workloads PolarDB-SCC delivers latency that's just a fraction worse than stale reads from PolarDB Read-Only replicas.  Additionally, throughput scales similarly with the stale reads workload, showing that it also burdens the Read-Write node notably less.  It also permits better leveraging of read-only replicas for higher throughput on consistent queries.  (The proxy and load balancer are not mentioned in the evaluation, but those components also existed previously as part of PolarDB, so it's likely included equally on both sides.)
+
+=== PolarDB Elasticity
+// ICDE '24
+// https://zhangyingqiang.com/paper/PolarDB_Serverless_shared_storage.pdf
+
+[.gray-bg]
+====
+bibitem:[PolarDBElasticity]
+====
+
+=== PolarDB-MP
+// SIGMOD '24
+// http://cighao.com/papers/polardb_mp.pdf
+
+[.gray-bg]
+====
+bibitem:[PolarDBMP]
+====
+
+=== PolarDB-CXL
+// SIGMOD '25
+// http://cighao.com/papers/PolarDB_CXL.pdf
+
+[.gray-bg]
+====
+http://cighao.com/papers/PolarDB_CXL.pdf
+====
+
 == Huawei
+
+GaussDB was renamed to Taurus ~2020, but both names have continued to be used in publications.
+
+=== GaussDB
+// VLDB '20
+// https://vldb.org/pvldb/vol13/p3099-avni.pdf
+
+[.gray-bg]
+====
+bibitem:[GaussDB]
+====
 
 === TaurusDB ★
 // SIGMOD '20
@@ -405,7 +465,7 @@ Page stores are append-only on disk, with a lock-free hashtable mapping (page,ve
 
 What's the major difference between Taurus and others?  Reconfiguration-based replication!
 
-=== Multi-Master ★
+=== Taurus Multi-Master ★
 // VLDB '23
 [.gray-bg]
 ====
@@ -442,3 +502,40 @@ MariaDB Xpand actually did something similar to this, but they never wrote about
 Multi-master is also useful for upgrades, as it gives one a way to do a rolling upgrade to a new database binary and incrementally shift transactions over.  However, having two databases live at different versions means one also has to get upgrade/downgrade testing done well.
 
 Who needs multi-master?  Aurora dropped their own multi-master support, and rumor was it wasn't getting heavily used.  Is there actually a desire for this?  Are there enough customers topping over their disaggregated OLTP database with excessive writes that it's worthwhile to make the investment into all the complexity that multi-master brings?
+
+=== GeoGauss
+// PACMMOD '23
+// https://arxiv.org/abs/2304.09692
+
+[.gray-bg]
+====
+bibitem:[GeoGauss]
+====
+
+=== GaussDB-Global
+// ICDE '24
+// https://arxiv.org/abs/2501.05295
+
+[.gray-bg]
+====
+bibitem:[GaussDBGlobal]
+====
+
+=== GaussDB-MP
+// VLDB '24
+// https://dbgroup.cs.tsinghua.edu.cn/ligl/papers/GaussDB-MP2024.pdf
+
+[.gray-bg]
+====
+bibitem:[GaussDBMP]
+====
+
+== Neon
+
+Neon has no publications, but I feel like I should cover it for the sake of completeness.
+
+[.gray-bg]
+====
+* https://neon.tech/blog/architecture-decisions-in-neon[Architecture Decisions in Neon]
+* https://neon.tech/docs/introduction/architecture-overview[Neon Architecture]
+====
