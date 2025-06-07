@@ -16,9 +16,11 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 == OLTP/RDBMS Server/Hosted/Serverless
 
 * https://pgdog.dev/[PgDog] (2025) -- github:pgdogdev/pgdog[]
+* https://springtail.io/[Springtail] (2023)
 * https://crystaldb.cloud/[CrystalDB] (2022)
 * https://thenile.dev/[Nile] (2022) -- github:niledatabase/niledatabase[]
 * https://neon.tech[Neon] (2021) -- github:neondatabase/neon[]
+** Acquired by Databricks in 2025.
 * https://turso.tech/[Turso] (2021)
 * https://sqlitecloud.io/[SQLite Cloud] (2021)
 * https://xata.io/[Xata] (2020)
@@ -218,6 +220,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 * https://tonbo.io/[Tonbo] (2024) -- Arrow/Parquet embedded KV-like store
 * https://spiraldb.com/[SpiralDB] (2023) -- Multi-model analytics
+* https://lumidb.com[LumiDB] (2023) -- 3D scanning data
 * https://polypheny.com/[Polypheny] (2022) -- Multi-model
 * https://tigerbeetle.com/[TigerBeetle] (2022) -- Financial
 * https://spacetimedb.com/[SpacetimeDB] (2022) -- SQL Subset + API server
@@ -265,6 +268,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 * https://feldera.com/[Feldera] (2023)
 * https://risingwave.com/[RisingWave] (2023) -- github:risingwavelabs/risingwave[]
 * https://denormalized.io/[Denormalized] (2022) -- github:probably-nothing-labs/denormalized[]
+* https://epsio.io/[Epsio] (2022)
 * https://arroyo.dev/[Arroyo] (2022) -- github:ArroyoSystems/arroyo[]
 * https://timeplus.com/[TimePlus] (2021) -- github:timeplus-io/proton[]
 * https://emqx.com/[EMQ] (2021)
@@ -279,6 +283,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 == AI and Vectors
 
 * https://deployql.com[DeployQL] (2024) -- github:DeployQL/LintDB[]
+* https://vectroid.com/[Vectroid] (2023)
 * https://turbopuffer.com[turbopuffer] (2023)
 * https://getmegaportal.com/[MegaPortal] (2023) -- https://closevector.getmegaportal.com/[CloseVector]
 * https://infiniflow.org/[InfiniFlow] (2023)
