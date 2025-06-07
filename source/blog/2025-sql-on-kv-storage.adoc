@@ -1,12 +1,33 @@
 = SQL on Key-Value Storage
-:revdate: 2024-08-15
+:revdate: 2025-04-18
 :draft: true
 :toc: right
-:bibtex-file: 2024-sql-on-kv-storage.bib
+:bibtex-file: 2025-sql-on-kv-storage.bib
+:page-hook-preamble: false
+:page-hook: Requirements and design constraints for a implementing SQL on a (distributed) key-value store, with commentary on tradeoffs therein.
 
-Requirements and design constraints for a implementing SQL on a (distributed) key-value store, with commentary on tradeoffs therein.
+////
 
-== Design Constraints
+SQL on KV is very popular
+-> Cockroach/TiDB/Yugabyte
+-> MySQL/SQLite
+
+KV is a clean abstraction
+-> SQL gets simple API
+-> API powerful enough to represent distributed system
+
+Still a complicated design space
+-> Highly and oddly constrained by SQL
+-> SQL features demand unusual and bespoke support
+
+Clean API is bad: wasts perf everywhere
+-> restricts storage choices
+-> pushdown impossible
+-> transaction protocol more complicated
+-> MVCC is worse
+-> Complicates SQL feature support
+
+////
 
 ////
 Design Constraints
@@ -18,19 +39,35 @@ Design Constraints
   - How to represent indexes, materialized views
 ////
 
-It is assumed that the storage engine for the SQL database already exists, and
-is a linearizable key-value store with single key atomicity, with no built-in
-transaction support.  The emphasis on "linearizable" is due to this page being
-written with distributed key-value stores in mind, but the vast majority of it
-applies to a single-node database as well.  As a concrete example, consider
-your favorite partitioned Raft-replicated RocksDB system, or just RocksDB
-itself for the single-node case (ignoring RocksDB's own transaction support).
+Key-value storage is an overwhelming popular abstraction for storing data, for
+both local storage (e.g. RocksDB) or distributed storage (e.g. TiKV).  Thus a
+popular way of implementing a SQL database is to layer it on top of a key-value
+store.  Doing so provides a very clean abstraction boundary: the SQL engine only
+needs to worry about execution and optimization, and can rely entirely on the
+key-value store to provide the simple and clean key-value abstraction, which
+hides all the durability, replication, and storage performance details. In
+spending a lot of time thinking about this topic, I've come to the conclusion
+that maintaining a strict separation is a terrible idea. The key-value store
+needs to be aware that it's a part of a SQL system, otherwise performance and
+resource efficiency will be lost at every key decision.
 
-=== SQL Data Model
+Throughout this post, we'll be looking at what problems need to be solved in
+building SQL on top of key-value storage, the options that exist for solving
+that problem, and why strictly adhering to a key-value model for storage makes
+those solutions harder or less efficient.  It is assumed that the storage engine
+for the SQL database already exists, and is a linearizable key-value store with
+single key atomicity, with no built-in transaction support. The emphasis on
+"linearizable" is due to this page being written with distributed key-value
+stores in mind, but the vast majority of it applies to a single-node database as
+well.  As a concrete example, consider your favorite partitioned Raft-replicated
+RocksDB system, or just RocksDB itself for the single-node case (ignoring
+RocksDB's own transaction support).
 
-In order to support SQL, there must be a way to map a SQL row to a (list of) key-value pair(s).
-This encoding should preserve the lexicographic ordering of all supported datatypes so that efficient range queries may be supported.
+== SQL Data Model
+
+As the utmost basic building block of SQL, we must first decide how to map rows of a table to key-value pairs.  Rows are formed of columns of statically declared data types{nospace}sidenote:ref[].
 The data types to support include:
+[.aside]#sidenote:def[] Except for SQLite, where the static types are just hints, and there's no actual static types enforced.#
 
 - int / numeric
 - float / double
@@ -46,10 +83,24 @@ And possibly a subset of the less common:
 - vector
 - money
 
-And then how to encode tuples of these types such that the tuples still maintain lexicographic ordering for tuple comparison.
+Then, one must also be able to encode tuples of these elements to be able to support composite keys.
 
-But fear not, there are many examples{nospace}sidenote:ref[] to follow of how to define such an ordering scheme:
-[.aside]#sidenote:def[] If you're reading this and are in academia, I can't seem to find any publications on efficient lexicographical encoding schemes, despite non-lexicographic row encodings being a well-studied topic.  If you know of one, please reach out, or consider authoring a paper on the topic!#
+The encoding will need to be evolvable, and have a way add and remove columns from the row.
+Preferably, this would be gracefully, so that a schema change does not involve locking and rewriting the entire table synchronously.
+However, this might be a necessity depending on the type of schema change, or as a safe-by-default first implementation.
+
+A row is a part of a table, but the encoding thus far hasn't specified anything that's a part of a SQL schema.
+Some collection of metadata needs to exist associated with the row to identify to which SQL entity this row belongs.
+It could be a table, it could be an index, it could be a materialized view.
+This metadata will likely be prepended to each key (using the lexicographic encoding), so that all rows for a table/index/etc. are grouped together by lexicographic ordering.
+
+There's two main strategies for how to map these to key-value pairs: we either choose a lexicographic encoding where all values are transformed such that a simple byte-by-byte comparison of the keys (ie. `memcmp()`) yields the correct sort order, or we maintain a native encoding but use a more complex comparison function that applies a datatype-aware comparison to each element of the tuple.
+
+=== Lexicographic Encoding
+
+Fortunately, one doesn't have to start from scratch on how to design such an algorithm.
+There are many examples{nospace}sidenote:ref[] to follow of how to define such an ordering scheme:
+[.aside]#sidenote:def[] If you're reading this and are in academia, I can't seem to find any publications on efficient lexicographical encoding schemes, despite non-lexicographic row encodings being a well-studied topic.  If you know of one, please link:/about.html[reach out], or consider authoring a paper on the topic!#
 
 - https://github.com/Positeral/lre[Positeral/lre: Lexicographic Row Encoding]
 - https://pkg.go.dev/github.com/google/orderedcode[google/orderedcode]
@@ -67,16 +118,21 @@ It's also common for some types (e.g. geometry or vector) to not be permitted in
 Thus a lexicographic ordering scheme isn't required for them, and only a separate unordered value encoding scheme would be needed.
 This does, however, mean essentially implementing, optimizing, and maintaining two different encodings of data in your database.
 
-The encoding will need to be evolvable, and have a way add and remove columns from the row.
-Preferably, this would be gracefully, so that a schema change does not involve locking and rewriting the entire table synchronously.
-However, this might be a necessity depending on the type of schema change, or as a safe-by-default first implementation.
 
-A row is a part of a table, but the encoding thus far hasn't specified anything that's a part of a SQL schema.
-Some collection of metadata needs to exist associated with the row to identify to which SQL entity this row belongs.
-It could be a table, it could be an index, it could be a materialized view.
-This metadata will likely be prepended to each key (using the lexicographic encoding), so that all rows for a table/index/etc. are grouped together by lexicographic ordering.
+=== Custom Comparator
 
-=== SQL Isolation Model
+:uri-lmdb-comparator: http://www.lmdb.tech/doc/group__mdb.html#ga68e47ffcf72eceec553c72b1784ee0fe
+:uri-leveldb-comparator: https://github.com/google/leveldb/blob/ac691084fdc5546421a55b25e7653d450e5a25fb/include/leveldb/comparator.h
+
+For concrete examples of what this looks like in an API, see {uri-lmdb-compare}[LMDB's `mdb_set_compare`] and {uri-leveldb-comparator}[LevelDB's `Comparator`].  Note well that this support only commonly exists in embedded, single-process key-value stores.  For a distributed key-value store to support a custom comparator, the comparison function would need to be packaged in some form that could be sent to the server and executed remotely with low overhead (e.g. eBPF, WASM(?)).
+
+=== Commentary
+
+Lexicographic encoding costs CPU, whereas custom comparator support costs storage space.
+Anecdotal data from conversations with folk that have run extensive production deployments of lexicographically encoded data
+
+
+== SQL Isolation Model
 
 :uri-oracle-read-committed: https://docs.oracle.com/cd/E25054_01/server.1111/e25789/consist.htm#BABEIHGJ
 :uri-read-committed-si: https://sqlperformance.com/2014/05/t-sql-queries/read-committed-snapshot-isolation
@@ -93,7 +149,7 @@ This metadata will likely be prepended to each key (using the lexicographic enco
 
 Our goal is to build something which supports Read Committed or Snapshot Isolation, but not an efficient implementation of Serializable.
 
-Note that by "Read Committed", there is a significant difference between what the ANSI standard defines as Read Committed, and what the database industry at large defines as Read Committed.  The ANSI Standard claims that Read Committed should behave like exactly what it says: any data which is committed is visible for reading, but unlike Snapshot Isolation, the committed data read might form an inconsistent snapshot which observes only parts of some transactions.  The database industry has largely implemented Read Committed as "Snapshot Isolation except the server is allowed to pick a new read snapshot".sidenote:ref[]sidenote:ref[]
+There is a significant difference between what the ANSI standard defines as Read Committed, and what the database industry at large defines as Read Committed.  The ANSI Standard claims that Read Committed should behave like exactly what it says: any data which is committed is visible for reading, but unlike Snapshot Isolation, the committed data read might form an inconsistent snapshot which observes only parts of some transactions.  The database industry has largely implemented Read Committed as "Snapshot Isolation except the server is allowed to pick a new read snapshot".sidenote:ref[]sidenote:ref[]
 Databases implement "Almost Snapshot Isolation" Read Committed instead of just Snapshot Isolation as it retains one very important difference: if the query encounters a conflict, the server is permitted to retry the statement with a new read snapshot until it succeeds.  Under Snapshot Isolation, that failure must be returned to the client so that they can retry the entire transaction body.  This means that Read Committed observes significantly fewer transaction aborts than Snapshot Isolation.
 [.aside]#sidenote:def[] For a more detailed explanation, take a look at {uri-oracle-read-committed}[Oracle's documentation on Read Committed].#
 [.aside]#sidenote:def[] SQL Server appears to offer both Read Committed isolation levels.  It calls the ANSI Standard "Read Committed", and the commonly implemented variant {uri-read-committed-si}["Read Committed Snapshot Isolation"], though I haven't seen that name used elsewhere to identify this "Almost Snapshot Isolation" variant.#
@@ -107,7 +163,7 @@ However, without some extension permitting support from the storage layer for se
 There is an advantage of offering Serializable over Snapshot Isolation though, which is that an MVCC Serializable implementation only needs to check for read-after-write conflicts, and can omit checking for write-after-write or write-after-read conflicts.sidenote:ref[]  MVCC itself removes the need to check for write-after-read conflicts.  If all writes in a transaction are written in the same version, then it's impossible to form a cycle using only writes, so write-after-write conflicts don't need to be checked. Thus, write-after-write conflict heavy workloads could see an increase in performance when using Serializable over Snapshot Isolation due to the lack of write-after-write conflict causing statement aborts and restarts.
 [.aside]#sidenote:def[] bibitem:[CritiqueOfSnapshotIsolation]#
 
-=== SQL Transaction Model
+== SQL Transaction Model
 
 ////
 - need to support the SQL transaction model
@@ -115,17 +171,6 @@ There is an advantage of offering Serializable over Snapshot Isolation though, w
   - transactions can be multi-step
   - transactions are long running and/or large
 ////
-
-=== SQL Features
-
-////
-- need to support optimizations to support SQL features
-  - more on this later
-////
-Various features in SQL necessitate specific support from the storage layer.
-This is a bit of a teaser for later, because part of the 
-
-== Design Space
 
 === Transaction Model
 
@@ -231,11 +276,16 @@ Concurrency Control Design Space
 - Pessimism not optimism
   - CRDB and TiDB both started with optimistic CC
   - Moved to pessimistic CC
-
 ////
 
+== SQL Features
 
-== Supporting SQL Features
+////
+- need to support optimizations to support SQL features
+  - more on this later
+////
+Various features in SQL necessitate specific support from the storage layer.
+This is a bit of a teaser for later, because part of the 
 
 === MVCC Read Amplification
 
@@ -253,10 +303,6 @@ Don't forget that reading backwards is going to be an important thing to support
 
 Thus, if the solution to MVCC cleanup or 
 
-=== Deferred Constraints
-
-Primary key constraints can be deferred, so data models cannot assume that a primary key is unique.
-
 
 === Indexes
 
@@ -272,6 +318,13 @@ Without mandatory index, requires being able to do read/write conflict checking.
 
 In both cases, requires doing reads, then writes, then reads again, and that latter set of reads makes this not one-shot transaction-able.
 
+=== Deferred Constraints
+
+Primary key constraints can be deferred, so data models cannot assume that a primary key is unique.
+
+=== Triggers
+
+There is not consensus on 
 
 ////
 
@@ -339,6 +392,8 @@ Don't forget that reading backwards is going to be an important thing to support
   - MySQL semantics fail the statement, but not the transaction, if triggers fail.
 
 - There's probably more that even I don't know about.
+
+https://raymondtukpe.com/sql-nulls-are-weird.html
 ////
 
 == Reflections
