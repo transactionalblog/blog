@@ -71,6 +71,16 @@ Read-only replicas consume the binlog from the primary, and apply to cached page
 
 Is this a trade of decreasing the amount of work on writes at the cost of increasing the amount of work on reads?:: Moving the storage to over the network does add some cost, reconstructing full pages at arbitrary versions isn't cheap, and while MySQL could apply the WAL entry directly to the buffer cached page the storage node might have to fetch the old page from disk.  But much of the work is work that MySQL would otherwise be doing: finding old versions of tuples by chaining through the undo log, fuzzy checkpointing, etc.  So while fetching pages from disk over a network is slower than fetching them locally, it is a good argument that it lets MySQL focus more on the query execution and transaction processing than storage management.
 
+=== Aurora Multi-Master
+
+:uri-aurora-mm-deprecated: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.MySQL56.EOL.html
+:uri-aurora-mm-reinvent: https://d1.awsstatic.com/events/reinvent/2019/REPEAT_1_Amazon_Aurora_Multi-Master_Scaling_out_database_write_performance_DAT404-R1.pdf
+:uri-aurora-mm-hpts: http://hpts.ws/papers/2019/aurora-multimaster-hpts2019.pdf
+
+Aurora Multi-Master was made generally available in August of 2019 and {uri-aurora-mm-deprecated}[was deprecated in 2023].  Though there's no publications about how Aurora Multi-Master worked, there was an {uri-aurora-mm-reinvent}[AWS Re:Invent talk] and an {uri-aurora-mm-hpts}[HPTS talk] which gave some details on its internals.
+
+The major design decision referenced in other multi-master papers is that conflicts between the multiple masters were resolved optimistically at commit time.
+
 === Aurora Serverless
 // VLDB'24
 // https://assets.amazon.science/ee/a4/41ff11374f2f865e5e24de11bd17/resource-management-in-aurora-serverless.pdf
@@ -95,6 +105,15 @@ Instance Managers gather resource usage information for database instances on a 
 The Fleet Manager must choose what instance to move, and to which host to move it.  Choosing an instance is a three step process: remove any ineligible instances, compute a preferences score (e.g. don't move frequently moved instances, prefer instances that have ack'd a heartbeat recently), and compute a numerical score (how much resources will be freed up, combined with what fraction of unused resources does this instance have).  Instances with equal preference scores are tiebroken by numerical score.  Target host selection proceeds similarly: ineligible hosts are removed, compute a preference score (fault tolerance distribution, no recent migration failures), and a numerical score (best-fit binpacking score, and most utilized resource percentage).  In the evaluation, they show that this 3 phase approach does a better job of distributing load across the fleet than a baseline of just best-fit with less instance movement.
 
 Database instances are wrapped in VMs for security reasons, and thus resource elasticity must be done in cooperation with the guest OS of each VM.  Every VM is of the same 128 ACU maximum instance size.  This relies on Nitro's SR-IOV support for having efficient virtualized IO.  Memory elasticity required a number of changes: memory can be {uri-memory-hotunplug}[offlined] to prevent it from being used for page cache and so that Linux doesn't keep a page table entry around for every page, cold pages are swapped out, and 4KB pages are coalesced to make 2MB sized free pages which can be reclaimed by the hypervisor.  Memory scales up based on the desired buffer pool size over the past 30 seconds, and down over the past 60 seconds.  CPU scales up based on P50 over the past 30 seconds, and down by P70 over the past 60 seconds.  Scaling up is done using the maximum of the two, scaling down uses the minimum.
+
+=== Aurora Limitless
+
+:uri-aurora-limitless-pdf: https://reinvent.awsevents.com/content/dam/reinvent/2024/slides/dat/DAT420_Achieving-scale-with-Amazon-Aurora-PostgreSQL-Limitless-Database.pdf
+
+Aurora Limitless reuses the "Aurora" brand, but is much more similar to a shared-nothing distributed database like Spanner than it is to the Aurora database we've been discussing thus far.  If you're interested in learning about Limitless anyway, the only released information on it has been as part of {uri-aurora-limitless-pdf}[AWS Re:Invent talks].
+
+.Aurora Limitless Architecture
+image::AuroraLimitlessArchitecture.png[embed=true,align=center]
 
 == Microsoft Socrates ★
 
@@ -386,7 +405,7 @@ bibitem:[PolarDBSCC]
 SCC stands for _Strongly Consistent Cluster_, and the focus of this paper is removing as much of the delay as possible between a Read-Write node committing a change and the Read-Only node becoming aware of and able to serve reads over it.  They motivate the work with results that disaggregated databases' read-only replicas either have milliseconds of staleness on the read-only replicas, or that strongly consistent reads add 1x-5x additional read lattency. PolarDB-SCC uses three levels of timestamping (global, table, and page) to be able to begin pulling changes from read-write replicas sooner, and RDMA for minimizing the latency and overhead of doing so. This additional latency leads most databases to suggest sending all strongly consistent reads to the leader, thus defeating load balancing and making additional read-only replicas less useful. Allowing such workloads to be served from the read-only replicas is the exact problem PolarDB-SCC is targetting.
 
 .PolarDB-SCC Architecture
-image::PolarDBSCCArchitecture.png[embed=true]
+image::PolarDBSCCArchitecture.png[embed=true,align=center]
 
 The timestamping scheme treats the read-write node as a timestamp oracle.  On every modification it performs, it records a lamport clock for that modification at the global, table-level, and page-level granularity. A read-only node fetches the current timestamp at the start of a query, and it may batch this operation for many queries at once.  Once the query has been assigned a timestamp, the read-only node may serve read results as long as all referenced global/table/page data is up-to-date locally. Due to the heirarchy, if e.g. the applied table-level timestamp is greater than the query's timestamp, then it is implied that all of the pages are sufficiently up to date and do not need to be checked. The global timestamp is the maximum committed transaction's timestamp. To avoid the overhead of maintaining an extra timestamp per page, the page's Log Sequence Number is used as its timestamp. The Read-write node maintains the timestamps for tables and pages in hashtables, so that they may be quickly and easily queried over one-sided RDMA.
 
