@@ -1,0 +1,118 @@
+= NULL BITMAP on SIMD
+:revdate: 2025-06-26
+:draft: true
+:page-hook-preamble: false
+:page-hook: A NULL BITMAP guest post on loop parallelism transformations.
+
+I've been learning about how to write SIMD recently, and I've come to appreciate that there's two distinct skills involved: knowing how to transform a given loop into one that has sufficient parallelism to apply SIMD, and knowing how to fit a parallel loop's computation into the restricted set of available SIMD instructions.  We'll be looking at only the first part of that today: learning the pattern of how to transform one loop type into its parallel version.
+
+Simple examples of SIMD optimizations show it off as a way to speed up embarrassingly parallel problems.  If we want to compute the sum of ASCII digits, this involves converting each to its integer representation, and then summing the result.
+
+[cols="1,1"]
+|===
+^| Scalar ^| SIMD
+
+a|
+----
+int sum_ascii_digits(
+    char* digits,
+    size_t length)
+{
+  int sum = 0;
+  for (int i = 0;
+       i < length;
+       i++) {
+    sum += digits[i] - '0';
+  }
+  return sum;
+}
+----
+a|
+----
+int sum_ascii_digits(char* digits, size_t length) {
+    // Process 4 digits at a time in 4 separate lanes.
+    int sum1 = 0, sum2 = 0, sum3 = 0, sum4 = 0;
+    int i = 0;
+    for (; i+3 < length; i+=4) {
+        sum1 = digits[i] - '0';
+        sum2 = digits[i+1] - '0';
+        sum3 = digits[i+2] - '0';
+        sum4 = digits[i+3] - '0';
+    }
+    for (i < length; i++) {
+        sum1 += digits[i] - '0';
+    }
+    // Sum the lanes by adding pairs in parallel.
+    sum1 += sum3; sum2 += sum4;
+    sum1 += sum2;
+    return sum1;
+}
+----
+|===
+
+Such transformations make a lot of sense in my head, because it's transforming an iteration over an array from one element at a time to many elements at a time, but the overall linear structure of the algorithm stays almost exactly the same.  Any loop that's just a map() and reduce() of a commutative operation can be transformed in this fashion.
+
+----
+Input:
+    ['0', '1', '2', '3', '4', ...]
+Original algorithm:    SIMD Algorithm:
+    --------->             --------->
+                           --------->
+                           --------->
+                           --------->
+----
+
+There's other patterns for SIMD solutions which I find fascinating because they require contorting the scalar solution of a linear scan into a completely different shape of an algorithm.  We're going to be looking at the slightly more difficult problem of parsing integers instead.  Given a string of 8 digits, I want to know what unsigned 64-bit int they represent.  The scalar solution to this is a pretty simple linear scan:
+
+----
+uint64_t parse_int(char* digits) {
+    uint64_t parsed = 0;
+    for (int i = 0; i < 8; i++) {
+        parsed += parsed * 10 + digits[i] - '0';
+    }
+    return parsed;
+}
+----
+
+However, there's not a lot of opportunity for parallelism in this.  Each iterating depends on the output of the previous iteration.  Instead, we need to observe that we can solve this problem in a reverse divide-and-conquer sort of way: 1234 can be broken down into 12 * 100 + 34, which itself can be broken down as 12 = 1 * 10 + 2 and 34 = 3 * 10 + 4. We can parse any integer if we've already parsed the first half and second half of its digits. Thus, we can find parallelism in this problem by first handling each adjacent pairs of digits, and then in an upsidedown tree shape, iteratively combine the pairs until we have our full answer:
+
+----
+[a,  b,  c,  d]
+ │   │   │   │
+ └─┬─┘   └─┬─┘
+   ab      cd
+   │       │
+   └───┬───┘
+       │
+      abcd
+----
+
+In code, we do this by masking and shifting.  We mask to find the left side of each pair, we shift it to line up with the right side of its pair, and then we multiply and add the two together:
+
+----
+uint64_t parse_int(char* digits) {
+    uint64_t digits_bytes = *(uint64_t*)digits;
+    uint64_t digits_bcd = digits_bytes - 0x3030303030303030UL;
+
+    uint64_t tens_upper_mask = 0x00FF00FF00FF00FFUL;
+    uint64_t tens_lower_mask = 0xFF00FF00FF00FF00UL;
+    uint64_t level_one = digits_bcd & tens_upper_mask * 10 +
+                         tens_lower_mask & digits_bcd;
+
+    uint64_t hundreds_upper_mask = 0x0000FFFF0000FFFFUL;
+    uint64_t hundreds_lower_mask = 0xFFFF0000FFFF0000UL;
+    uint64_t level_two = level_one & hundreds_upper_mask * 100 +
+                         level_one & hundreds_lower_mask;
+
+    uint64_t tenK_upper_mask = 0x00000000FFFFFFFFUL;
+    uint64_t tenK_lower_mask = 0xFFFFFFFF00000000UL;
+    uint64_t level_three = level_two & tenK_upper_mask * 10000 +
+                           level_two & tenK_lower_mask;
+
+    return level_three;
+}
+----
+
+In general, any fold comprised of commutative operations can be computed in this fashion to unlock parallelism.  SIMD-ifying code is easy when it's already embarrassingly parallel.  The fun is in trying to contort seemingly serial algorithms into parallel ones!
+
+If you're interested in more of this, highload.fun gives a nice framework and set of challenges for trying to get practice at optimization, and thus also SIMD-ifying problems.  What we've looked at is only a small portion of the first "parsing integers" challenge. 
