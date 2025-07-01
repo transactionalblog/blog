@@ -130,7 +130,18 @@ I think how one is supposed to hook this together is to follow the pattern from 
 .siso-credential-helper.sh 
 ----
 #!/bin/bash
-echo '{ "headers" : { "x-buildbuddy-api-key": ["API_KEY_REDACTED"], } }'
+
+# https://www.buildbuddy.io/docs/guide-auth/
+apikey="XKnFdxJHJetfq1aKExDh"
+# Requires the time.UnixDate format.
+expiry=`date +'%a %b %d %H:%M:%S %Z %Y' --date '+6 hours'`
+
+echo "{
+    \"headers\": {
+        \"x-buildbuddy-api-key\": \"${apikey}\"
+    },
+    \"expiry\": \"${expiry}\"
+}"
 ----
 
 And then the invocation looks like:
