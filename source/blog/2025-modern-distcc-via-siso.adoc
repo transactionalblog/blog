@@ -1,11 +1,12 @@
 = Modern Distcc via Siso
 :revdate: 2025-06-30
+:draft: true
 :page-category: tools
 :page-hook-preamble: false
 
 :uri-siso-psa: https://groups.google.com/a/chromium.org/g/chromium-dev/c/v-WOvWUtOpg/m/2HlNqp-6BgAJ
 
-To lead: the title here is overly optimistic.  I do not have Siso fully working, and specifically not the remote execution part that'd make it a distcc replacement.  This is being posted so I can share work in progress notes.  It will hopefully get edited into something with a fully working setup in the future.
+To lead: the title here is overly optimistic.  I do not have Siso fully working, and specifically not the remote execution part that'd make it a distcc replacement.  This is being posted so I can share work in progress notes.  It will hopefully get edited into something with a fully working setup in the future, and then fully published.
 
 Chrome Infra team sent out a PSA that they're {uri-siso-psa}[switching from Ninja to Siso].  So what's Siso?  It bills itself as a ninja-compatible drop-in replacement which can leverage the Bazel Remote Execution and Remote Caching APIs.  All the remote compilation and caching goodness of bazel, but in the easy to use formfactor of a ninja-compatible build tool?  Sounds great!
 
