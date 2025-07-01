@@ -125,7 +125,7 @@ build --remote_executor=grpcs://remote.buildbuddy.io
 build --remote_header=x-buildbuddy-api-key=API_KEY_REDACTED
 ----
 
-I think how one is supposed to hook this together is to take the API key and place it into a "credential helper" script:
+I think how one is supposed to hook this together is to follow the pattern from a https://github.com/bazelbuild/reclient/discussions/16#discussioncomment-12834329[bazel github issue] and a https://issues.chromium.org/issues/428661934[siso bug report] and take the API key and place it into a "credential helper" script:
 
 .siso-credential-helper.sh 
 ----
@@ -141,6 +141,23 @@ $ SISO_CREDENTIAL_HELPER=siso-credential-helper.sh siso ninja \
 	-reapi_instance=default \
 	-strict_remote \
 reapi instance: default
+0.02s Error: failed to dial remote.buildbuddy.io:443: google: could not find default credentials. See https://cloud.google.com/docs/authentication/external/set-up-adc for more information
+----
+
+So, now we get to set up gcloud credentials for some reason?
+
+----
+$ gcloud init
+$ gcloud auth application-default login
+----
+
+And new we can try again:
+
+----
+$ SISO_CREDENTIAL_HELPER=siso-credential-helper.sh siso ninja \
+    -reapi_address=remote.buildbuddy.io:443 \
+	-reapi_instance=default \
+	-strict_remote \
 build finished
 local:10 remote:0 cache:0 fallback:0 retry:0 skip:1
 reapi: ops: 2(err:2) / r:0(err:0) 0B / w:0(err:0) 0B
@@ -150,28 +167,13 @@ E0630 18:59:09.582423 1210745 state.go:762] dir:/usr/lib/gcc/x86_64-redhat-linux
 0.91s Build Succeeded: 10 steps - 10.94/s
 ----
 
-But It looks like it all executed locally?
+But `local:10 remote:0` makes it look like it all executed locally? (Filed https://issues.chromium.org/u/1/issues/428946258[bug 428946258].)
 
-:uri-buildbuddy-port-docs: https://www.buildbuddy.io/docs/config-all-options/
-
-I templated this off of a https://issues.chromium.org/issues/428661934[siso bug report], but if you instead do something like trying to pass the URI scheme you get:
+Poking around in `siso.INFO`, I see:
 
 ----
-$ siso ninja -reapi_address=grpcs://remote.buildbuddy.io -reapi_insecure -strict_remote 
-reapi instance: default_instance
-
-1.06s Error: could not connect to backend. If you want to build offline, pass `-o` or `--offline`
-rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp: lookup tcp///remote.buildbuddy.io: unknown port"
+W0630 22:10:57.599256 1219889 retry.go:73] retry backoff:200ms: rpc error: code = Unauthenticated desc = Invalid API key "B***5"
+I0630 22:10:57.903058 1219889 cas.go:335] upload 4cfbadf3f910f0a9ae5df952e47a3e23058aad61ef91427271d8e03f9f59243c/2100674 file:///home/miller/ws/duckdb/build/release/build.ninja failed: find missing: rpc error: code = Unauthenticated desc = Invalid API key "B***5"
+I0630 22:10:57.903091 1219889 cas.go:335] upload d60a3ddc8f834be21cefbe22f76138124f2a03aded3eba90f8a18cdc7a5d7789/88 *remoteexecution.Directory failed: find missing: rpc error: code = Unauthenticated desc = Invalid API key "B***5"
+W0630 22:10:57.903108 1219889 builder.go:850] failed to upload build files tree d60a3ddc8f834be21cefbe22f76138124f2a03aded3eba90f8a18cdc7a5d7789/88: find missing: rpc error: code = Unauthenticated desc = Invalid API key "B***5"
 ----
-
-And if you try to translate `grpcs://` into a port it'd likely be 1986 according to {uri-buildbuddy-port-docs}[some random documentation].
-
-----
-$ siso ninja -reapi_address=remote.buildbuddy.io:1986 -reapi_insecure -strict_remote 
-reapi instance: default_instance
-
-20.89s Error: could not connect to backend. If you want to build offline, pass `-o` or `--offline`
-rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 34.98.106.0:1986: i/o timeout"
-----
-
-So... not entirely clear what's going wrong here.
