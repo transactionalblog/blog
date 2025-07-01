@@ -128,13 +128,13 @@ build --remote_header=x-buildbuddy-api-key=API_KEY_REDACTED
 
 But I'm not having a lot of success in trying to plug this into siso...
 
----
+----
 $ siso ninja -reapi_address=grpcs://remote.buildbuddy.io -reapi_insecure -strict_remote 
 reapi instance: default_instance
 
- 1.06s Error: could not connect to backend. If you want to build offline, pass `-o` or `--offline`
- rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp: lookup tcp///remote.buildbuddy.io: unknown port"
----
+1.06s Error: could not connect to backend. If you want to build offline, pass `-o` or `--offline`
+rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp: lookup tcp///remote.buildbuddy.io: unknown port"
+----
 
 So I think it wants a port.  `grpcs://` seems to be port 1986 if I pull it out of {uri-buildbuddy-port-docs}[some random documentation].
 
@@ -143,7 +143,7 @@ $ siso ninja -reapi_address=remote.buildbuddy.io:1986 -reapi_insecure -strict_re
 reapi instance: default_instance
 
 20.89s Error: could not connect to backend. If you want to build offline, pass `-o` or `--offline`
- rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 34.98.106.0:1986: i/o timeout"
+rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 34.98.106.0:1986: i/o timeout"
 ----
 
 And I'm kind of lost on how to make progress from here.
