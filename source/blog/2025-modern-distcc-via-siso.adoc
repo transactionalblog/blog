@@ -22,7 +22,8 @@ $ cd chrome-infra/go/src/infra/build/siso
 $ go build .
 ----
 
-I ran into 
+I ran into{nospace}sidenote:ref[]:
+[.aside]#sidenote:def[] Filed https://issues.chromium.org/u/1/issues/428926700[bug 428926700].#
 
 ----
 verifying github.com/jdxcode/netrc@v1.0.0/go.mod: checksum mismatch
@@ -57,7 +58,8 @@ $ siso ninja cryptobench
 0.01s Error: failed to load @config//main.star: open main.star: no such file or directory
 ----
 
-And so we have to write a minimal `main.star`.  You can basically stub out the entire thing and it appears to work:
+And so we have to write a minimal `main.star`.  You can basically stub out the entire thing{nospace}sidenote:ref[] and it appears to work:
+[.aside]#sidenote:def[] Filed https://issues.chromium.org/u/1/issues/428883432[bug 428883432].#
 
 .config/siso/main.star
 [source,starlark]
@@ -93,7 +95,8 @@ created by golang.org/x/sync/errgroup.(*Group).Go in goroutine 1
 	$HOME/go/pkg/mod/golang.org/x/sync@v0.13.0/errgroup/errgroup.go:76 +0x93
 ----
 
-Err... almost.
+Err... almost.{nospace}sidenote:ref[]
+[.aside]#sidenote:def[] Filed https://issues.chromium.org/u/1/issues/428883433[bug 428883433].#
 
 Peeking at `file_parser.go:285` it's code related to `include` handling, and `build.ninja` includes `CMakeFiles/rules.ninja`.  So lets work around this by just doing the include ourself by copy-pasting the entire `rules.ninja` file where the `include` is in `build.ninja`.
 
@@ -133,8 +136,8 @@ I think how one is supposed to hook this together is to follow the pattern from 
 
 # https://www.buildbuddy.io/docs/guide-auth/
 apikey="XKnFdxJHJetfq1aKExDh"
-# Requires the time.UnixDate format.
-expiry=`date +'%a %b %d %H:%M:%S %Z %Y' --date '+6 hours'`
+# Requires an RFC3339 date.
+expiry=`date --date='now +6 hours' -Iseconds`
 
 echo "{
     \"headers\": {
@@ -155,7 +158,8 @@ reapi instance: default
 0.02s Error: failed to dial remote.buildbuddy.io:443: google: could not find default credentials. See https://cloud.google.com/docs/authentication/external/set-up-adc for more information
 ----
 
-So, now we get to set up gcloud credentials for some reason?
+So, now we get to set up gcloud credentials for some reason?{nospace}sidenote:ref[]
+[.aside]#sidenote:def[] Filed https://issues.chromium.org/u/1/issues/428883434[bug 428883434].#
 
 ----
 $ gcloud init
@@ -178,7 +182,8 @@ E0630 18:59:09.582423 1210745 state.go:762] dir:/usr/lib/gcc/x86_64-redhat-linux
 0.91s Build Succeeded: 10 steps - 10.94/s
 ----
 
-But `local:10 remote:0` makes it look like it all executed locally? (Filed https://issues.chromium.org/u/1/issues/428946258[bug 428946258].)
+But `local:10 remote:0` makes it look like it all executed locally?{nospace}sidenote:ref[]
+[.aside]#sidenote:def[] Filed https://issues.chromium.org/u/1/issues/428946258[bug 428946258].#
 
 Poking around in `siso.INFO`, I see:
 
@@ -188,3 +193,5 @@ I0630 22:10:57.903058 1219889 cas.go:335] upload 4cfbadf3f910f0a9ae5df952e47a3e2
 I0630 22:10:57.903091 1219889 cas.go:335] upload d60a3ddc8f834be21cefbe22f76138124f2a03aded3eba90f8a18cdc7a5d7789/88 *remoteexecution.Directory failed: find missing: rpc error: code = Unauthenticated desc = Invalid API key "B***5"
 W0630 22:10:57.903108 1219889 builder.go:850] failed to upload build files tree d60a3ddc8f834be21cefbe22f76138124f2a03aded3eba90f8a18cdc7a5d7789/88: find missing: rpc error: code = Unauthenticated desc = Invalid API key "B***5"
 ----
+
+And I'm not really sure how to make progress past this...
