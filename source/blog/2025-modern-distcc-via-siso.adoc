@@ -125,9 +125,36 @@ build --remote_executor=grpcs://remote.buildbuddy.io
 build --remote_header=x-buildbuddy-api-key=API_KEY_REDACTED
 ----
 
+I think how one is supposed to hook this together is to take the API key and place it into a "credential helper" script:
+
+.siso-credential-helper.sh 
+----
+#!/bin/bash
+echo '{ "headers" : { "x-buildbuddy-api-key": ["API_KEY_REDACTED"], } }'
+----
+
+And then the invocation looks like:
+
+----
+$ SISO_CREDENTIAL_HELPER=siso-credential-helper.sh siso ninja \
+    -reapi_address=remote.buildbuddy.io:443 \
+	-reapi_instance=default \
+	-strict_remote \
+reapi instance: default
+build finished
+local:10 remote:0 cache:0 fallback:0 retry:0 skip:1
+reapi: ops: 2(err:2) / r:0(err:0) 0B / w:0(err:0) 0B
+fs: ops: 953(err:424) / r:411(err:0) 43.62MiB / w:0(err:0) 0B
+E0630 18:59:09.582292 1210745 state.go:762] dir:/usr/lib64/llvm20/bin name:/usr/lib64/llvm20 entries:&directory{m:0xc011b480b8}
+E0630 18:59:09.582423 1210745 state.go:762] dir:/usr/lib/gcc/x86_64-redhat-linux/15 name:/usr/lib/gcc/x86_64-redhat-linux entries:&directory{m:0xc011b0bb98}
+0.91s Build Succeeded: 10 steps - 10.94/s
+----
+
+But It looks like it all executed locally?
+
 :uri-buildbuddy-port-docs: https://www.buildbuddy.io/docs/config-all-options/
 
-But I'm not having a lot of success in trying to plug this into siso...
+I templated this off of a https://issues.chromium.org/issues/428661934[siso bug report], but if you instead do something like trying to pass the URI scheme you get:
 
 ----
 $ siso ninja -reapi_address=grpcs://remote.buildbuddy.io -reapi_insecure -strict_remote 
@@ -137,7 +164,7 @@ reapi instance: default_instance
 rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp: lookup tcp///remote.buildbuddy.io: unknown port"
 ----
 
-So I think it wants a port.  `grpcs://` seems to be port 1986 if I pull it out of {uri-buildbuddy-port-docs}[some random documentation].
+And if you try to translate `grpcs://` into a port it'd likely be 1986 according to {uri-buildbuddy-port-docs}[some random documentation].
 
 ----
 $ siso ninja -reapi_address=remote.buildbuddy.io:1986 -reapi_insecure -strict_remote 
@@ -147,4 +174,4 @@ reapi instance: default_instance
 rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 34.98.106.0:1986: i/o timeout"
 ----
 
-And I'm kind of lost on how to make progress from here.
+So... not entirely clear what's going wrong here.
