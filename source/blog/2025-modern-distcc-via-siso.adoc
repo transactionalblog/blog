@@ -1,0 +1,149 @@
+= Modern Distcc via Siso
+:revdate: 2025-06-30
+:page-category: tools
+:page-hook-preamble: false
+
+:uri-siso-psa: https://groups.google.com/a/chromium.org/g/chromium-dev/c/v-WOvWUtOpg/m/2HlNqp-6BgAJ
+
+To lead: the title here is overly optimistic.  I do not have Siso fully working, and specifically not the remote execution part that'd make it a distcc replacement.  This is being posted so I can share work in progress notes.  It will hopefully get edited into something with a fully working setup in the future.
+
+Chrome Infra team sent out a PSA that they're {uri-siso-psa}[switching from Ninja to Siso].  So what's Siso?  It bills itself as a ninja-compatible drop-in replacement which can leverage the Bazel Remote Execution and Remote Caching APIs.  All the remote compilation and caching goodness of bazel, but in the easy to use formfactor of a ninja-compatible build tool?  Sounds great!
+
+So, let's take it for a spin.
+
+== Building Siso
+
+The setup that one needs to build siso is just:
+
+----
+$ git clone --depth=1 https://chromium.googlesource.com/infra/infra chrome-infra
+$ cd chrome-infra/go/src/infra/build/siso
+$ go build .
+----
+
+I ran into 
+
+----
+verifying github.com/jdxcode/netrc@v1.0.0/go.mod: checksum mismatch
+	downloaded: h1:Gh9eFQJnoTNIRHXl2j5bJXA1u84hQWJWgGh569zF3v8=
+	go.sum:     h1:Zi/ZFkEqFHTm7qkjyNJjaWH4LQA9LQhGJyF0lTYGpxw=
+----
+
+So I just removed the lines for `jdxcode/netrc` from `go.sum`. ¯\\_(ツ)_/¯
+
+----
+$ go build .
+$ ls siso
+siso
+$ sudo cp $SOMEWHERE_ON_PATH
+----
+
+Success!
+
+== Local Builds
+
+I have a little CMake project that benchmarks a number of different cryptography libraries, and so I'm using that as my test project.  No details about what the code or CMakeLists.txt is has mattered yet, so I'm just leaving it as opaque.
+
+Siso can be used via `siso ninja <target>`.  Our first problem is the complaint of a missing `config/siso/main.star` in the build directory:
+
+----
+$ cmake -S . -B build -G Ninja
+$ cd build
+$ siso ninja cryptobench
+0.00s Error: can not detect exec_root: config/siso not found
+$ mkdir -p config/siso
+$ siso ninja cryptobench
+0.01s Error: failed to load @config//main.star: open main.star: no such file or directory
+----
+
+And so we have to write a minimal `main.star`.  You can basically stub out the entire thing and it appears to work:
+
+.config/siso/main.star
+[source,starlark]
+----
+load("@builtin//struct.star", "module")
+
+def init(ctx):
+  return module(
+      "config", step_config = '{"rules": []}',
+      filegroups={}, handlers={})
+----
+
+And now we can successfully attempt a local build:
+
+----
+$ siso ninja cryptobench
+load build.ninja... panic: runtime error: index out of range [1] with length 1
+
+goroutine 85 [running]:
+go.chromium.org/infra/build/siso/toolsupport/ninjautil.(*fileParser).setup(0xc000141808, {0x17f8858, 0xc00088c0c0})
+	$HOME/ws/siso/build/siso/toolsupport/ninjautil/file_parser.go:285 +0x2b0
+go.chromium.org/infra/build/siso/toolsupport/ninjautil.(*fileParser).parseContent(0xc000141808, {0x17f8858, 0xc00088c0c0})
+	$HOME/ws/siso/build/siso/toolsupport/ninjautil/file_parser.go:165 +0x499
+go.chromium.org/infra/build/siso/toolsupport/ninjautil.(*fileParser).parseFile(0xc000141808, {0x17f8890, 0xc0000fc410}, {0x1340e99, 0xb})
+	$HOME/ws/siso/build/siso/toolsupport/ninjautil/file_parser.go:82 +0x391
+go.chromium.org/infra/build/siso/toolsupport/ninjautil.(*ManifestParser).loadFile(0xc000882000, {0x17f8890, 0xc0000fc410}, {0x1340e99, 0xb})
+	$HOME/ws/siso/build/siso/toolsupport/ninjautil/manifest_parser.go:88 +0x10b
+go.chromium.org/infra/build/siso/toolsupport/ninjautil.(*ManifestParser).Load.func1()
+	$HOME/ws/siso/build/siso/toolsupport/ninjautil/manifest_parser.go:64 +0x27
+golang.org/x/sync/errgroup.(*Group).Go.func1()
+	$HOME/go/pkg/mod/golang.org/x/sync@v0.13.0/errgroup/errgroup.go:79 +0x50
+created by golang.org/x/sync/errgroup.(*Group).Go in goroutine 1
+	$HOME/go/pkg/mod/golang.org/x/sync@v0.13.0/errgroup/errgroup.go:76 +0x93
+----
+
+Err... almost.
+
+Peeking at `file_parser.go:285` it's code related to `include` handling, and `build.ninja` includes `CMakeFiles/rules.ninja`.  So lets work around this by just doing the include ourself by copy-pasting the entire `rules.ninja` file where the `include` is in `build.ninja`.
+
+----
+$ siso ninja cryptobench
+build finished
+local:10 remote:0 cache:0 fallback:0 retry:0 skip:1
+fs: ops: 1686(err:786) / r:785(err:0) 145.15MiB / w:0(err:0) 0B
+E0630 14:36:12.557508 1188343 state.go:762] dir:/usr/lib64/llvm20/bin name:/usr/lib64/llvm20 entries:&directory{m:0xc00052bdc8}
+E0630 14:36:12.557698 1188343 state.go:762] dir:/usr/lib/gcc/x86_64-redhat-linux/15 name:/usr/lib/gcc/x86_64-redhat-linux entries:&directory{m:0xc010fe5288}
+6.28s Build Succeeded: 10 steps - 1.59/s
+$ ls cryptobench
+cryptobench
+----
+
+It worked!
+
+== Remote Builds
+
+I signed up for BuildBuddy, as they were the first hosted remote execution service I found offering a free tier.
+
+BuildBuddy then gives you the configuration for bazel to set up remote execution:
+
+----
+build --bes_results_url=https://app.buildbuddy.io/invocation/
+build --bes_backend=grpcs://remote.buildbuddy.io
+build --remote_timeout=10m
+build --remote_executor=grpcs://remote.buildbuddy.io
+build --remote_header=x-buildbuddy-api-key=API_KEY_REDACTED
+----
+
+:uri-buildbuddy-port-docs: https://www.buildbuddy.io/docs/config-all-options/
+
+But I'm not having a lot of success in trying to plug this into siso...
+
+---
+$ siso ninja -reapi_address=grpcs://remote.buildbuddy.io -reapi_insecure -strict_remote 
+reapi instance: default_instance
+
+ 1.06s Error: could not connect to backend. If you want to build offline, pass `-o` or `--offline`
+ rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp: lookup tcp///remote.buildbuddy.io: unknown port"
+---
+
+So I think it wants a port.  `grpcs://` seems to be port 1986 if I pull it out of {uri-buildbuddy-port-docs}[some random documentation].
+
+----
+$ siso ninja -reapi_address=remote.buildbuddy.io:1986 -reapi_insecure -strict_remote 
+reapi instance: default_instance
+
+20.89s Error: could not connect to backend. If you want to build offline, pass `-o` or `--offline`
+ rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp 34.98.106.0:1986: i/o timeout"
+----
+
+And I'm kind of lost on how to make progress from here.
