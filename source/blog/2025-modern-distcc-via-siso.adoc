@@ -137,18 +137,21 @@ I think how one is supposed to hook this together is to follow the pattern from 
 # https://www.buildbuddy.io/docs/guide-auth/
 apikey="XKnFdxJHJetfq1aKExDh"
 # Requires an RFC3339 date.
-expiry=`date --date='now +6 hours' -Iseconds`
+expires=`date --date='now +6 hours' -Iseconds`
 
 echo "{
     \"headers\": {
-        \"x-buildbuddy-api-key\": \"${apikey}\"
+        \"x-buildbuddy-api-key\": [\"${apikey}\"]
     },
-    \"expiry\": \"${expiry}\"
+    \"expires\": \"${expires}\"
 }"
 ----
 
 And then the invocation looks like:
 
+.Fixed by bug 428883434
+[%collapsible]
+====
 ----
 $ SISO_CREDENTIAL_HELPER=siso-credential-helper.sh siso ninja \
     -reapi_address=remote.buildbuddy.io:443 \
@@ -158,8 +161,7 @@ reapi instance: default
 0.02s Error: failed to dial remote.buildbuddy.io:443: google: could not find default credentials. See https://cloud.google.com/docs/authentication/external/set-up-adc for more information
 ----
 
-So, now we get to set up gcloud credentials for some reason?{nospace}sidenote:ref[]
-[.aside]#sidenote:def[] Filed https://issues.chromium.org/u/1/issues/428883434[bug 428883434].#
+So, now we get to set up gcloud credentials for some reason?
 
 ----
 $ gcloud init
@@ -167,6 +169,7 @@ $ gcloud auth application-default login
 ----
 
 And new we can try again:
+====
 
 ----
 $ SISO_CREDENTIAL_HELPER=siso-credential-helper.sh siso ninja \
