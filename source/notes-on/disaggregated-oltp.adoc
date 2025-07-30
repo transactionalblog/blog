@@ -474,19 +474,11 @@ http://cighao.com/papers/PolarDB_CXL.pdf
 
 == Huawei
 
-GaussDB was renamed to Taurus ~2020, but both names have continued to be used in publications.
-
-=== GaussDB
-// VLDB '20
-// https://vldb.org/pvldb/vol13/p3099-avni.pdf
-
-[.gray-bg]
-====
-bibitem:[GaussDB]
-====
+GaussDB was renamed to Taurus ~2020, but both names have continued to be used in publications.  The public name of the service is TaurusDB.
 
 === TaurusDB ★
 // SIGMOD '20
+// https://arxiv.org/pdf/2412.02792
 [.gray-bg]
 ====
 bibitem:[TaurusDB]
@@ -513,6 +505,15 @@ Both recovery and replication to read-only replicas is discussed in decent detai
 Page stores are append-only on disk, with a lock-free hashtable mapping (page,version) to slot in log.  The hashtable is periodically saved to storage to bound recovery time.  Page Stores have their own buffer pool, which is mostly to avoid IO during the lookup of the previous page to apply a WAL entry.  There's an interesting tidbit that LFU is a better cache replacement policy for second-level caches.
 
 What's the major difference between Taurus and others?  Reconfiguration-based replication!
+
+=== Taurus NDP
+// ICDE '22
+.[gray-bg]
+====
+bibitem:[TaurusNDP]
+====
+
+
 
 === Taurus Multi-Master ★
 // VLDB '23
@@ -552,23 +553,35 @@ Multi-master is also useful for upgrades, as it gives one a way to do a rolling 
 
 Who needs multi-master?  Aurora dropped their own multi-master support, and rumor was it wasn't getting heavily used.  Is there actually a desire for this?  Are there enough customers topping over their disaggregated OLTP database with excessive writes that it's worthwhile to make the investment into all the complexity that multi-master brings?
 
-=== GeoGauss
-// PACMMOD '23
+
+=== GaussDB
+
+GaussDB is a Postgres-derived RDBMS developed in Huawei.  GaussDB for MySQL is a separate product that was renamed to Taurus so as to avoid confusion.  
+
+This section only exists as in introduction to the next ones, otherwise Taurus moves into GaussDB with no explanation of why there's two systems.  For most of this page, I've maintained chronological ordering of papers, but I'm breaking it here so that I can group the GaussDB work together.
+
+For background on GaussDB itself, there's a publication introducing its motivation of bringing in-memory database processing to a disk-based RDBMS:
+
+// GaussDB VLDB '20
+// https://vldb.org/pvldb/vol13/p3099-avni.pdf
+.[gray-bg]
+====
+bibitem:[GaussDB]
+====
+
+Afterwards, there have been two different publications looking at improving the replication support in GuassDB to behave better with geographically distributed replicas.  This replication, however, is still replicating from one GaussDB to another GaussDB, and thus doesn't fit our theme of disaggregated OLTP.  They're still nice papers though!
+
+// GeoGauss PACMMOD '23
 // https://arxiv.org/abs/2304.09692
-
-[.gray-bg]
-====
-bibitem:[GeoGauss]
-====
-
-=== GaussDB-Global
-// ICDE '24
+// GaussDB Global ICDE '24
 // https://arxiv.org/abs/2501.05295
-
 [.gray-bg]
 ====
+bibitem:[GeoGauss] +
 bibitem:[GaussDBGlobal]
 ====
+
+And now we may resume our disaggregated OLTP content...
 
 === GaussDB-MP
 // VLDB '24
