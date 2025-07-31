@@ -518,7 +518,7 @@ bibitem:[TaurusNDP]
 Taurus Near Data Processing is motivated by MySQL query processing being designed for simple queries and short transactions, and correspondingly struggling with queries that must consume large amounts of data.  Early filtering of the data saves both network load, from the separated storage and compute, and the CPU load on the compute side.  NDP required changes in the optimizer, storage engine, and Page Stores, though a major goal was to minimize the effect of the NDP-related changes above the storage engine layer.  Only index scan operators need to be aware of its existence in the query plan. 
 
 .Taurus NDP Architecture
-image::TaurusNDPArchitecture[embed=true,align=center]
+image::TaurusNDPArchitecture.png[embed=true,align=center]
 
 An NDP request is a set of filters, projections, or aggregations that the query processor would like the Page Store to evaluate.  NDP pushdown requests are treated as best-effort if the Page Store has the idle CPU to perform the operations.  The Page Store is permitted to not respect the request, and return raw database pages instead.  If it does apply the pushdown operations, the results are returned in a special NDP Page, which is held separately in the storage engine, as it is not re-used by any other request.  Predicates are JIT compiled via LLVM on the Page Server for a more efficient evaluation.  Not all predicates are pushed down through NDP, and some residual predicates are still evaluated within MySQL's execution engine.  InnoDB's undo log-based MVCC cannot be traversed by Page Stores, and thus some rows not visible to the query must be returned to indicate to InnoDB that it must reconstruct the correct older version and perform the requested processing on that row instead.
 
@@ -586,7 +586,7 @@ For background on GaussDB itself, there's a publication introducing its motivati
 
 // GaussDB VLDB '20
 // https://vldb.org/pvldb/vol13/p3099-avni.pdf
-.[gray-bg]
+[.gray-bg]
 ====
 bibitem:[GaussDB]
 ====
