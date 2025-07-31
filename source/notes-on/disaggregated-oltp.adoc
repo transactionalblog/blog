@@ -1,6 +1,6 @@
 = Disaggregated OLTP Systems
 :revdate: 2024-12-05
-:updated: 2025-05-30
+:updated: 2025-07-30
 :page-hook-preamble: false
 :page-hook: Aurora, Socrates, PolarDB, and Taurus.
 :page-features: stem
@@ -9,7 +9,7 @@
 :toc: right
 :toclevels: 2
 
-These notes were first prepared for an informal presentation on the various cloud-native disaggregated OLTP RDBMS designs that have been getting published and it cherry-picked one paper per notable design decision.  For the papers covered then, I've included a summary of the discussion we had after each paper.  This page is being actively extended to cover all disaggregated OLTP papers, even for papers that are similar between two different vendors. ("Actively" meaning as of 2025-05-30.)
+These notes were first prepared for an informal presentation on the various cloud-native disaggregated OLTP RDBMS designs that have been getting published and it cherry-picked one paper per notable design decision.  For the papers covered then, I've included a summary of the discussion we had after each paper.  This page is being actively extended to cover all disaggregated OLTP papers, even for papers that are similar between two different vendors. ("Actively" meaning as of 2025-07-30.)
 
 If you're looking for a quick overview of the disaggregated OLTP space, just read the papers with a ★.
 
