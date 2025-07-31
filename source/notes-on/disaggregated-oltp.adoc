@@ -508,12 +508,34 @@ What's the major difference between Taurus and others?  Reconfiguration-based re
 
 === Taurus NDP
 // ICDE '22
-.[gray-bg]
+// https://arxiv.org/pdf/2506.20010
+
+[.gray-bg]
 ====
 bibitem:[TaurusNDP]
 ====
 
+Taurus Near Data Processing is motivated by MySQL query processing being designed for simple queries and short transactions, and correspondingly struggling with queries that must consume large amounts of data.  Early filtering of the data saves both network load, from the separated storage and compute, and the CPU load on the compute side.  NDP required changes in the optimizer, storage engine, and Page Stores, though a major goal was to minimize the effect of the NDP-related changes above the storage engine layer.  Only index scan operators need to be aware of its existence in the query plan. 
 
+.Taurus NDP Architecture
+image::TaurusNDPArchitecture[embed=true,align=center]
+
+An NDP request is a set of filters, projections, or aggregations that the query processor would like the Page Store to evaluate.  NDP pushdown requests are treated as best-effort if the Page Store has the idle CPU to perform the operations.  The Page Store is permitted to not respect the request, and return raw database pages instead.  If it does apply the pushdown operations, the results are returned in a special NDP Page, which is held separately in the storage engine, as it is not re-used by any other request.  Predicates are JIT compiled via LLVM on the Page Server for a more efficient evaluation.  Not all predicates are pushed down through NDP, and some residual predicates are still evaluated within MySQL's execution engine.  InnoDB's undo log-based MVCC cannot be traversed by Page Stores, and thus some rows not visible to the query must be returned to indicate to InnoDB that it must reconstruct the correct older version and perform the requested processing on that row instead.
+
+In the optimizer, NDP pushdown is applied as a post-processing pass after optimization has run.  This possibly misses faster plans had NDP been considered during cost-based optimization, but NDP would also introduce more alternative plans to consider and the optimization duration impact of enabling NDP is minimized.  The MySQL optimizer already pushes filters and projections on top of index scans, and NDP is just a more efficient way of evaluating the supported operators.  NDP projections are enabled only when the optimizer estimates that the width reduction is sufficient, including checking statistics for average variable length column widths.  NDP filtering is enabled only when supported predicates are detected (e.g. not UDFs).  NDP requests may also be ignored by the Page Store, and thus the optimization is not guaranteed.  A significant focus was that enabling NDP should not cause a regression for any queries.
+
+Within InnoDB, an "NDP descriptor" is formed which contains the schema, transaction information (for mvcc visibility), and the projection, filtering, and aggregation operations to perform.  An NDP request with its accompanying NDP descriptor is used by the Page Store to convert an InnoDB page (16KB) into a variable length NDP page.  An NDP page contains the same InnoDB page header, such that an InnoDB cursor can be used on the page unmodified, but with the "record type" field set to indicate an NDP page and if any projections or aggregations were applied to the rows. Records are maintained in the page in index sort order. The NDP page may be narrower, because of the projection, and if empty due to the filtering an empty result is indicated specially to avoid materializing an empty page.
+
+.Taurus NDP Parallel Scans
+image::TaurusNDPParallelScans.png[embed=true,align=center]
+
+The returned NDP pages are allocated from InnoDB's buffer pool, but maintained private to the query thread, and the number of NDP pages allocated is controlled to avoid starving regular queries of buffer pool pages.  During a scan, leaf page IDs are collected from parent pages, and batched into a single I/O request.  To prevent concurrent modification to the tree structure during the large scan, a shared lock is taken from the root to the parent-of-leaf page, and an LSN corresponding to the locked tree structure is generated.  The Page Store only returns page versions matching the LSN value.  Any page which is already in the buffer pool is copied into the NDP buffer pool space as the page and tree structure may be modified once the LSN is recorded and the locks dropped. This batching of ~1000 page reads into one I/O request provides an opporunity for significant parallelism both on InnoDB's side of NDP processing and the Page Store's.
+
+The Page Store is a multi-tenant service that simultaneously supports MySQL, PostgreSQL, and openGauss as frontends.  DBMS-specific libraries are loaded as plugins, and the NDP descriptor is accepted as a typeless bytestream which the NDP plugin interprets.  An NDP I/O begins as a regular page read that the NDP plugin coverts into an NDP page.  NDP descriptor parsing was identified as a performance bottleneck in testing, and thus an NDP descriptor and LLVM bitcode cache was added, as many waves of requests typically all share the same NDP descriptor.  A threadpool is dedicated to NDP page processing, and if the queue of pages for the NDP plugin to process exceeds the resources available, then pages are skipped and forwarded to the frontend RDBMS for processing instead.
+
+Page Stores do non-trivial processing with NDP.  Predicates are evaluated by the database frontend producing LLVM bitcode, which the Page Store converts to native code using LLVM's MCJIT.  A library of pre-compiled complex functions is also available for the JIT'd code to invoke.  As identified in many previous works on query compilation, evaluating a precompiled predicate is significantly faster than interpreting the AST of a predicate expression.  Page Stores can also perform aggregations across pages iff the table being accessed is the last table in the query.  Then, either logically adjacent pages may be aggregated if there is a GROUP BY, or if instead it's a scalar aggregation then even non-adjacent pages may be aggregated.  In either case, only pages within the same batched I/O request are aggregated as it would be significantly harder to correlate queries across I/O requests.  InnoDB performs any residual aggregation work which NDP only partially evaluated.
+
+The evaluation shows a significant reduction in data transferred across the network by example TPC-H queries, as one would expect to see in any pushdown related work.  CPU work on the primary was also reduced, as expected as CPU work was instead moved to Page Stores. The significant increase in parallelism as compared to single threaded MySQL scans also trivially yields over 90% speedups.
 
 === Taurus Multi-Master ★
 // VLDB '23
