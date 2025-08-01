@@ -1,6 +1,7 @@
 = RDMA
 :revdate: 2023-05-06
 :page-layout: index
+:page-topic: databases
 
 Examples, benchmarking, and troubleshooting from experiments with using RDMA.
 

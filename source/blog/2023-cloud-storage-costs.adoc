@@ -2,6 +2,7 @@
 :revdate: 2023-12-13
 :updated: 2024-01-07
 :page-features: alpine, ejs
+:page-topic: tools
 :page-hook-preamble: false
 
 S3 is a convenient way to host larger static artifacts for a website, but which S3-compatible service is the cheapest for that usecase?

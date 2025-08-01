@@ -1,6 +1,7 @@
 = Data Replication Design Spectrum
 :revdate: 2024-07-31
 :stem: latexmath
+:page-topic: databases
 :page-features: stem, plot
 :toc: right
 :bibtex-file: 2024-data-replication-design-spectrum.bib

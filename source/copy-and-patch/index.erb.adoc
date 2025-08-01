@@ -4,6 +4,7 @@
 :page-layout: index
 :page-hook-preamble: false
 :page-aggregate: true
+:page-topic: compilers
 
 [.display-none]
 == Posts

@@ -1,5 +1,6 @@
 = Modern Hardware for Future Databases
 :revdate: 2024-11-19
+:page-topic: databases
 :page-aside: With thanks to Phil Eaton for early review, and Shikar Bandar for the pointer to AWS's ClockBound.
 :page-hook-preamble: false
 :page-translation-zh: https://pigsty.cc/zh/blog/db/future-hardware/

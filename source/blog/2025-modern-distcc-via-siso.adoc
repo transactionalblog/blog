@@ -1,7 +1,7 @@
-= Modern Distcc via Siso
+= A Failed Experiment with Siso
 :revdate: 2025-06-30
 :draft: true
-:page-category: tools
+:page-topic: tools
 :page-hook-preamble: false
 
 :uri-siso-psa: https://groups.google.com/a/chromium.org/g/chromium-dev/c/v-WOvWUtOpg/m/2HlNqp-6BgAJ

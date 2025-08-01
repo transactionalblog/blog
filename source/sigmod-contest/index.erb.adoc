@@ -2,6 +2,7 @@
 :revdate: 2024-04-27
 :page-layout: index
 :page-aggregate: true
+:page-topic: databases
 
 SIGMOD hosts a yearly competition to design a system which performs a set of queries as quickly as possible.  The contests provide a starting framework and test harness.  They make great intermediate database projects for learning.
 

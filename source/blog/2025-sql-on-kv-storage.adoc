@@ -3,6 +3,7 @@
 :draft: true
 :toc: right
 :bibtex-file: 2025-sql-on-kv-storage.bib
+:page-topic: databases
 :page-hook-preamble: false
 :page-hook: Requirements and design constraints for a implementing SQL on a (distributed) key-value store, with commentary on tradeoffs therein.
 

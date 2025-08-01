@@ -3,6 +3,7 @@
 :toc: right
 :page-features: plot
 :page-hook-preamble: false
+:page-topic: databases
 
 I was curious how much the choice of which TLS library to use in a database has been affected by all of the OpenSSL security vulnerabilities, so I checked the code of a number of OSS databases.
 

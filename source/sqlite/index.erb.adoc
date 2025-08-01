@@ -3,6 +3,7 @@
 :draft: true
 :page-layout: index
 :page-aggregate: true
+:page-topic: databases
 
 Notes on SQLite (and Limbo) internals.
 

@@ -3,6 +3,7 @@
 :page-layout: index
 :page-hook-preamble: false
 :page-hook: Notes, context, and commentary on papers and books.
+:page-topic: databases
 
 [.display-none]
 == Posts

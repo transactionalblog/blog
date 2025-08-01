@@ -1,6 +1,7 @@
 = Productionizing Databases
 :revdate: 2022-07-25
 :page-layout: index
+:page-topic: databases
 :draft: true
 
 There is a large gap between writing a database that is capable of serving a client's queries, and writing a database that someone would wish to run in production.

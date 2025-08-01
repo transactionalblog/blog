@@ -5,6 +5,7 @@
 :page-hook: A NULL BITMAP guest post on loop parallelism transformations.
 :stem: latexmath
 :page-features: stem
+:page-topic: databases
 
 I've been learning about how to write SIMD code recently, and I've come to appreciate that there's two distinct skills involved: knowing how to transform a given loop into one that has sufficient parallelism to apply SIMD, and knowing how to fit a parallel loop's computation into the restricted set of available SIMD instructions.  We'll be looking at only the first part of that today: learning the pattern of how to transform one loop type into its parallel version.
 

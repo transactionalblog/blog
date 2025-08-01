@@ -1,6 +1,7 @@
 = Database Startups
 :revdate: 2024-08-13
 :updated: 2025-04-13
+:page-topic: databases
 :page-hook-preamble: false
 :toc: right
 
@@ -64,6 +65,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == OLAP SQL
 
+* https://scopedb.io/[ScopeDB] (2024)
 * https://mooncake.dev/[Mooncake Labs] (2024)
 ** DuckDB-in-Postgres via github:Mooncake-Labs/pg_mooncake[]
 * https://bemidb.com/[Bemi Technologies] (2023) -- github:BemiHQ/BemiDB[]

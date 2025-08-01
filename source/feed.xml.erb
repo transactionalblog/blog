@@ -36,6 +36,7 @@ layout: none
     <% page_topic = post.data.topic || category_topic[post.data.category] %>
     <% if !page_topic.nil? %>
     <category term="<%= page_topic %>" scheme="https://transactional.blog/" label="<%= page_topic %>" />
+    <% else puts("WARNING: No topic for " + category_heading + post.title) %>
     <% end %>
     <published><%= date.rfc3339 %></published>
     <updated><%= date.rfc3339 %></updated>

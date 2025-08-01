@@ -1,5 +1,7 @@
 = Why Full Text Search is Hard
 :revdate: 2023-09-20
+:page-draft: true
+:page-topic: databases
 :page-hook-preamble: false
 
 It's easy to find documents containing "large" and "elephant".
@@ -21,6 +23,8 @@ It's all the challenges outside of that which are hard.
 
 :uri-wikipedia-stemming: https://en.wikipedia.org/wiki/Stemming
 :uri-wikipedia-stopwords: https://en.wikipedia.org/wiki/Stop_word
+
+// TODO: stemming in multi-lingual docs
 
 When a user searches for "car wash", should documents with "washing cars" in them?
 If so, a {uri-wikipedia-stemming}[stemming algorithm] is now required to understand how to normalize declined and conjugated words to a standard searchable form.

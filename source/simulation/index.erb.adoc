@@ -2,14 +2,22 @@
 :revdate: 2022-02-22
 :page-layout: index
 :page-aggregate: true
+:page-topic: testing
 
 A walkthrough of how and why complex infrastructure should be built with deterministic simulation, and how to make such tests as productive as possible for developers.
 
 [.display-none]
-== Posts
+== Guide
 
 ++++
-<%= partial("partials/index_section", :locals => {}) %>
+<%= partial("partials/index_section", :locals => {:tagged => nil}) %>
+++++
+
+[.display-none]
+== Case Studies
+
+++++
+<%= partial("partials/index_section", :locals => {:tagged => "case study"}) %>
 ++++
 
 ////

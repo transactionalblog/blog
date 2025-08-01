@@ -1,6 +1,7 @@
 = Erasure Coding for Distributed Systems
 :revdate: 2024-08-26
 :stem: latexmath
+:page-topic: databases
 :page-features: stem, alpine
 :toc: right
 :bibtex-file: 2024-erasure-coding.bib

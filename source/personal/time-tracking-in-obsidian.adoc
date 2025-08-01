@@ -1,6 +1,7 @@
 = Time Tracking in Obsidian
 :revdate: 2024-12-28
 :page-hook-preamble: false
+:page-topic: tools
 
 :uri-productivity: https://docs.google.com/viewer?url=https://raw.githubusercontent.com/thisismiller/productivity/master/whole_week.pdf
 

@@ -2,6 +2,7 @@
 :revdate: 16-12-2022
 :page-features: python_wasm, alpine
 :page-hook-preamble: false
+:page-topic: tools
 
 The diagrams in https://cs.brown.edu/~mph/HerlihyW90/p463-herlihy.pdf[Linearizability: A Correctness Condition for Concurrent Objects] are a nice example of how to show how multiple concurrent operations overlap, and the possibilities for orderings that arise.  If you'd like to be able to make similar diagrams, there's a script that can generate them from a simple text-based description of the operations. 
 

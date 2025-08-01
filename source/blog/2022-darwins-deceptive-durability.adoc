@@ -1,6 +1,7 @@
 = Darwin's Deceptive Durability
 :revdate: 2022-06-05
 :updated: 2022-08-03
+:page-topic: databases
 
 A reminder that macOS does not respect the usual ways of making data durable on disk.
 

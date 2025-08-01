@@ -1,6 +1,7 @@
 = Calling OCaml from C
 :revdate: 2024-04-15
 :toc: right
+:page-topic: ocaml
 :page-hook-preamble: false
 
 The official docs on this subject is https://v2.ocaml.org/manual/intfc.html[Interfacing C with OCaml], which is a useful read, though it focuses more on making C callable from OCaml.  It's also missing some collective guidance on how to interact with OCaml values from C and not offend the garbage collector when the C function isn't being called by OCaml.  So, these are my rough notes on how to get all the pieces to fit together.  This is subtweeting the ongoing link:/building-berkeleydb/[Building BerkeleyDB] series, as my personal BerkeleyDB re-implementation is in OCaml.

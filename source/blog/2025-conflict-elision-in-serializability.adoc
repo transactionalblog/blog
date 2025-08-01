@@ -3,6 +3,7 @@
 :draft: true
 :toc: right
 :page-hook-preamble: false
+:page-topic: databases
 
 // TODO: link to pavlo
 Classic database courses teach about conflict serializability.  One is given a history of operations, and asked "is it serializable?"

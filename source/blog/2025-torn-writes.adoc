@@ -1,6 +1,7 @@
 = Torn Write Detection and Protection
 :revdate: 2025-04-12
 :toc: right
+:page-topic: databases
 :page-hook-preamble: false
 :page-aside: With credit to Phil Eaton for some of the sources and links, Tanel Poder for Oracle's torn write detection mechanism and details on AlloyDB Omni's use of RWF_ATOMIC, Andres Freund for more details on Postgres's full page logging, and Claude for generating reasonable SVG diagrams with minimal effort.
 

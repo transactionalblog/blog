@@ -1,6 +1,7 @@
 = Linux Filesystem Durability
 :revdate: 2025-03-18
 :draft: true
+:page-topic: databases
 :page-hook-preamble: false
 
 == Write-then-fsync 

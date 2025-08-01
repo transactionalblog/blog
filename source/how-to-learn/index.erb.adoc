@@ -2,6 +2,7 @@
 :revdate: 2023-05-07
 :page-layout: index
 :page-aggregate: true
+:page-topic: databases
 
 Suggested reading material for various topics.
 
