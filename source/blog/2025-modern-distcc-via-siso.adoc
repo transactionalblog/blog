@@ -1,12 +1,11 @@
 = A Failed Experiment with Siso
-:revdate: 2025-06-30
-:draft: true
+:revdate: 2025-08-01
 :page-topic: tools
 :page-hook-preamble: false
 
 :uri-siso-psa: https://groups.google.com/a/chromium.org/g/chromium-dev/c/v-WOvWUtOpg/m/2HlNqp-6BgAJ
 
-To lead: the title here is overly optimistic.  I do not have Siso fully working, and specifically not the remote execution part that'd make it a distcc replacement.  This is being posted so I can share work in progress notes.  It will hopefully get edited into something with a fully working setup in the future, and then fully published.
+To lead: the post URL was overly optimistic, and the current post title is far more accurate.  I do not have Siso fully working, and specifically not the remote execution part that'd make it a distcc replacement as I had hoped.  This is being posted so I can share the notes on progress I made.  It will hopefully get edited into something with a fully working setup in the future, and then re-published.
 
 Chrome Infra team sent out a PSA that they're {uri-siso-psa}[switching from Ninja to Siso].  So what's Siso?  It bills itself as a ninja-compatible drop-in replacement which can leverage the Bazel Remote Execution and Remote Caching APIs.  All the remote compilation and caching goodness of bazel, but in the easy to use formfactor of a ninja-compatible build tool?  Sounds great!
 
@@ -42,6 +41,8 @@ $ sudo cp $SOMEWHERE_ON_PATH
 
 Success!
 
+On a different build attempt, I ended up with a few more chrome repos which I had to clone into their directories.  You're _supposed to_ acquire all these repos by using https://www.chromium.org/developers/how-tos/depottools/[depot_tools], but it's not terrible to do by hand either.
+
 == Local Builds
 
 I have a little CMake project that benchmarks a number of different cryptography libraries, and so I'm using that as my test project.  No details about what the code or CMakeLists.txt is has mattered yet, so I'm just leaving it as opaque.
@@ -61,7 +62,7 @@ $ siso ninja cryptobench
 And so we have to write a minimal `main.star`.  You can basically stub out the entire thing{nospace}sidenote:ref[] and it appears to work:
 [.aside]#sidenote:def[] Filed https://issues.chromium.org/u/1/issues/428883432[bug 428883432].#
 
-.config/siso/main.star
+.build/config/siso/main.star
 [source,starlark]
 ----
 load("@builtin//struct.star", "module")
@@ -72,7 +73,7 @@ def init(ctx):
       filegroups={}, handlers={})
 ----
 
-And now we can successfully attempt a local build:
+Note that that's from the source directory.  Siso doesn't care either way if that build is the same as your cmake build output directory.  And now we can successfully attempt a local build:
 
 ----
 $ siso ninja cryptobench
@@ -116,7 +117,7 @@ It worked!
 
 == Remote Builds
 
-I signed up for BuildBuddy, as they were the first hosted remote execution service I found offering a free tier.
+I signed up for BuildBuddy, as they were the first hosted remote execution service I found offering a free tier. (EngFlow forces you to go through one intake form, then another intake form, then talk to a human over video chat, so don't go there.)
 
 BuildBuddy then gives you the configuration for bazel to set up remote execution:
 
@@ -139,12 +140,14 @@ apikey="XKnFdxJHJetfq1aKExDh"
 # Requires an RFC3339 date.
 expires=`date --date='now +6 hours' -Iseconds`
 
-echo "{
-    \"headers\": {
-        \"x-buildbuddy-api-key\": [\"${apikey}\"]
-    },
-    \"expires\": \"${expires}\"
-}"
+cat <<EOF
+{
+  "headers": {
+    "x-buildbuddy-api-key": ["${apikey}"]
+  },
+  "expires": "${expires}"
+}
+EOF
 ----
 
 And then the invocation looks like:
@@ -185,16 +188,70 @@ E0630 18:59:09.582423 1210745 state.go:762] dir:/usr/lib/gcc/x86_64-redhat-linux
 0.91s Build Succeeded: 10 steps - 10.94/s
 ----
 
-But `local:10 remote:0` makes it look like it all executed locally?{nospace}sidenote:ref[]
-[.aside]#sidenote:def[] Filed https://issues.chromium.org/u/1/issues/428946258[bug 428946258].#
+But `local:10 remote:0` makes it look like it all executed locally? I had filed https://issues.chromium.org/u/1/issues/428946258[bug 428946258], but the problem was actually me not understanding that remote execution has to be opted into, and all rules default to local only. (Sorry siso devs!)
 
-Poking around in `siso.INFO`, I see:
+I'm using DuckDB as my large CMake project for testing at this point, so there's a chance this might be specialized to that accidentally.  I finally found the https://chromium.googlesource.com/infra/infra/+/refs/heads/main/go/src/infra/build/siso/docs/starlark_config.md[starlark config docs], and what we need to do is define a StepRule which rewrites the ninja CXX rules into remotely executable ones.  I've managed to get that working via:
+
+.main.star
+[source,starlark]
+----
+load("@builtin//encoding.star", "json")
+load("@builtin//struct.star", "module")
+
+step_config = {
+  "rules": [
+    {
+      "name": "clang++",
+      "action": "CXX_COMPILER.*",
+      "remote_command": "clang++",
+      "input_root_absolute_path": True,
+      "remote": True,
+    }
+  ]
+}
+
+def init(ctx):
+  return module("config", step_config = json.encode(step_config),
+                filegroups={}, handlers={})
+----
+
+Trying the siso build again, I instead get an error like:
 
 ----
-W0630 22:10:57.599256 1219889 retry.go:73] retry backoff:200ms: rpc error: code = Unauthenticated desc = Invalid API key "B***5"
-I0630 22:10:57.903058 1219889 cas.go:335] upload 4cfbadf3f910f0a9ae5df952e47a3e23058aad61ef91427271d8e03f9f59243c/2100674 file:///home/miller/ws/duckdb/build/release/build.ninja failed: find missing: rpc error: code = Unauthenticated desc = Invalid API key "B***5"
-I0630 22:10:57.903091 1219889 cas.go:335] upload d60a3ddc8f834be21cefbe22f76138124f2a03aded3eba90f8a18cdc7a5d7789/88 *remoteexecution.Directory failed: find missing: rpc error: code = Unauthenticated desc = Invalid API key "B***5"
-W0630 22:10:57.903108 1219889 builder.go:850] failed to upload build files tree d60a3ddc8f834be21cefbe22f76138124f2a03aded3eba90f8a18cdc7a5d7789/88: find missing: rpc error: code = Unauthenticated desc = Invalid API key "B***5"
+err: remote-exec  failed no-fallback: disable remote: failed to get gcc deps: inputs are not under exec root 1 ["/usr"]...: platform=map["InputRootAbsolutePath":"$HOME/ws/duckdb"]
 ----
 
-And I'm not really sure how to make progress past this...
+Which looking into the starlark docs for siso, I see there's a:
+
+____
+`use_system_input`: ok to use input outside of exec root
+____
+
+And thus adding
+
+[source,diff]
+----
+  "rules": [
+    {
+      "name": "clang++",
+      "action": "CXX_COMPILER.*",
+      "remote_command": "clang++",
+      "input_root_absolute_path": True,
++     "use_system_input": True,
+      "remote": True,
+    }
+----
+
+Now gives us:
+
+----
+err: remote-exec 8f3bd458a4ce933cc7788422d95e136b0ca5fc4ce20374d602b0944bf59e830c/198 failed: exit=1
+...
+build step: CXX_COMPILER__duckdb_core_functions_algebraic_unscanned_Release "./extension/core_functions/aggregate/algebraic/CMakeFiles/duckdb_core_functions_algebraic.dir/ub_duckdb_core_functions_algebraic.cpp.o"
+siso_rule: clang++
+stderr:
+clang-11: error: no such file or directory: '$HOME/ws/duckdb/build/release/extension/core_functions/aggregate/algebraic/ub_duckdb_core_functions_algebraic.cpp'
+clang-11: error: no input files
+----
+
+And... I'm just going to give up here, as this seems like one would need to do a bunch of path rewriting, and that seems like more of a siso dev problem than I'm willing to take on.
