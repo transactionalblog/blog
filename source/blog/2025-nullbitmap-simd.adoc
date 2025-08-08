@@ -7,7 +7,7 @@
 :page-features: stem
 :page-topic: databases
 
-I've been learning about how to write SIMD code recently, and I've come to appreciate that there's two distinct skills involved: knowing how to transform a given loop into one that has sufficient parallelism to apply SIMD, and knowing how to fit a parallel loop's computation into the restricted set of available SIMD instructions.  We'll be looking at only the first part of that today: learning the pattern of how to transform one loop type into its parallel version.
+I've been learning about how to write SIMD code recently, and I've come to appreciate that there's two distinct skills involved: knowing how to transform a given loop into one that has sufficient parallelism to apply SIMD, and knowing how to fit a parallel loop's computation into the restricted set of available SIMD instructions.  We'll be looking at only the first part of that today: learning a pattern of how to transform one loop type into its parallel version.
 
 Simple examples of SIMD optimizations tend to show off the speedups on problems that are already embarrassingly parallel. `map` is an easy function to parallelize: there's no dependencies between loop iterations, so each element can be handled in parallel trivially.  `reduce` with a commutative operation is similarly simple: repeatedly apply the operation over pairs of elements in parallel until there's only one value left.  Many problems fit the shape of a map() and a reduce(). Suppose we want to compute the numerical sum of an array of ASCII digits: this involves a map() to convert each to its integer representation, and then a reduce() to sum them together.  And we can neatly fuse those in one loop:
 
@@ -62,7 +62,7 @@ There's other patterns for SIMD solutions which I find fascinating because they 
 uint64_t parse_int(char* digits) {
   uint64_t parsed = 0;
   for (int i = 0; i < 8; i++) {
-    parsed += parsed * 10 + digits[i] - '0';
+    parsed = parsed * 10 + digits[i] - '0';
   }
   return parsed;
 }
@@ -114,9 +114,10 @@ This looks like a nice optimization, as it means we never need to compute a powe
 
 Which leaves us with a nice tree-shaped computation where we can perform all the multiply-and-adds that require 10^1, then compute 10^2 and perform all the multiply-and-adds which require that value, then compute 10^4 and ... ad. nauseum.  We only ever need to compute squares of 10!
 
+[.font-fira-code]
 ----
 Level 0: ['1', '2', '3', '4', '5', '6', '7', '8']
-          │     │    │     │   │     │   │     │
+          │*10+ │    │*10+ │   │*10+ │   │*10+ │
           └──┬──┘    └──┬──┘   └──┬──┘   └──┬──┘
 Level 1:     12        34         56        78
               │ *10^2+  │          │  *10^2+ │
@@ -141,7 +142,7 @@ uint64_t parse_int_tree(char* digits) {
     // of elements, assigning the result back to the left-hand side.
     uint64_t power_of_ten = 10;
     for (int level = 0; level < 3; level++) {
-        for (int i = 0; i < 8; i = i + 2 << level) {
+        for (int i = 0; i < 8; i = i + (2 << level)) {
             parsed[i] = parsed[i] * power_of_ten + parsed[i+(1<<level)];
         }
         power_of_ten *= power_of_ten;
@@ -154,7 +155,7 @@ And now, we finally have a loop where each iteration doesn't depend on the previ
 
 //Only summing the digits was easier as it left us with a flat structure of computation (f(d[0]) + f(d[1]) + f(d[2]) + ...), parsing an integer leaves us with a nested structure of computation stem:[f^n(d[0\]) + f^{n-1}(d[1\]) + f^{n-2}(d[2\]) + ... + f(d[n\])].  Instead, we need to observe that we can solve this problem in a reverse divide-and-conquer sort of way: 1234 can be broken down into 12 * 100 + 34, which itself can be broken down as 12 = 1 * 10 + 2 and 34 = 3 * 10 + 4. We can parse any integer if we've already parsed the first half and second half of its digits. Thus, we can find parallelism in this problem by first handling each adjacent pairs of digits, and then in an upsidedown tree shape, iteratively combine the pairs until we have our full answer:
 
-From there, we could unroll our loops (`#pragma clang loop unroll(full)`!) to get a straight line of instructions to execute, but gcc/clang will do that for you already.  In the true spirit of SIMD, we can further optimize this by packing the operations for multiple digits into one value.  In SIMD land, you'll typically see this as a significant amount of masking and shifting.  We mask to find each of the tens digits, we shift it to line up with the ones digits, perform the multiply-and-add, and then use a wider mask to do the same for hundreds and ten thousands.  This is the SIMD-with-a-register (SWAR) technique:
+From there, we could unroll our loops (`#pragma clang loop unroll(full)`!) to get a straight line of instructions to execute, but gcc/clang will do that for you already.  In the true spirit of SIMD, we can further optimize this by packing the operations for multiple digits into one value.  In SIMD land, you'll typically see this as a significant amount of masking and shifting.  We mask to find each of the tens digits, we shift it to line up with the ones digits, perform the multiply-and-add, and then use a wider mask to do the same for hundreds and ten thousands.  This is the SIMD-within-a-register (SWAR) technique:
 
 ----
 #include <endian.h>
@@ -202,4 +203,4 @@ parse_int_swar     0.421 ns        0.420 ns   1666246273
 
 Nothing!  But it sure was fun!
 
-If you're interested in more of this, highload.fun gives a nice framework and set of challenges for trying to get practice at applying SIMD to real problems.  What we've looked at is only a small portion of the first "parsing integers" challenge. 
+If you're interested in more of this, https://highload.fun[highload.fun] gives a nice framework and set of challenges for trying to get practice at applying SIMD to real problems.  What we've looked at is only a small portion of the first "parsing integers" challenge.
