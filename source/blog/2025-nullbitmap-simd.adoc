@@ -1,11 +1,15 @@
 = NULL BITMAP on SIMD
-:revdate: 2025-06-26
-:draft: true
+:revdate: 2025-08-11
 :page-hook-preamble: false
 :page-hook: A NULL BITMAP guest post on loop parallelism transformations.
 :stem: latexmath
 :page-features: stem
 :page-topic: databases
+
+[.aside]
+--
+This was a guest post contributed to the https://buttondown.com/jaffray/archive/null-bitmap-two-year-zine-special/[Two-Year ZINE Special Edition] of https://buttondown.com/jaffray[NULL BITMAP].
+--
 
 I've been learning about how to write SIMD code recently, and I've come to appreciate that there's two distinct skills involved: knowing how to transform a given loop into one that has sufficient parallelism to apply SIMD, and knowing how to fit a parallel loop's computation into the restricted set of available SIMD instructions.  We'll be looking at only the first part of that today: learning a pattern of how to transform one loop type into its parallel version.
 
