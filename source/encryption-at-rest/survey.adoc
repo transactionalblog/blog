@@ -1,0 +1,83 @@
+= Encryption Survey
+:revdate: 2025-07-21
+:draft: true
+:page-tag: appendix
+:page-hook-preamble: false
+:page-order: 101
+
+
+== Algorithm
+
+* AES de facto standard
+** OCB is now patent free as of 2021
+*** https://web.cs.ucdavis.edu/~rogaway/ocb/ocb-faq.htm
+*** https://link.springer.com/article/10.1007/s00145-021-09399-8
+*** https://www.cs.ucdavis.edu/~rogaway/ocb/performance/
+*** XXH3 is 0.15cpb on Intel i7-9700K
+** AEGIS is an improvement over AES-GCM
+*** Benchmarking update: AEGIS is stupidly fast
+* ChaCha20 if targeting CPUs without AES intrinsics (think android phones)
+* SM4 may be required to comply with chinese cryptography laws https://en.wikipedia.org/wiki/Cryptography_law
+
+== Mode
+
+* Overview
+** https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation
+*** The major takeaways for each is the "Encryption parallelizable, Decryption parallelizable, Random read access" summary on each.
+** CBC XORs the current block with the previous block Block 0 is ECB, the rest are "randomized"
+** CTR encrypts a counter, and XORs it against the plaintext. 
+** XTS extends a 16B block cipher (AES) to arbitrary sized blocks
+*** https://en.wikipedia.org/wiki/Disk_encryption_theory
+** GCM is the first of our AEAD modes, think of this as encryption + checksum
+*** But don't forget that checksum doesn't mean the intended data: https://soatok.blog/2024/09/10/invisible-salamanders-are-not-what-you-think/
+
+* LSM
+** CTR is the correct answer
+*** allows completely random access
+*** CBC does as well, but requires reading 1 extra block, and is thus strictly inferior
+** ArangoDB AES-256-CTR https://docs.arangodb.com/3.11/operations/security/encryption-at-rest/
+** CockroachDB AES CTR https://www.cockroachlabs.com/docs/stable/security-reference/encryption#cockroachdb-self-hosted-clusters
+** TiKV AES or SM4 in CTR mode https://docs.pingcap.com/tidb/stable/encryption-at-rest
+** Yugabyte AES CTR https://github.com/yugabyte/yugabyte-db/blob/master/architecture/design/docdb-encryption-at-rest.md#aes-ctr-mode
+** DGraph/Badger AES  https://dgraph.io/blog/post/encryption-at-rest-dgraph-badger/ CTR https://github.com/dgraph-io/badger/blob/main/y/encrypt.go
+
+== Survey
+
+* InnoDB
+** https://dev.mysql.com/doc/refman/8.4/en/innodb-data-encryption.html
+** Electronic Codebook (ECB) block encryption mode for tablespace key encryption and Cipher Block Chaining (CBC) block encryption mode for data encryption.
+* Postgres EnterpriseDB
+** https://www.enterprisedb.com/docs/tde/latest/#how-does-tde-encrypt-data
+** TDE uses AES-128-XTS or AES-256-XTS algorithms for encrypting data files. XTS uses a second value, known as the _tweak value_, to enhance the encryption. The XTS tweak value with TDE uses the database OID, the relfilenode, and the block number.
+		  For write-ahead log (WAL) files, TDE uses AES-128-CTR or AES-256-CTR, incorporating the WAL's log sequence number (LSN) as the counter component.
+		  Temporary files that are accessed by block are also encrypted using AES-128-XTS or AES-256-XTS. Other temporary files are encrypted using AES-128-CBC or AES-256-CBC.
+* Neon
+** https://neon.tech/docs/security/security-overview
+** `XTS-AES-256`
+* FoundationDB
+** https://github.com/apple/foundationdb/blob/main/design/encryption-data-at-rest.md#encryption-mode
+** AES-256 CTR encryption mode. Salient properties are:
+** HMAC_SHA256 key hashing technique is used to derive encryption keys using a base encryption key and locally generated random number. The formula used is as follows:
+		  DEK = HMAC SHA256(Base Encryption Key || Local Random UID)
+* MongoDB
+** https://www.mongodb.com/docs/manual/core/security-encryption-at-rest/#encryption-process
+** If encryption is enabled, the default encryption mode that MongoDB Enterprise uses is the `AES256-CBC` (or 256-bit Advanced Encryption Standard in Cipher Block Chaining mode) via OpenSSL. AES-256 uses a symmetric key; i.e. the same key to encrypt and decrypt text. MongoDB Enterprise for Linux also supports authenticated encryption `AES256-GCM` (or 256-bit Advanced Encryption Standard in Galois/Counter Mode).
+* SQLite
+** https://sqlite.org/com/see.html
+**  RC4, AES-128 in OFB mode, AES-128 in CCM mode, AES-256 in OFB mode
+* Oracle
+** https://docs.oracle.com/en/database/oracle/oracle-database/19/asoag/frequently-asked-questions-about-transparent-data-encryption.html#GUID-BBA0097F-258B-44C5-A83F-2DE625A34EC1
+** 3DES168, AES128, AES192, or AES256
+** The table keys are used in cipher block chaining (CBC) operating mode, and the tablespace keys are used in cipher feedback (CFB) operating mode.
+* SQL Server
+** https://learn.microsoft.com/en-us/archive/blogs/sqlsecurity/sql-server-encryptbykey-cryptographic-message-description
+** https://learn.microsoft.com/en-us/windows/win32/seccrypto/aes-provider-algorithms?redirectedfrom=MSDN
+** 3DES & AES{128,192,256}
+** CBC
+* Aerospike
+** https://aerospike.com/docs/server/operations/configure/security/encryption-at-rest
+** AES-128, AES-256
+* XTS
+** https://sockpuppet.org/blog/2014/04/30/you-dont-want-xts/
+** https://csrc.nist.gov/csrc/media/projects/block-cipher-techniques/documents/bcm/comments/xts/collected_xts_comments.pdf
+** HCTR2 https://lwn.net/Articles/894517/

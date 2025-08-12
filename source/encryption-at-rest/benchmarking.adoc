@@ -1,0 +1,126 @@
+= Benchmarking
+:revdate: 2024-09-13
+:draft: true
+:page-tag: appendix
+:page-hook-preamble: false
+:page-order: 100
+
+This accompanies the Encryption At Rest post.
+
+== Recommendation
+
+If you're on a server with a modern CPU, grab libaegis, and use its `aegis256x4`.  It's 5x faster than any other encryption, and being authenticated encryption, means one doesn't need to compute an additional data checksum.  Even if the use case doesn't require authenticated encryption, it's 4x faster than OpenSSL's AES-CTR, so one can use the `detached` function variants to just discard the authentication tag.
+
+If you'd prefer to rely on a more reputable library, libsodium includes an equivalent AEGIS(x1) implementation, which runs at half the speed of AEGISx4, but still twice as fast as OpenSSL's AES-GCM.
+
+== Benchmark
+
+[horizontal]
+AES-CTR:: Counter mode is effectively our AES baseline.  CTR encrypts a counter derived from the IV, and XORs it into the plaintext.  It should be the fastest AES mode.
+AES-XTS:: "XEX-based tweaked-codebook mode with ciphertext stealing" is the mode that full-disk encryption uses.  It extends the 16-byte AES block out over a 4096-byte disk block efficiently.
+AES-GCM:: Galois Counter Mode is the most well-known authenticated encryption scheme.
+AES-OCB:: Offset codebook mode is an alternative authenticated encryption scheme.  It should have higher performance, but is less well-known due to be covered by patents until 2022.
+AEGIS:: An authenticated encryption algorithm which uses AES rounds at its core.  Winner of the CAESAR competition along with AES-OCB.
+
+Looking at two unauthenticated encryption modes: CTR and XTS.  Due to being unauthenticaed, they'll require a checksum over the plaintext to detect bitrot corruption, which is XXHash's XXH3.  This defines two pseudo-modes, CTRXXH and XTSXXH, which calculate a checksum before encryption and validate it after decryption as part of the benchmark.
+
+Looking at two authenticated encryption modes: GCM and OCB, and an authenticated encryption algorithm, AEGIS.  Authenticated encryption validates the decrypted output as untampered along with decryption, so it doubles as a data checksum.
+
+We'll be comparing these across the various popular encryption libraries, taking whichever ones each library supports:
+
+[horizontal]
+OpenSSL v___:: Supports CTR, GCM, OCB.
+LibreSSL v:: Supports CTR, GCM.
+BoringSSL v:: Supports CTR, GCM.
+WolfSSL::
+libsodium:: Supports GCM, AEGIS.
+botan::
+tomcrypt::
+cryptopp::
+libgcrypt::
+libaegis:: Supports AEGIS, and pipelined variants AEGISx2 and AEGISx4.
+
+github:transactionalblog/encryption-at-rest[]
+
+Comparing five methods of encryption:
+
+
+== Setup
+
+CPU
+supported intrinsics
+Kernel
+system configuration
+
+
+== Results
+
+[cols="2,1,1,1,1", options="header"]
+|===============================================================================================================================
+| benchmark                   | MB/s       | cyc/byte | ns/byte | ins/byte 
+| memcpy encrypt              | 83,679.01  | 0.04     | 0.01    | 0.01     
+| memcpy decrypt              | 132,970.89 | 0.02     | 0.01    | 0.01     
+| xxhash xxh3                 | 27,730.33  | 0.09     | 0.04    | 0.63     
+| OpenSSL AES-CTR-XXH encrypt | 3,945.63   | 0.61     | 0.25    | 3.34     
+| OpenSSL AES-CTR-XXH decrypt | 4,150.53   | 0.58     | 0.24    | 3.35     
+| OpenSSL AES-GCM encrypt     | 5,097.98   | 0.47     | 0.20    | 1.66     
+| OpenSSL AES-GCM decrypt     | 4,844.18   | 0.50     | 0.21    | 1.67     
+| OpenSSL AES-OCB encrypt     | 3,366.76   | 0.72     | 0.30    | 3.73     
+| OpenSSL AES-OCB decrypt     | 3,534.54   | 0.68     | 0.28    | 3.70     
+| Sodium AEGIS encrypt        | 9,664.41   | 0.25     | 0.10    | 1.26     
+| Sodium AEGIS decrypt        | 9,725.63   | 0.25     | 0.10    | 1.21     
+| Sodium AES-GCM encrypt      | 5,141.82   | 0.47     | 0.19    | 2.51     
+| Sodium AES-GCM decrypt      | 4,993.07   | 0.48     | 0.20    | 2.55     
+| WolfSSL AES-CTR encrypt     | 318.09     | 7.59     | 3.14    | 36.77    
+| WolfSSL AES-CTR decrypt     | 320.16     | 7.53     | 3.12    | 36.77    
+| WolfSSL AES-XTS encrypt     | 335,768.05 | 0.01     | 0.00    | 0.06     
+| WolfSSL AES-XTS decrypt     | 336,625.39 | 0.01     | 0.00    | 0.06     
+| WolfSSL AES-GCM encrypt     | 169.93     | 14.26    | 5.91    | 73.15    
+| WolfSSL AES-GCM decrypt     | 167.16     | 14.37    | 5.96    | 73.18    
+| Botan AES-CTRXXH encrypt    | 1,452.76   | 1.66     | 0.69    | 8.22     
+| Botan AES-CTRXXH decrypt    | 1,434.42   | 1.68     | 0.70    | 8.22     
+| Botan AES-XTS encrypt       | 1,348.76   | 1.79     | 0.74    | 8.76     
+| Botan AES-XTS decrypt       | 1,379.97   | 1.75     | 0.72    | 8.76     
+| Botan AES-GCM encrypt       | 1,220.58   | 1.98     | 0.82    | 9.70     
+| Botan AES-GCM decrypt       | 1,278.46   | 1.89     | 0.78    | 9.29     
+| Botan AES-OCB encrypt       | 1,089.47   | 2.22     | 0.92    | 12.68    
+| Botan AES-OCB decrypt       | 1,129.09   | 2.14     | 0.89    | 12.29    
+| libaegis AEGIS256 encrypt   | 9,871.84   | 0.24     | 0.10    | 1.26     
+| libaegis AEGIS256 decrypt   | 9,056.78   | 0.27     | 0.11    | 1.20     
+| libaegis AEGIS256x2 encrypt | 15,124.82  | 0.16     | 0.07    | 0.68     
+| libaegis AEGIS256x2 decrypt | 13,033.21  | 0.19     | 0.08    | 0.87     
+| libaegis AEGIS256x4 encrypt | 22,169.84  | 0.11     | 0.05    | 0.39     
+| libaegis AEGIS256x4 decrypt | 18,968.55  | 0.13     | 0.05    | 0.53     
+| Crypto++ AES-CTRXXH encrypt | 2,670.51   | 0.90     | 0.37    | 5.35     
+| Crypto+ AES-CTRXXH decrypt  | 2,463.91   | 0.98     | 0.41    | 5.35     
+| Crypto++ AES-XTS encrypt    | 1,713.57   | 1.41     | 0.58    | 7.91     
+| Crypto+ AES-XTS decrypt     | 1,653.14   | 1.46     | 0.60    | 7.99     
+| Crypto++ AES-GCM encrypt    | 2,184.28   | 1.11     | 0.46    | 6.55     
+| Crypto++ AES-GCM decrypt    | 1,788.53   | 1.35     | 0.56    | 7.83     
+| libtomcrypt AES-CTR encrypt | 228,715.32 | 0.01     | 0.00    | 0.07     
+| libtomcrypt AES-CTR decrypt | 225,102.10 | 0.01     | 0.00    | 0.07     
+| libtomcrypt AES-GCM encrypt | 196,381.74 | 0.01     | 0.01    | 0.09     
+| libtomcrypt AES-GCM decrypt | 196,030.47 | 0.01     | 0.01    | 0.09     
+| libtomcrypt AES-OCB encrypt | 139,881.02 | 0.02     | 0.01    | 0.15     
+| libtomcrypt AES-OCB decrypt | 111,033.70 | 0.02     | 0.01    | 0.18     
+| libgcrypt AES-CTR encrypt   | 155.47     | 15.22    | 6.42    | 3.37     
+| libgcrypt AES-CTR decrypt   | 159.76     | 14.99    | 6.29    | 3.38     
+| libgcrypt AES-XTS encrypt   | 152.35     | 15.62    | 6.57    | 3.09     
+| libgcrypt AES-XTS decrypt   | 149.07     | 15.87    | 6.67    | 3.09     
+| libgcrypt AES-GCM encrypt   | 156.11     | 15.25    | 6.40    | 4.09     
+| libgcrypt AES-GCM decrypt   | 157.80     | 15.08    | 6.36    | 2.23     
+| libgcrypt AES-OCB encrypt   | 158.87     | 15.06    | 6.32    | 2.95     
+| libgcrypt AES-OCB decrypt   | 155.07     | 15.26    | 6.45    | 2.15     
+|===============================================================================================================================
+
+
+== Analysis
+
+The overwhelmingly poor results of WolfSSL is due to AES-NI support not being enabled.  The CMake configuration for WolfSSL does not allow enabling the {uri-wolfssl-cmake-aesni}[intel intrinsics], nor does it permit enabling {uri-wolfssl-cmake-xts}[AES-XTS].
+
+Botan's API forces the use of its own `Botan::secure_vector<>` type for input.  The idea behind this is that the destructor will overwrite the contents, ensuring that data won't be leaked.  Botan also only supports in-place encryption.  The combination of these means that two extra memcpy()s are required to copy data into and out of the temporarily allocated `secure_vector<>`.  The performance is also likely slightly more unstable as it's the only library which also forces performing memory allocations on the critical encryption/decryption path (for both the cipher context, and for the `secure_vector<>` storage space).
+
+Crypto++ is another very C\+\+-ified API, but done in a way that doesn't require memcpy.  It still does require memory allocations on the critical encryption/decryption path though.
+
+LibTomCrypt was a significant disappointment.  All results had to be discarded.  CTR, GCM, and OCB modes report running faster than memcpy, thus implying they returned early but didn't signal an error.  XTS crashes when cleaning internal state.  Even linking to the library with vcpkg was more of a hassle than all other libraries.  I've double checked my usage against LibTomCrypt's tests and with GPT, and both seem to confirm the code seems correct.  Some of the APIs are terrifying: you're allowed to specify the number of rounds for AES-CTR (and only AES-CTR?).  Even if the library worked in the benchmark, I double it would show stellar performance, as the encryption modes are layered onto the encryption cipher independently, rather than fused together as the more optimized libraries do.
+

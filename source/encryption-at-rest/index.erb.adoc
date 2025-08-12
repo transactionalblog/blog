@@ -1,0 +1,19 @@
+= Encryption At Rest
+:revdate: 2024-09-13
+:page-layout: index
+:page-aggregate: true
+:page-topic: databases
+:draft: true
+
+[.display-none]
+== Posts
+
+++++
+<%= partial("partials/index_section", :locals => {:tagged => nil}) %>
+++++
+
+== Appendix
+
+++++
+<%= partial("partials/index_section", :locals => {:tagged => 'appendix'}) %>
+++++
