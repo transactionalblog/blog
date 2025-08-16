@@ -1,4 +1,10 @@
 <svg width="550" height="280" xmlns="http://www.w3.org/2000/svg">
+  <style>
+  @media (prefers-color-scheme: dark) {
+    text { fill: black; }
+  }
+  </style>
+
 
   <defs>
     <marker id="arrowhead" viewBox="0 0 10 10" refX="5" refY="5"

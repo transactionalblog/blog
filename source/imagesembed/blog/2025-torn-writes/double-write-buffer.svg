@@ -1,4 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400">
+  <style>
+  @media (prefers-color-scheme: dark) {
+    text { fill: black; }
+  }
+  </style>
+
   <!-- Column 1: Write-Ahead Log -->
   <rect x="50" y="50" width="200" height="300" fill="#f6ffed" stroke="#52c41a" stroke-width="2" rx="5" ry="5"/>
   <text x="150" y="80" text-anchor="middle" font-family="Arial" font-size="16" font-weight="bold">Write-Ahead Log</text>

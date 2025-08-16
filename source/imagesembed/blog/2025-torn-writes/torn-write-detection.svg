@@ -1,4 +1,10 @@
 <svg viewBox="0 0 800 470" xmlns="http://www.w3.org/2000/svg">
+  <style>
+  @media (prefers-color-scheme: dark) {
+    text { fill: black; }
+  }
+  </style>
+
   <!-- B-Tree Container -->
   <rect x="50" y="20" width="700" height="430" fill="#e6f7ff" stroke="#1890ff" stroke-width="3" rx="10" ry="10" />
   <text x="400" y="60" font-family="Arial" font-size="24" text-anchor="middle" font-weight="bold">B-Tree</text>

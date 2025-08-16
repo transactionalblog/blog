@@ -3,11 +3,19 @@
 :toc: right
 :page-topic: databases
 :page-hook-preamble: false
-:page-aside: With credit to Phil Eaton for some of the sources and links, Tanel Poder for Oracle's torn write detection mechanism and details on AlloyDB Omni's use of RWF_ATOMIC, Andres Freund for more details on Postgres's full page logging, and Claude for generating reasonable SVG diagrams with minimal effort.
+:page-aside: With credit to Phil Eaton for some of the sources and links, Tanel Poder for Oracle's torn write detection mechanism and details on AlloyDB Omni's use of RWF_ATOMIC, Andres Freund for more details on Postgres's full page logging, Ojaswin Mujoo for corrections on Linux's multi-block atomic writes, and Claude for generating reasonable SVG diagrams with minimal effort.
 
 Disks have a unit of data at which they promise atomicity: the sector.  Historically, this was 512 bytes. Disks also accept write requests for multiple contiguous sectors at a time.  In the event of a power failure, this can lead to only a subset of the sectors being written: a _torn write_. Databases operate on 4KB or larger pages, and thus are vulnerable to torn writes.  A database page affected by a torn write is called a _torn page_.  Various databases have different opinions and strategies on detecting torn pages during recovery, and how to restore the page to a correct, full page image.
 
+[.white-bg]
+--
 image::torn-write-example.svg[inline=true]
+--
+
+////
+There are three levels of the computing stack involved in writing to disk: the database, the operating system, and the storage device.  Each has their own unit of data upon which they operate atomically: the database's page size (typically >=4KB), the operating system's filesystem block size (typically 4KB), and the storage device's sector size (typically 512B or 4KB). When one of the sizes higher in the stack is larger than a size lower in the stack (a 16KB database page size vs a 512 disk sector size), it means that a database issuing one write to a page might be split into multiple writes to disk, and thus might not be performed atomically. Special attention is sometimes paid to torn writes in databases, because it's the only form of data corruption that's entirely permitted as part of a correctly functioning storage device and operating system.
+////
+
 
 For a more explanation of torn writes or torn pages, see content elsewhere such as
 https://www.joshodgers.com/tag/torn-write/[blog posts],
@@ -46,7 +54,10 @@ Do not set a background for the diagram as a whole.
 
 Identifying that a page is invalid because it had been subject to a torn write can be done in cheaper ways than treating it as a corruption caught by checksums.  One can include in written sectors a counter, which is required to be incremented by any amount on each write. If a page is read, and the counters in each sector aren't all the same value, then a torn page has been identified, and the page should be treated as corrupt or invalid.
 
+[.white-bg]
+--
 image::torn-write-detection.svg[inline=true,align=center]
+--
 
 ////
 Make an SVG diagram showing torn write detection, via having a small counter at the beginning of every sector in a page write.  Show a page on the left being updated into a page on the right, where the page on the left is broken into 8 sectors, each of which starts with a small counter.  The page on the right should show the first half of the sectors as updated, and the second half as the same as before.  Put both pages within a B-Tree box.
@@ -107,7 +118,10 @@ The story in the cloud is a bit better when using the persistent disk offerings.
 
 A simple way to be able to fix torn pages is to write the entire updated page into the write-ahead log, for each page that is updated.  If a failure causes a torn write, the recovery process will re-apply the pages from the WAL to the B-Tree, thus fixing the torn page.  If a failure affects the WAL, then the transaction never committed, and thus can be instead rolled back during recovery.
 
+[.white-bg]
+--
 image::full-page-logging.svg[inline=true,align=center]
+--
 
 The downsides to this simplicity are notable. This incurs a 2x write amplification, as every page is now being written twice. Space amplification is significant, as now the entire page is being written instead of just the tuple modification. But, simplicity is often a worthwhile benefit.
 
@@ -122,7 +136,10 @@ SQLite defaults to a 4KB page size{nospace}sidenote:ref[] and follows this appro
 
 Logging page deltas is preferable over full page contents for the reduced write and space amplification.  To permit any page to be reconstructed from the write-ahead log, a full copy of the page can be saved only once right before it is first modified. Then, if a torn write later causes a torn page, the older version of the page can be fetched from the write-ahead log, and all deltas applied to produce the correct page contents.
 
+[.white-bg]
+--
 image::first-write-page-logging.svg[inline=true,align=center]
+--
 
 :uri-postgres-full-page-writes: https://wiki.postgresql.org/wiki/Full_page_writes
 :uri-reading-is-writing: https://blog.danslimmon.com/2025/03/14/did-u-ever-read-so-hard-u-accidentally-wrote/
@@ -140,7 +157,10 @@ Postgres has an 8KB page size{nospace}sidenote:ref[] and utilizes this torn writ
 
 Rather than relying on the write-ahead log, it's possible to move the torn write protection responsibility entirely to the B-Tree.  By first writing all B-Tree pages to a dedicated scratch space on disk, one can ensure that any torn page has a full and correct copy of the page in the scratch space to recover from instead.
 
+[.white-bg]
+--
 image::double-write-buffer.svg[inline=true,align=center]
+--
 
 :uri-mysql-double-write-buffer: https://dev.mysql.com/doc/refman/5.7/en/innodb-doublewrite-buffer.html
 :uri-innodb-page-size: https://www.percona.com/blog/small-innodb_page_size-performance-boost-ssd/
@@ -182,7 +202,10 @@ A torn write can only turn into a torn page if it occurs while overwriting a pag
 [.aside]#sidenote:def[] This is also why this entire post is about B-Trees.  LSMs are structured entirely as append-only write-once files.  The lack of in-place page updates in an LSM means they're immune to torn pages, by design.#
 [.aside]#sidenote:def[] Copy-on-Write B-Trees can thus perform atomic multi-page updates without the use of a write-ahead log, and thus very frequently skip implementing one.#
 
+[.white-bg]
+--
 image::copy-on-write.svg[inline=true,align=center]
+--
 
 :uri-how-append-only-btree-works: https://www.bzero.se/ldapd/btree.html
 :uri-wandering-trees: https://www.klennet.com/notes/2024-06-16-wandering-trees.aspx
@@ -220,7 +243,10 @@ Do not set a background for the diagram as a whole.
 
 Once can extend the Copy on Write technique to mitigate the throughput and latency issues mentioned above: use copy-on-write only for the first update of a page within each checkpoint interval. This is analogous to Log Page on First Write, except the page is maintained in the B-Tree instead of being copied into the WAL. If a torn write affects a page that was updated in-place, all of the deltas in the write-ahead log can be applied to the copied-from, older versioned page to produce the correct page contents.
 
+[.white-bg]
+--
 image::copy-on-first-write.svg[inline=true,align=center]
+--
 
 Copy on First Write blends together the advantages of Log on First Write and Double Write Buffer. In the usual case, it has only a 1x write amplification and no penalty to write latency. After a checkpoint, new writes do need to do extra work of copying data in the B-Tree, but those writes do not block the commit into the WAL. The notable disadvantage is that old pages must be maintained for the duration until the next checkpoint completes, thus causing there to be space amplification on the order of the working set between checkpoints.
 
@@ -250,9 +276,9 @@ To utilize this feature, first invoke man:statx[2], and check the returned field
 The values returned will include the result of querying the underlying storage hardware for what it supports.
 
 Writes should then be performed via man:pwritev2[2] with `RWF_ATOMIC` specified in the flags, on a file descriptor opened with `O_DIRECT`, and the writes must match an alignment the same as the size of the write. Invocations of `pwritev2()` must voluntarily stay within the limits of the min and the max atomic write unit. If the vector count exceeds max write segments, `pwritev2()` will return `-EINVAL`, but if the size of a write exceeds the max atomic write unit, it is currently filesystem dependant as to if the `pwritev2()` will return an error or silently complete with lower guarantees.{nospace}sidenote:ref[]  There is no promise made on a specified level of write amplification or number of write latencies involved.
-[.aside]#sidenote:def[] As of 6.13, ext4 will return an error, and XFS won't. XFS {uri-xfs-fix}[will be fixed], and then checking `statx()` first won't be mandatory.#
+[.aside]#sidenote:def[] As of 6.13, ext4 will return an error, and XFS won't. XFS {uri-xfs-fix}[will be fixed], and then checking `statx()` first won't be mandatory.  However, from side conversation with an ext4 dev, you aren't _supposed_ to rely on `pwritev2()` return codes, and you should check `statx()` first.#
 
-The currently in-progress extension of `RWF_ATOMIC` to multi-block atomicity in Linux 6.15+ will function via an approach similar to copy-on-write: the data will first be written to a new extent, and then the extent tree will be modified to remap the overwritten offset of the file to point to the new data.  Relying on this likely means the equivalent of two `fsync()` latencies, and increased overhead of extent metadata and offset lookup cost, so using one of the "on first write" torn write protection strategies described above will still yield better performance for the database.
+The currently in-progress extension of `RWF_ATOMIC` to multi-block atomicity in Linux 6.15+ will have differing behavior based on filesystem.  For ext4, a write with `RWF_ATOMIC` for larger than the hardware's number of atomically writable blocks will fail.  For XFS, there will be a software fallback following an approach similar to copy-on-write: the data will first be written to a new extent, and then the extent tree will be modified to remap the overwritten offset of the file to point to the new data.  Relying on this likely means the equivalent of two `fsync()` latencies, and increased overhead of extent metadata and offset lookup cost, so using one of the "on first write" torn write protection strategies described above will still yield better performance for the database.
 
 {uri-alloydb-omni}[AlloyDB Omni] has {uri-alloydb-atomic-writes}[recently announced support] for `RWF_ATOMIC`. They advertise that enabling `alloydb_omni_atomic` means that one may disable `full_page_writes`, to avoid the overhead of the "Log Page on First Write" approach described above. Note that this still currently requires a storage device that supports atomically writing 8KB.
 //[.aside]#sidenote:def[] Which it {uri-bsky-alloydb-broken}[appears to use unsafely]. AlloyDB checks to see if a `RWF_ATOMIC` write to a test file succeeds, but Linux 6.13 XFS permits block-sized `RWF_ATOMIC` writes even if the underlying disk doesn't support that level of atomicity.#
@@ -321,4 +347,4 @@ h| Space Amplification
 [1]: The WAL size would increase by a factor of `size of page / average size of update`, and the only bound on the additional space used is determined by the checkpointing interval or policy. +
 [2]: ~1x, meaning sometimes it might be more than 1x, but most operations will experience 1x. +
 [3]: Or whatever approximate constant the total write amplification of an extent update in the average filesystem works out to be. +
-[4]: There will be some extra space overhead in storing extent metadata for every 8KB or 16KB page rather than at intervals of MB of data.
+[4]: There will be some extra space overhead for XFS in storing extent metadata for every 8KB or 16KB page rather than at intervals of MB of data.
