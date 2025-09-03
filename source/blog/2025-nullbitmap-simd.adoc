@@ -107,8 +107,8 @@ uint64_t parse_int2(char* digits) {
 However, this still leaves us computing O(digits) numbers of powers of 10, and each iteration still depends on the result of the previous iteration.  But can go another step further. Extracting out a common factor of 10^4 from the first half of the elements, and then we're left with two very similar computations to perform, with one final multiply-and-add:
 
 ----
-(d[0] * 10^3 +     d[1] * 10^2 + ... + d[3] * 10^0) * 10^4 +
-(d[4] * 10^(3) + d[5] * 10^2 + ... + d[n]     * 10^0)
+(d[0] * 10^3 + d[1] * 10^2 + ... + d[3] * 10^0) * 10^4 +
+(d[4] * 10^3 + d[5] * 10^2 + ... + d[n] * 10^0)
 ----
 
 This looks like a nice optimization, as it means we never need to compute a power of 10 higher than half the number of elements.  But we can also apply the same extraction of common factors again and again:
