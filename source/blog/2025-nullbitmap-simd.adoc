@@ -20,6 +20,7 @@ Simple examples of SIMD optimizations tend to show off the speedups on problems 
 ^| Scalar ^| SIMD
 
 a|
+[source,c]
 ----
 int sum_ascii_digits(
     char* digits,
@@ -35,6 +36,7 @@ int sum_ascii_digits(
 }
 ----
 a|
+[source,c]
 ----
 int sum_ascii_digits(char* digits,
                      size_t length) {
@@ -62,6 +64,7 @@ Such transformations make a lot of sense in my head, because it's transforming a
 
 There's other patterns for SIMD solutions which I find fascinating because they require contorting the scalar solution of a linear scan into a completely different shape of an algorithm.  We're going to be looking at the slightly more difficult problem of parsing integers instead.  Given a string of 8 digits, I want to know what unsigned 64-bit int they represent.  The scalar solution to this is a pretty simple linear scan:
 
+[source,c]
 ----
 uint64_t parse_int(char* digits) {
   uint64_t parsed = 0;
@@ -88,6 +91,7 @@ d[0] * 10^7 + d[1] * 10^6 + d[2] * 10^5 + ... + d[7] * 10^0
 
 And we can write an algorithm that follows that style of computation instead, by building up the power of 10:
 
+[source,c]
 ----
 uint64_t parse_int2(char* digits) {
   uint64_t parsed = 0;
@@ -134,6 +138,7 @@ Level 3:                   12345678
 
 This idea can be translated back into C:
 
+[source,c]
 ----
 uint64_t parse_int_tree(char* digits) {
     // For the sake of clarity, first transform the digits into an
@@ -161,6 +166,7 @@ And now, we finally have a loop where each iteration doesn't depend on the previ
 
 From there, we could unroll our loops (`#pragma clang loop unroll(full)`!) to get a straight line of instructions to execute, but gcc/clang will do that for you already.  In the true spirit of SIMD, we can further optimize this by packing the operations for multiple digits into one value.  In SIMD land, you'll typically see this as a significant amount of masking and shifting.  We mask to find each of the tens digits, we shift it to line up with the ones digits, perform the multiply-and-add, and then use a wider mask to do the same for hundreds and ten thousands.  This is the SIMD-within-a-register (SWAR) technique:
 
+[source,c]
 ----
 #include <endian.h>
 
