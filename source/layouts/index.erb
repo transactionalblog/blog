@@ -49,7 +49,11 @@
       </div>
     <% end %>
     <% if current_page.data.aggregate %>
-    <p><a href="https://discu.eu/?q=<%= "https://transactional.blog" + current_page.url %>&submit_title=<%= current_page.data.title %>">See discussion of this page on Reddit, HN, and lobsters.</a></p>
+    <% page_url = current_page.url.sub(/\..+$/, '') %>
+    <p>See discussion of this page on
+    <a href="https://www.reddit.com/search/?q=url%3Atransactional.blog<%=page_url%>">Reddit</a>,
+    <a href="https://hn.algolia.com/?query=transactional.blog<%=page_url%>">Hacker News</a>, and
+    <a href="https://lobste.rs/search?q=domain%3Atransactional.blog+title%3A%22<%=current_page.data.title%>%22&what=stories">Lobsters</a>.
     <% end %>
     </main>
     <% if environment == :transactionalblog %>
