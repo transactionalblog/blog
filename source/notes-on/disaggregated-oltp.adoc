@@ -419,10 +419,22 @@ The evaluation section shows that across SysBench and production workloads Polar
 // ICDE '24
 // https://zhangyingqiang.com/paper/PolarDB_Serverless_shared_storage.pdf
 
+One might notice that this overview refers to the paper and system described as "PolarDB Elasticity", whereas the paper itself calls it "PolarDB Serverless".  This is because this is exactly the same name that they called link:#_polardb_serverless[PolarDB Serverless], the memory disaggregation paper. So to disambiguate the two, I've renamed the system.
+
 [.gray-bg]
 ====
 bibitem:[PolarDBElasticity]
 ====
+
+Serverless database offerings require seamless migration of database instances to accomodate growing physical resource requirements, and dynamic scaling out of additional read-only nodes. A database instance being moved from one machine to another should not interrupt in-progress transactions, and should ideally have as minimal of a latency impact during the transition as possible. A seamless migration process can also enable seamless upgrades. For read scalability, this work relies upon link:#_polardb_scc[PolarDB-SCC] so that scaling out read-only nodes can offload strongly consistent read work from the primary, while minimizing the additional latency from replication delay. Note that the omission of write scalability from discussion was likely because it is covered by our next paper in the series, which was likely written and submitted concurrently with this publication.
+
+image::PolarDBElasticityArchitecture.png[embed=true,align=center]
+
+PolarDB Elasticity introduces a proxy to maintain connections across the database instance migration process. The proxy node serves as a single unified endpoint which all applications connect to. ("Unified", as opposed to a design without PolarDB-SCC, where there would be a read-only stale endpoint and a read-write consistent endpoint.) A proxy connects to all read-only replicas for a database, and thus one application connection to the proxy may map to multiple different database instance connections. During database instance migration, the proxy buffers client requests, and forwards them once connections to the new database instance have been established.
+
+Transaction migration allows migrating the undo/redo logs and in-memory transaction metadata for in-flight transactions to the new database instance so that in-flight transactions are not aborted upon migration. If a query is being executed when migration begins, the old instance will send the query's redo logs to the new instance before acknowledging the query finished, to ensure that the new instance can take over the transaction execution. If an instance is terminated, the undo logs can be used to roll back the in-progress query, which can then be re-executed on the new node. Transaction locks are represented by rows being tagged with transaction IDs, and thus a new database instance taking ownership of a transaction also means takes ownership of all the transaction's locks. The MySQL binlog isn't required for recovery, but many customers depend on it for downstream CDC or processing, and thus the binlog is also migrated across instances during migration so that it may continue to be properly emitted.
+
+(Why not just make 1PCU = 0.5vCPU + 1GB RAM? Not a clue!) The evaluation shows PolarDB database migration, as compared to link:#_aurora_serverless[Aurora Serverless], having superior migration speed and no transaction aborts. However, Aurora Serverless also focused heavily on the process of choosing good source/destination pairs of migrations to minimize movements, which this paper didn't include in its scope. Similarly, PolarDB Elasticity mentions that it is offered in terms of PolarDB Capacity Units (PCUs) which is 1vCPU + 2GB of memory, and the corresponding networking and I/O, with resources allocated and deallocated in increments of 0.5 PCU. It similarly does not mention any details around how resource limits are monitored nor enforced.
 
 === PolarDB-MP
 // SIGMOD '24
