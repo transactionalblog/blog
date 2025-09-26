@@ -70,8 +70,6 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 ** DuckDB-in-Postgres via github:Mooncake-Labs/pg_mooncake[]
 * https://bemidb.com/[Bemi Technologies] (2023) -- github:BemiHQ/BemiDB[]
 * https://pola.rs/[Polars] (2023) -- github:pola-rs/polars[]
-* https://paradedb.com/[ParadeDB] (2023)
-** DuckDB-in-Postgres via github:paradedb/pg_analytics[]
 * https://motherduck.com/[MotherDuck] (2022)
 * https://glaredb.com/[GlareDB] (2022) -- github:GlareDB/glaredb[]
 * https://velodb.io/[VeloDB] (2022) -- Built on Apache Doris
@@ -153,6 +151,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 * https://kuzudb.com/[Kùzu] (2023)
 * https://falkordb.com/[FalkorDB] (2023) -- Fork of RedisGraph
+* https://puppygraph.com/[PuppyGraph] (2022)
 * https://arcadedb.com/[ArcadeDB] (2021) -- Fork of OrientDB
 ** OrientDB was founded in 2012, acquired by CallidusCloud in 2017, itself acquired by SAP in 2018.  SAP dropped support in 2021, so founder started ArcadeDB to continue OrientDB.
 * https://ragedb.com/[RageDB] (2021)
@@ -208,6 +207,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == Search
 
+* https://paradedb.com/[ParadeDB] (2023)
 * https://quickwit.io/[Quickwit] (2021-2025) -- Acquired by Datadog
 * https://meilisearch.com/[Meilisearch] (2018)
 * https://manticoresearch.com[Manticore Search] (2017)
@@ -308,6 +308,8 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 ////
 == Durable Workflow
+* DBOS
+* ResonateHQ
 * https://temporal.io/
 * https://restate.dev/
 ////
