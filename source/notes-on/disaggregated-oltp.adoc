@@ -1,6 +1,6 @@
 = Disaggregated OLTP Systems
 :revdate: 2024-12-05
-:updated: 2025-09-21
+:updated: 2025-10-04
 :page-hook-preamble: false
 :page-hook: Aurora, Socrates, PolarDB, and Taurus.
 :page-features: stem
@@ -9,7 +9,7 @@
 :toc: right
 :toclevels: 2
 
-These notes were first prepared for an informal presentation on the various cloud-native disaggregated OLTP RDBMS designs that have been getting published and it cherry-picked one paper per notable design decision.  For the papers covered then, I've included a summary of the discussion we had after each paper.  This page is being actively extended to cover all disaggregated OLTP papers, even for papers that are similar between two different vendors. ("Actively" meaning as of 2025-09-21.)
+These notes were first prepared for an informal presentation on the various cloud-native disaggregated OLTP RDBMS designs that have been getting published and it cherry-picked one paper per notable design decision. For the papers covered then, I've included a summary of the discussion we had after each paper. This page was then extended and re-published to cover all disaggregated OLTP papers, even for papers that are similar between two different vendors.
 
 If you're looking for a quick overview of the disaggregated OLTP space, just read the papers with a ★.
 
@@ -169,7 +169,6 @@ Backup and restore uses XStore's Point-In-Time-Restore operation to save periodi
 ==== Discussion
 
 Socrates feels like a very modern object storage-based database in the WarpStream or turbopuffer kind of way for it being a 2019 paper.
-
 The extended buffer pool / "Resilient Cache" on the primary sounds like a really complicated mmap() implementation.
 
 Would VM migration keep the cache?:: Probably not?  This raised an interesting point that trying to binpack SQL Server instances across a fleet of instances seems difficult, especially with them all being tied to a persistent cache.  Azure SQL Database is sold in vCPU and DTU models, which seem to be more reservation based, so maybe there isn't an overly high degree of churn?
@@ -192,6 +191,7 @@ The RBPEX File is the backing store for data pages cached in RBPEX. It is a loca
 
 SQL Server has an I/O abstraction layer called the File Control Block (FCB), which allows reads and writes to be re-routed through RBPEX's FCB for caching only within Hyperscale. When a page is to be read into memory, the RBPEX FCB intercepts the page read and serves it out of the RBPEX File if the PageTable says that there's a Valid page for the given PageId. If not, the read goes to the underlying data file (which on the primary node turns into a Page Server GetPage@LSN RPC). Statistics are tracked on page accesses so that a background thread can move frequently written pages into the RBPEX. The entire point of the RBPEX is to reduce cold start times, so it's important to ensure frequently read but rarely written pages still make it into the RBPEX. There's also a number of hints supported to avoid bringing writes from bulk data loads or reads from large analytical table scans into the RBPEX, as doing so would evict more useful pages to have in cache.
 
+.Hyperscale RBPEX Writes
 image::HyperscaleRBPEXUpdates.png[embed=true,align=center]
 
 For page writes, one would expect the flow to be: mark page as InFlight, write page to RBPEX and underlying data file concurrently, and mark page as Valid again. However, this would require many small updates to the PageTable, imposing notable overhead, and would be many random I/O requests. Instead, when a page is first marked dirty in the buffer pool, it is asynchronously deleted from the PageTable. When dirty page writeback is initiated, the RBPEX FCB buffers the dirty page writes by placing them into a staging buffer. (Reads can still be served out of the staging buffer.) The staging buffer is flushed to the RBPEX File in full 1MB segments at a time. When the pages are flushed from the staging buffer, they are inserted into the PageTable as InFlight. After the whole segment is durable, all pages are updated to Valid. This flow of asynchronous deletes and inserts is better than updating a row, as deletes can be batched and inserts can also be lazily made durable. In the worst case, missing an insert to the PageTable on recovery just means the page won't be seen as in the cache even though it's on disk.
@@ -213,10 +213,12 @@ bibitem:[ScalingXLOG]
 
 From the initial implementation described in the Socrates paper, there have been three major areas of improvements: moving from request processing from blocking to non-blocking, improving IO coalescing and caching for groups of older readers, and the addition of layers of checksum validation.
 
+.Hyperscale XLOG Architecture
 image::HyperscaleXLOGArchitecture.png[embed=true,align=center]
 
 When Page Servers issued a GetLogBlocks request to XLOG and the page server was already fully caught up, XLOG would wait until there was another piece of log data before replying to the request, transforming it into a long polling request. This request processing was done synchronously, including the waiting, which would then block a request request handling thread.  Once the number of Page Servers exceeded the number of threads, this turned into incredibly poor latency and performance as new requests would be starved.  The solution was to change to an asynchronous, non-blocking model for processing requests.  The paper gives this topic a full treatment, but the problem and solution are no different than any other RPC-based or backend service handling long-running RPCs or doing blocking work on a threadpool.
 
+.Hyperscale XLOG Pool
 image::HyperscaleXLOGPool.png[embed=true,align=center]
 
 Rack outages, system upgrades, or restoring from backups all caused a large number of Page Servers to appear which requested log data that would no longer be in XLOG's local cache. XLOG would handle these requests all independently, issuing a read for potentially overlapping data from Azure Storage. This wave of reads would then trigger throttling in Azure Storage, severely penalizing the XLOG and affecting all requests to the Landing Zone. The fix to this was twofold. First, a rate limiter was built into XLOG itself to keep to 190MB/s of reads, and not cross the 200MB/s limit that causes Azure Storage to drastically penalize it. (The evaluation makes this look like exceeding 200MB/s meant 100MB/s would be enforced.) Second, a separate cache was added for recently fetched log blocks from Azure Storage and a data structure maintained in memory with the ranges for all outstanding requests.  New requests would then have their ranges be deduplicated against existing requests. Dedicated filler threads would fetch desired ranges into the XLOG Pool Cache, and then requests blocked on those ranges would consume the data. Coalescing these requests also meant more new log block could be fetched from Azure Storage, as the bandwidth wasn't being wasted re-fetching the same block repeatedly from concurrent requests.
@@ -544,7 +546,32 @@ In the evaluation, they show PolarDB-MP giving an 8x improvement with 8 primarie
 http://cighao.com/papers/PolarDB_CXL.pdf
 ====
 
+Compute Express Link (CXL) is a new interconnect techology for communication between processors and devices. Most notably for this work, CXL allows attaching a PCIe device of a CXL switch that enables multiple different hosts to share the same CXL-enabled DRAM devices. This puts it in direct competition with RDMA, and this paper is a comparison of CXL vs RDMA for building a memory disaggregated database. Section 2.1 provides a very nice overview of CXL, for at least what is relevant for the rest of the paper, and is well worth the read if you're not already familiar with CXL.
 
+CXL and RDMA are first compared, outside the context of a database. Pairing a CXL memory module with a single machine gives read latency similar to that of DRAM. Sharing a pool of CXL memory modules between machines requires a CXL switch, which adds 3.76x latency as compared to local DRAM or 2.82x compared to remote NUMA node access. A read over RDMA still ~6x higher for a 64B value. As the size of data being accessed increases, CXL's latency rises faster than RDMA's. For a database usecase, this implies that it's better to just run the buffer pool on CXL directly instead of transferring to a local buffer pool first. Many database operations only access part of a page, and the smaller page accesses will benefit CXL more, and mean less read amplification. They run a comparison of a CXL buffer pool versus a local DRAM one, and see only a 7% throughput difference at 12 database instances. This shaped the direction that PolarDB-CXL took to architecturally leverage CXL.
+
+.PolarDB-CXL Architecture
+image::PolarDBCXLArchitecture.png[embed=true,align=center]
+
+.PolarDB-CXL Physical Topology
+image::PolarDBCXLPhysicalTopology.png[embed=true,align=center]
+
+The CXL switch is powered independently from any machine, and thus data in CXL memory remains intact despite any individual machine failure. This, in combination with the buffer pool being directly run on CXL, was used to accelerate recovery after a crash. Whereas an RDMA-based disaggregated memory database modifies pages in local memory, thus losing them upon a crash, and forcing rebuilds of all pages from redo logs and starting request processing from an empty local cache. CXL-based disaggregated memory databases lose no local cache, as there isn't any, and retain the exact copies of dirty pages that the crashed node was working on. However, this is not enough to be able to resume request processign immediately:
+
+1. In-memory data structures, like thread contexts, have been lost.
+2. The LRU list may be inconsistent if the crash occured during the movement of an LRU node.
+3. A crash occuring during a structural modification of the B-tree may result in a structurally inconsistent B-tree.
+4. Page updates may be left in a partial and incomplete state.
+5. Redo logs are still stored in local DRAM, and thus dirty pages may have data without any corresponding Redo logs, thus breaking an ARIES-style recovery invariant.
+
+PolarDB-CXL solves the loss of in-memory data structures (1) by also storing metadata in CXL memory, such as the page's latch state.  Any pages which were write locked at the time of a crash may also have been affected by partial page updates (4), and can be recovered from redo logs instead. B-Tree structural modifications (3) are done using latches over all involved pages also in CXL memory, and any latched B-Tree pages are also rebuilt from redo logs. Similarly, mutexes over the LRU state are held in CXL memory, and if recovery finds the LRU mutexes locked (2), it rebuilds the list instead. During recovery, PolarDB-CXL fetches the maximum LSN from persistent redo logs, and discards any page newer than that LSN (5). 
+
+.PolarDB-CXL Multi-Primary Data Sharing
+image::PolarDBCXLMP.png[embed=true,align=center]
+
+One can also build a multi-primary database based on CXL.  CXL 3.0 includes a cache coherency protocol, but PolarDB-CXL uses CXL 2.0, so they built their own page latching and ownership protocol. A hash table in each database node maintains metadata about each page in the CXL buffer pool it is using including its address in CXL memory, and _invalid_ and _removal_ flags are maintained for each page in CXL memory itself. Pages must be latched for access, and any updates performed to them must be ``clflush``ed back to CXL memory. As the latches are dropped, the Buffer Fusion Server updates the invalid flag for each node with the page in its metadata hashtable. Before a page access, the removal flag is checked to see if the page address must be re-requested from the Buffer Fusion Server, and the invalid flag is checked to see if the CPU cache must be evicted to force a re-read for other nodes' updates. A background process frees the least recently used pages to make room for new pages, and sets the removal flag on those evicted pages in each database node.
+
+There's an extensive evaluation comparing CXL vs RDMA on a variety of workloads and configurations, with CXL consistently coming out on top both in performance and in recovery time.  Particularly CXL being more memory efficient due to only the necessary part of the page being transmitted, instead of the full page upon any access as with RDMA, is repeatedly emphasized as a key reason for the difference in scaling. CXL is superior under both high and low contention workloads, and the difference is the largest under medium contention, again due to its data sharing being more efficient. Once again, TPC-C was run incorrectly.
 
 == Huawei
 
