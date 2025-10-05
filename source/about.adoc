@@ -10,4 +10,4 @@ icon:linkedin[set=fab]:: https://www.linkedin.com/in/alexmillerdb/[AlexMillerDB]
 icon:twitter[set=fab]:: https://twitter.com/AlexMillerDB[@AlexMillerDB]
 icon:bluesky[set=fab]:: https://bsky.app/profile/alexmillerdb.bsky.social[@AlexMillerDB.bsky.social]
 icon:mastodon[set=fab]:: https://fosstodon.org/@AlexMillerDB[++@AlexMilerDB@fosstodon.org++]
-icon:envelope[]:: `domain of this website including .TLD`@gmail.com
+icon:envelope[]:: `domain of this website including .blog`@gmail.com
