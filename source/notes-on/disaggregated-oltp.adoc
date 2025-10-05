@@ -28,19 +28,19 @@ bibitem:[AuroraAvoiding]
 As the first of the disaggregated OLTP papers, they introduce the motivation for wanting to build a system like Aurora.  Previously, one would just run an unmodified MySQL on top of EBS, and when looking at the amount of data transferred, the same data was being sent in different forms multiple times.  A log, a binlog, a page write, and the double-write buffer write, are all essentially doing the same work of sending a tuple from MySQL to storage.
 
 .MySQL on EBS
-image::RDSArchitecture.png[embed=true]
+image::RDSArchitecture.png[align=center]
 
 Thus, Aurora introduces using the write-ahead log as the protocol between the compute and the storage in a disaggregated system.  The page writes, double-write buffer, etc. are all removed and made the responsibility of the storage after receiving the write-ahead log.  The papers we're looking at all reference this model with the phrase _the log is the database_ in some form as part of their design.
 
 .Aurora Architecture
-image::AuroraArchitecture.png[embed=true]
+image::AuroraArchitecture.png[align=center]
 
 The major idea they present is that the network is then the bottleneck in the system, and the smart storage is able to meaningfully offload work of processing WAL updates into page modifications, handle MVCC cleanup, checkpointing, etc. By doing this, they're able to achieve a 35x increase in transactions per second with an 87% decrease in the IO work per transaction. Removing as much of the storage and replication responsibility from the query processing node as possible results in a significantly more capable database.
 
 The easiest way to get started on the Aurora architecture is to zoom in on a single storage node:
 
 .Aurora Storage Node
-image::AuroraStorageNode.png[embed=true]
+image::AuroraStorageNode.png[align=center]
 
 [quote]
 ____
@@ -107,7 +107,7 @@ Customers buy Aurora Serverless in units of _Aurora Capacity Units_ (ACUs), whic
 
 Aurora Serverless is split into fleet-wide, inter-host rebalancing; and host-local, intra-host, in-place scaling.
 
-image::AuroraServerlessArchitecture.png[embed=true]
+image::AuroraServerlessArchitecture.png[align=center]
 
 Instance Managers gather resource usage information for database instances on a host, and work within the host's resource limits to scale instances up or down to meet the resource needs.  The Fleet Manager controls database instance to host assignment.  Hosts' resources are oversubscribed, and when hosts are under resource pressure (at a critical level for CPU, allocated RAM, network, or disk throughput), the Fleet Manager will assign temporary ACU limits and live migrate database instances to redistribute heat across the cluster and relieve the resource pressure.  The scale-up rate is limited by the Instance Manager to give the Fleet Manager time to react.  The Fleet Manager will not live migrate from hosts which are deemed not to have the available network bandwidth to sustain an out-migration.  New database instances are placed assuming minimum ACU usage.  The Fleet Manager also adjusts the size of the fleet according to predicted and actual demand.
 
@@ -122,7 +122,7 @@ Database instances are wrapped in VMs for security reasons, and thus resource el
 Aurora Limitless reuses the "Aurora" brand, but is much more similar to a shared-nothing distributed database like Spanner than it is to the Aurora database we've been discussing thus far.  If you're interested in learning about Limitless anyway, the only released information on it has been as part of {uri-aurora-limitless-pdf}[AWS Re:Invent talks].
 
 .Aurora Limitless Architecture
-image::AuroraLimitlessArchitecture.png[embed=true,align=center]
+image::AuroraLimitlessArchitecture.png[align=center]
 
 == Microsoft
 
@@ -140,7 +140,7 @@ It's overall a very realistic discussion of making major architectural changes t
 The architecture of Socrates separates durability (implemented by the log) from availability (implemented by the storage tier). Durability does not require copies of data in fast storage. Availability does not require a fixed number of replicas. Separating the two concepts allows Socrates to use cheap HDDs for durability, and fewer fast and expensive SSDs for storage tier availability.
 
 .Socrates Architecture
-image::SocratesArchitecture.png[embed=true]
+image::SocratesArchitecture.png[align=center]
 
 Their major design decisions are:
 
@@ -154,7 +154,7 @@ A primary compute node is nearly unaware that it is the primary of a disaggregat
 To minimize impact from failures, compute nodes extend their buffer pool to disk by representing it as a table in Hekaton, an in-memory storage engine. A buffer pool on SSD would normally seem like it defeats the point, but otherwise a cold start means dumping gigabytes worth of page fetches at Page Servers, with terrible performance until the working set is back in cache.
 
 .Socrates XLOG Service
-image::SocratesXLOG.png[embed=true]
+image::SocratesXLOG.png[align=center]
 
 A key part of Socrates is its separate XLOG service which is responsible for the WAL. The primary sends log to LZ and XLOG in parallel.  XLOG buffers received WAL segments until the primary informs it the segments are durable in the LZ, at which point they're forwarded onto the page servers.  It also has a local cache, and moves log segments to blob storage over time. (And note that this is a major difference from Aurora -- Aurora partitions the WAL across page servers, whereas Socrates has a centralized WAL service.)
 
@@ -185,14 +185,14 @@ bibitem:[RBPEX]
 Years after Socrates has been placed into production under the brand name Azure SQL Database Hyperscale, Microsoft folk have returned with a deep dive on their Resilient Buffer Pool Extension (RBPEX), which extended the in-memory buffer pool to store pages on SSD in order to minimize the performance impact of process restarts. Traditionally, a buffer pool is only in memory, as is caching page reads from SSD. In Hyperscale, the buffer pool is on memory and local SSD, and is used to cache page reads from remote page servers. The same RBPEX is used on page servers as the local storage of pages held on object storage. On the compute node, it's an incomplete cache: a _non-covering RBPEX_. On the page servers, what is in "cache" is an exact mirror of the pages in object store: a _covering RBPEX_.
 
 .RBPEX Architecture
-image::HyperscaleRBPEXArchitecture.png[embed=true,align=center]
+image::HyperscaleRBPEXArchitecture.png[align=center]
 
 The RBPEX File is the backing store for data pages cached in RBPEX. It is a local file, sized as a multiple of SQL Server's page size (8KB), broken into 1MB sized segments, and stores no extra metadata other than page contents. All metadata is instead tracked as SQL tables using Hekaton, SQL Server's in-memory engine. The hash-based table _PageTable_ maps a `<DbId, FileId, PageId>` tuple to its `<Offset, Timestamp, State>` information. Offset stores the offset in the RBPEX File, Timestamp stores when the page was last written to or read from the RBPEX, and State stores one of the states {Valid, Invalid, InFlight}. Valid pages are those where the RBPEX File has the exact same copy of the data as the underlying data file being cached. An InFlight page is one where a write operation is ongoing and the RBPEX File contents may be stale. At recovery time, the PageTable is scanned, and all rows with InFlight and Invalid statuses are removed. An RbpexMetadataTable persists metadata about the RBPEX File itself.
 
 SQL Server has an I/O abstraction layer called the File Control Block (FCB), which allows reads and writes to be re-routed through RBPEX's FCB for caching only within Hyperscale. When a page is to be read into memory, the RBPEX FCB intercepts the page read and serves it out of the RBPEX File if the PageTable says that there's a Valid page for the given PageId. If not, the read goes to the underlying data file (which on the primary node turns into a Page Server GetPage@LSN RPC). Statistics are tracked on page accesses so that a background thread can move frequently written pages into the RBPEX. The entire point of the RBPEX is to reduce cold start times, so it's important to ensure frequently read but rarely written pages still make it into the RBPEX. There's also a number of hints supported to avoid bringing writes from bulk data loads or reads from large analytical table scans into the RBPEX, as doing so would evict more useful pages to have in cache.
 
 .Hyperscale RBPEX Writes
-image::HyperscaleRBPEXUpdates.png[embed=true,align=center]
+image::HyperscaleRBPEXUpdates.png[align=center]
 
 For page writes, one would expect the flow to be: mark page as InFlight, write page to RBPEX and underlying data file concurrently, and mark page as Valid again. However, this would require many small updates to the PageTable, imposing notable overhead, and would be many random I/O requests. Instead, when a page is first marked dirty in the buffer pool, it is asynchronously deleted from the PageTable. When dirty page writeback is initiated, the RBPEX FCB buffers the dirty page writes by placing them into a staging buffer. (Reads can still be served out of the staging buffer.) The staging buffer is flushed to the RBPEX File in full 1MB segments at a time. When the pages are flushed from the staging buffer, they are inserted into the PageTable as InFlight. After the whole segment is durable, all pages are updated to Valid. This flow of asynchronous deletes and inserts is better than updating a row, as deletes can be batched and inserts can also be lazily made durable. In the worst case, missing an insert to the PageTable on recovery just means the page won't be seen as in the cache even though it's on disk.
 
@@ -214,12 +214,12 @@ bibitem:[ScalingXLOG]
 From the initial implementation described in the Socrates paper, there have been three major areas of improvements: moving from request processing from blocking to non-blocking, improving IO coalescing and caching for groups of older readers, and the addition of layers of checksum validation.
 
 .Hyperscale XLOG Architecture
-image::HyperscaleXLOGArchitecture.png[embed=true,align=center]
+image::HyperscaleXLOGArchitecture.png[align=center]
 
 When Page Servers issued a GetLogBlocks request to XLOG and the page server was already fully caught up, XLOG would wait until there was another piece of log data before replying to the request, transforming it into a long polling request. This request processing was done synchronously, including the waiting, which would then block a request request handling thread.  Once the number of Page Servers exceeded the number of threads, this turned into incredibly poor latency and performance as new requests would be starved.  The solution was to change to an asynchronous, non-blocking model for processing requests.  The paper gives this topic a full treatment, but the problem and solution are no different than any other RPC-based or backend service handling long-running RPCs or doing blocking work on a threadpool.
 
 .Hyperscale XLOG Pool
-image::HyperscaleXLOGPool.png[embed=true,align=center]
+image::HyperscaleXLOGPool.png[align=center]
 
 Rack outages, system upgrades, or restoring from backups all caused a large number of Page Servers to appear which requested log data that would no longer be in XLOG's local cache. XLOG would handle these requests all independently, issuing a read for potentially overlapping data from Azure Storage. This wave of reads would then trigger throttling in Azure Storage, severely penalizing the XLOG and affecting all requests to the Landing Zone. The fix to this was twofold. First, a rate limiter was built into XLOG itself to keep to 190MB/s of reads, and not cross the 200MB/s limit that causes Azure Storage to drastically penalize it. (The evaluation makes this look like exceeding 200MB/s meant 100MB/s would be enforced.) Second, a separate cache was added for recently fetched log blocks from Azure Storage and a data structure maintained in memory with the ranges for all outstanding requests.  New requests would then have their ranges be deduplicated against existing requests. Dedicated filler threads would fetch desired ranges into the XLOG Pool Cache, and then requests blocked on those ranges would consume the data. Coalescing these requests also meant more new log block could be fetched from Azure Storage, as the bandwidth wasn't being wasted re-fetching the same block repeatedly from concurrent requests.
 
@@ -246,7 +246,7 @@ Alibaba took an unusual first step in building a disaggregated OLTP database. In
 In terms of architectural components: libpfs is the client library that exposes a POSIX-like filesystem API, PolarSwitch is a process run on the same host which redirects I/O requests from applications to ChunkServers, ChunkServers are deployed on storage nodes to serve I/O requests, and PolarCtrl is the control plane.  PolarCtrl's metadata about the system is stored in a MySQL instance.  The only necessary modifications to PolarDB were to port the filesystem calls to libpfs.
 
 .PolarFS Architecture
-image::PolarFSArchitecture.png[embed=true]
+image::PolarFSArchitecture.png[align=center]
 
 The libpfs API is given as:
 
@@ -291,7 +291,7 @@ The given API describes PolarFS's file system layer which maps directories and f
 The storage layer provides interfaces to manage and access volumes for the file system layer. A volume is divided into 10GB chunks, which are distributed across ChunkServers. The large chunk size was chosen to minimize metadata overhead so that it's practical to maintain the entire chunk-to-server mapping in memory in PolarCtrl.  Each ChunkServer manages ~10TB of chunks, so this still offers a reasonable ratio for practical load balancing on ChunkServers.  Within a ChunkServer, each chunk is divided into 64KB blocks which are allocated and mapped on demand.  Each chunk is thus 640KB of metadata to track chunk LBA to block location, or 640MB for all 1000 chunks per server.
 
 .PolarFS Write Path
-image::PolarFSWritePath.png[embed=true,align=center]
+image::PolarFSWritePath.png[align=center]
 
 PolarSwitch is a daemon that runs alongside any application using libpfs.  Libpfs forwards IO requests over a shared memory ring buffer to PolarSwitch, and PolarSwitch then divides the IO requests into per-chunk requests, references its in-memory mapping of chunk-to-server and sends out the requests.  Completions are reported via another shared ring buffer (similar to io_uring).  The reasoning for maintaining this as a separate daemon isn't given, but I'm assuming it was forced as utilizing RDMA as the network transport means that either only one process can use the NIC, or in the case of vNICs, a fixed number of processes that's less than the number of instances per host they wish to run.
 
@@ -321,7 +321,7 @@ This paper is more focused on the computational storage side of integrating Smar
 The draw of pushdown in a disaggregated architecture is to minimize the amount of processing done on non-matching data.  Pushing table scan filters from compute nodes to storage nodes reduces the number of rows or pages that the storage nodes must send over the network.  With computational storage, those filters can be pushed all the way to the SSD itself, removing the need to even send non-matching rows over the PCIe bus. However, it is moving compute work from the compute node to storage, and compute resources are much more limited in storage.  Rather than scale up the compute resources of the storage nodes, Alibaba elected to increase the compute of the storage devices themselves by utilizing SSDs with on-board FPGAs.
 
 .PolarDB Scan Pushdown Architecture
-image::PolarDBComputationalStorage.png[embed=true,align=center]
+image::PolarDBComputationalStorage.png[align=center]
 
 The required changes in PolarDB start at the scan operator. PolarDB read data from files by requesting blocks by their offset within the file.  That has been enhanced to include schema of the table and the preciate to apply to the block request.  The ChunkServers split the predicates into those that can be pushed to the FPGA, and those that need to be evaluated on the CPU. In the PolarFS paper, ChunkServers are described as having a one-to-one relationship with an attached 10TB SSD and tracking 64KB sized blocks.  In this paper, ChunkServers stripe data across a number of SmartSSDs with 4MB stripes, and 4KB blocks are snappy compressed and thus variable length.  ChunkServers split the request into one per stripe, and forward them to the corresponding SmartSSDs.
 
@@ -348,7 +348,7 @@ However, implementing a page cache over RDMA isn't trivial, and a solid portion 
 They offer an architecture diagram for PolarDB as a whole:
 
 .PolarDB Architecture
-image::PolarDBArchitecture.png[embed=true,align=center]
+image::PolarDBArchitecture.png[align=center]
 
 However, there's a few things I think it doesn't represent well:
 
@@ -376,7 +376,7 @@ int page_invalidate(PageID page_id);
 The minimum unit of allocation is a 1GB physically contiguous _slab_, which is divided into 16KB pages (because PolarDB is MySQL, and MySQL uses 16KB pages).  A slab node holds multiple slabs, and database instances allocate slabs across multiple slab nodes to meet their predefined buffer pool capacity when they're first started.  The first allocated slab is nominated as the _home node_, and is assigned the responsibility of hosting the buffer cache metadata for the database instance.  The Page Address Table (PAT) tracks the slab node and physical address of each page. The Page Invalidation Bitmap (PIB) is updated when a RW node has a local modification to a page which hasn't been written back yet (and is used by RO nodes to know when they're stale).  The Page Reference Directory (PRD) tracks what instances currently hold references to each page described in the PAT.  The Page Latch Table (PLT) manages a page latch for each entry in the PAT.
 
 .PolarDB Serverless Remote Buffer Pool
-image::PolarDBServerlessRemoteMemory.png[embed=true,align=center]
+image::PolarDBServerlessRemoteMemory.png[align=center]
 
 `page_register` is a request to the home node to either increment the refcount for the page and return its address, or allocate a new page (evicting an old one if necessary to make space) and return that.  (This isn't reading the page from storage, as there's no direct Slab Node<->PolarFS communication, just allocating space on the remote buffer pool.)  `page_unregister` decrements the reference count allowing the page to be freed if needed.  Dirty pages can always be immediately evicted as PolarDB can materialize pages on demand from the ChunkServers.  If the buffer pool size is expanded, the home node expands its PAT/BIP/PRD metadata accordingly, and allocates slabs eagerly.  If the buffer pool size is shrunk, then extra memory is released by freeing pages, the exist pages are defragmented, and then the now unused slabs are released.  Note that the defragmentation and physically contiguous memory is only needed to permit one-sided RDMA reads/writes, and a non-RDMA implementation could likely be simpler and non-contiguous.
 
@@ -410,7 +410,7 @@ bibitem:[PolarDBX]
 PolarDB-X is targeting three problems: cross-DC transactions, to extend PolarDB to more than one region; elasticity, by automatically adding read-only replicas and partitioning write responsibilities; and HTAP, by identifying and steering analytical and transactional queries to separate replicas.  At a high level, PolarDB-X is the Vitess or Citus of PolarDB.  Individual PolarDB instances become partitions in the broader PolarDB-X distributed, shared-nothing database. It is also open source, and available at github:polardb/polardbx[].  It seems in a very similar vein to the mostly un-published {uri-aurora-limitless}[Amazon Aurora Limitless].
 
 .PolarDB-X Architecture
-image::PolarDBXArchitecture.png[embed=true,align=center]
+image::PolarDBXArchitecture.png[align=center]
 
 Above PolarDB, PolarDB-X adds a Load Balancer and set of Computation Nodes per PolarDB instance (DN & SN), with one Global Meta Service (GMS) for system metadata.  The GMS is the control plane for PolarDB-X, and manages cluster membership, catalog tables, table/index partitioning rules, locations of shards, statistics, and MySQL system tables. The Load Balancer is the user's entry point to PolarDB-X, which is exposed as a single geo-aware virtual IP address.  The Computation Node coordinates read and write queries across the shards of tables stored in different PolarDB instances.  For read queries, it decides if the local snapshot is fresh enough to avoid needing to go to a cross-AZ leader.  For write queries, it manages the cross-shard transaction, if needed.  It includes a cost-based optimizer and query executor, which it uses to break queries into per-shard queries, and apply any cross-shard evaluation needed to produce the final result.  For an overview of the Database Node (PolarDB) or Storage Node (PolarFS), see their respective paper overviews above.
 
@@ -421,7 +421,7 @@ The cross-DC replication is done by having PolarDB ship redo logs across datacen
 To implement cross-shard transactions, PolarDB-X layers another MVCC and transaction protocol on top.  They use a Hybrid Logical Clock to implement Snapshot Isolation.  HLCs were chosen to not rely on tight physical clock synchronization, and do avoid the centralized clock server of a TiDB/Percolator-like approach.  (Note that this does mean they technically sacrifice linearizability.)  They include a few optimizations to reduce the number of times they bump the causality counter in HLCs, but otherwise, it's a standard HLC and 2PC implementation. The public documentation instead describes the use of a Timestamp Oracle, and describes the GMS as serving that functionality to the Compute Nodes.
 
 .PolarDB-X OSS Architecture
-image::PolarDBXHTAP.png[embed=true,align=center]
+image::PolarDBXHTAP.png[align=center]
 
 PolarDB-MT is an extension of PolarDB to natively understand multi-tenanting.  A tenant is a set of schemas, databases, and tables.  Cross-tenant operations are not permitted. A single PolarDB instance supports multiple tenants, and all operations are sent through the assigned RW node's redo log.  The tenant-to-RW-database-node mapping is stored in the GMS, and the RW node maintains a lease for the tenants it holds.  Tenants can be transferred by suspending and transferring all active work and flushing dirty pages, then tranferring the lease. In the case of a failure, tenants can be split across other RW PolarDB instances, who divide the failed instance's redo log by tenant and run recovery accordingly.  What's the difference between a shard and a tenant?  The paper doesn't answer at all.  The {uri-polardbx-mt}[public documentation on tenants] describes it as a user-facing feature which is a performance isolated container for users and databases.  It also seems likely that, much like Nile, tenants are used internally to binpack customers onto machines more efficiently.
 
@@ -443,7 +443,7 @@ PolarDB-IMCI is PolarDB's solution to HTAP.  It takes until the third page to fi
 The in-memory column index is maintained on a set of read-only nodes separate from those executing OLTP workloads, so that OLAP and OLTP don't interfere.  Redo logs are used to apply updates to the columnar replicas, and PolarDB-IMCI introduces _commit-ahead log shipping_ (CALS) and _2-Phase conflict-free log replay_ (2P-COFFER) to minimize the staleness of the columnar replicas and efficiently parse changes.  The columnar index is maintained as append-only storage, making updates and lookups by RowID fast, but requires a second index (implemented as a two-layer LSM tree) for Primary Key to RowID mapping.  IMCI's checkpointing is integrated with the PolarDB storage engine, making it possible to spin up extra columnar replicas quickly.
 
 .PolarDB-IMCI Architecture
-image::PolarDBIMCIArchitecture.png[embed=true,align=center]
+image::PolarDBIMCIArchitecture.png[align=center]
 
 A columnar index is defined as part of the DDL, which allows a subset of the rows of a table to be held in the in-memory columnar index.  Tables are divided into chunks of 64K rows, and the indexed columns from these row groups are organized into a compressed _data pack_ along with some metadata.  The leftover rows form a partial data pack, which is left uncompressed due to the frequent udpates.  The pack's metadata offers zonemap-style metadata (min/max per column, sum, count, null, distinct) over the contained inserts. Deletes are treated as inserts of tombstones, which look up the RowID of the row being deleted by the Primary Key.  An update is a delete followed by an insert. Compression is the standard columnar compression (frame of reference/delta encoding) and not deflate/lzma sort of compression.
 
@@ -467,7 +467,7 @@ bibitem:[PolarDBSCC]
 SCC stands for _Strongly Consistent Cluster_, and the focus of this paper is removing as much of the delay as possible between a Read-Write node committing a change and the Read-Only node becoming aware of and able to serve reads over it.  They motivate the work with results that disaggregated databases' read-only replicas either have milliseconds of staleness on the read-only replicas, or that strongly consistent reads add 1x-5x additional read lattency. PolarDB-SCC uses three levels of timestamping (global, table, and page) to be able to begin pulling changes from read-write replicas sooner, and RDMA for minimizing the latency and overhead of doing so. This additional latency leads most databases to suggest sending all strongly consistent reads to the leader, thus defeating load balancing and making additional read-only replicas less useful. Allowing such workloads to be served from the read-only replicas is the exact problem PolarDB-SCC is targetting.
 
 .PolarDB-SCC Architecture
-image::PolarDBSCCArchitecture.png[embed=true,align=center]
+image::PolarDBSCCArchitecture.png[align=center]
 
 The timestamping scheme treats the read-write node as a timestamp oracle.  On every modification it performs, it records a lamport clock for that modification at the global, table-level, and page-level granularity. A read-only node fetches the current timestamp at the start of a query, and it may batch this operation for many queries at once.  Once the query has been assigned a timestamp, the read-only node may serve read results as long as all referenced global/table/page data is up-to-date locally. Due to the heirarchy, if e.g. the applied table-level timestamp is greater than the query's timestamp, then it is implied that all of the pages are sufficiently up to date and do not need to be checked. The global timestamp is the maximum committed transaction's timestamp. To avoid the overhead of maintaining an extra timestamp per page, the page's Log Sequence Number is used as its timestamp. The Read-write node maintains the timestamps for tables and pages in hashtables, so that they may be quickly and easily queried over one-sided RDMA.
 
@@ -490,7 +490,7 @@ bibitem:[PolarDBElasticity]
 
 Serverless database offerings require seamless migration of database instances to accomodate growing physical resource requirements, and dynamic scaling out of additional read-only nodes. A database instance being moved from one machine to another should not interrupt in-progress transactions, and should ideally have as minimal of a latency impact during the transition as possible. A seamless migration process can also enable seamless upgrades. For read scalability, this work relies upon link:#_polardb_scc[PolarDB-SCC] so that scaling out read-only nodes can offload strongly consistent read work from the primary, while minimizing the additional latency from replication delay. Note that the omission of write scalability from discussion was likely because it is covered by our next paper in the series, which was likely written and submitted concurrently with this publication.
 
-image::PolarDBElasticityArchitecture.png[embed=true,align=center]
+image::PolarDBElasticityArchitecture.png[align=center]
 
 PolarDB Elasticity introduces a proxy to maintain connections across the database instance migration process. The proxy node serves as a single unified endpoint which all applications connect to. ("Unified", as opposed to a design without PolarDB-SCC, where there would be a read-only stale endpoint and a read-write consistent endpoint.) A proxy connects to all read-only replicas for a database, and thus one application connection to the proxy may map to multiple different database instance connections. During database instance migration, the proxy buffers client requests, and forwards them once connections to the new database instance have been established.
 
@@ -510,24 +510,24 @@ bibitem:[PolarDBMP]
 PolarDB-MP discusses extending PolarDB to support more than one Read-Write node.  PolarDB is unique in implementing memory disaggregation first, and thus their multi-primary support is heavily based around already having a shared buffer pool accessible to all replicas over RDMA.  Like all enjoyably spicy papers, PolarDB-MP begins by criticizing its related work: Aurora Multi-Master used optimistic concurrency control and suffered high abort rates, Taurus-MM used pessimistic concurrency control and suffered high overhead (8 nodes yielded a 1.8x throughput increase), and IBM pureScale and Oracle RAC are too expensive as they rely on custom dedicated machines.
 
 .PolarDB-MP Architecture
-image::PolarDBMPArchitecture.png[embed=true,align=center]
+image::PolarDBMPArchitecture.png[align=center]
 
 PolarDB-MP is centered around the _Polar Multi-Primary Fusion Server_ (PMFS), which comprises _Transaction Fusion_, _Buffer Fusion_, and _Lock Fusion_, and doubles down on being highly RDMA centric.  Transaction Fusion uses a timestamp oracle and allocates shared memory on each node for its local transaction data, which itself is also accessible to all nodes via RDMA.  Buffer Fusion is the distributed buffer pool that all nodes share.  Lock Fusion manages both page-level and row-level locking.  PolarDB-MP also extends LSNs to Logical Log Sequence Numbers, such that each node may generate LSNs and there will be a global partial order between LLSNs.
 
 .PolarDB-MP Transaction Information Table
-image::PolarDBMPTIT.png[embed=true,align=center]
+image::PolarDBMPTIT.png[align=center]
 
 Transaction Fusion is a global timestamp oracle and per-node local transaction information to avoid centralized transaction information management. The paper puts forward an interesting argument that MVCC allowing reads to exist concurrently with writes, though generally being an advantage, poses a significant challenge to shared-storage multi-primary databases. Determining the correctly visible tuple out of many versions requires global transaction information, which imposes a high coordination overhead.  The fix to this is to decentralize transaction management: every node maintains its local transaction's information in a Transaction Information Table (TIT), which is accessible via RDMA for other nodes.  The TIT maintains a pointer to the transaction object, its Commit Timesstamp (CTS), its version (a counter to differentiate TIT entries in the same position over time), and a flag named "ref" indicating if other transactions are waiting on this one to release its locks.  Transactions are globally identifed by combining the node ID, transaction ID (populated from a node-local counter), slot number within the local TIT, and the TIT entry's version number.
 
 When updating a tuple, PolarDB-MP places the global transaction ID into the row's metadata.  At commit time, the CTS is updated if the row is still in the buffer, otherwise it is left as CSN_INIT.  PolarDB is a MySQL derivative, so it relies upon the undo log reconstructing older values of rows for MVCC, and this process is unchanged for when the read tuple is too new for the given read version.  When the row's CTS is CSN_INIT, the global transaction ID can be used to fetch the TIT entry for the transaction.  If the fetched entry does not match, it means that the transaction has already committed and the TIT slot re-used.  TIT slots are garbage collected by a background thread, and entries are only removed when no active statement would need to read earlier than the committed transaction, and tso he minimum timestamp of any live transaction may be assigned to the row so that it is always visible.  Read timestamps have their requests to the Timestamp Oracle coalesced as described in PolarDB-SCC and uses the same Linear Lamport Timestamp.
 
 .PolarDB-MP Buffer Fusion
-image::PolarDBMPBufferFusion.png[embed=true,align=center]
+image::PolarDBMPBufferFusion.png[align=center]
 
 Buffer Fusion is a design for permitting low latency access to data pages by pushing them into a Distributed Buffer Pool (DBP).  Each node maintains a Local Buffer Pool (LBP), which is a subset of the DBP.  Each local buffer contains has metadata of the remote address of the buffer, and if the local buffer is valid.  When an instance fetches a page from the DBP into its local buffer pool, it updates metadata in the DBP recording that it has a copy of the page.  When an instance updates a page in its local buffer pool, it consults the DBP to find other nodes with the same page in their LBPs, and unsets the valid bit on them.  Dirty pages in the LBP are flushed to the DBP in the background, but makes sure to force the corresponding logs to storage first so that the page is recoverable in the event of a failure.
 
 .PolarDB-MP Lock Fusion
-image::PolarDBMPLockFusion.png[embed=true,align=center]
+image::PolarDBMPLockFusion.png[align=center]
 
 Lock Fusion encompasses both the page-locking (PLock) and row-locking (RLock) protocols. The PLock is used to maintain atomic page access and structural consistency of the B-Tree, similar to a latch.  Before performing any read or update of a page, the corresponding Shared or eXclusive PLock must be held. Each node tracks which PLocks it holds, and the reference count of the PLocks from each concurrently executing transaction.  Locks are requested from the Fusion Server, and the Fusion Server notifies the awaiters when the PLock is released by a node.  PLocks are speculatively held even after their local reference count drops to zero, under the assumption that locality means the same node is likely to re-request the same PLock.  Structural changes to the B-Tree (splits or merges) are done while holding X-PLocks in the standard 2PL/2PC combo one would expect.
 
@@ -551,10 +551,10 @@ Compute Express Link (CXL) is a new interconnect techology for communication bet
 CXL and RDMA are first compared, outside the context of a database. Pairing a CXL memory module with a single machine gives read latency similar to that of DRAM. Sharing a pool of CXL memory modules between machines requires a CXL switch, which adds 3.76x latency as compared to local DRAM or 2.82x compared to remote NUMA node access. A read over RDMA still ~6x higher for a 64B value. As the size of data being accessed increases, CXL's latency rises faster than RDMA's. For a database usecase, this implies that it's better to just run the buffer pool on CXL directly instead of transferring to a local buffer pool first. Many database operations only access part of a page, and the smaller page accesses will benefit CXL more, and mean less read amplification. They run a comparison of a CXL buffer pool versus a local DRAM one, and see only a 7% throughput difference at 12 database instances. This shaped the direction that PolarDB-CXL took to architecturally leverage CXL.
 
 .PolarDB-CXL Architecture
-image::PolarDBCXLArchitecture.png[embed=true,align=center]
+image::PolarDBCXLArchitecture.png[align=center]
 
 .PolarDB-CXL Physical Topology
-image::PolarDBCXLPhysicalTopology.png[embed=true,align=center]
+image::PolarDBCXLPhysicalTopology.png[align=center]
 
 The CXL switch is powered independently from any machine, and thus data in CXL memory remains intact despite any individual machine failure. This, in combination with the buffer pool being directly run on CXL, was used to accelerate recovery after a crash. Whereas an RDMA-based disaggregated memory database modifies pages in local memory, thus losing them upon a crash, and forcing rebuilds of all pages from redo logs and starting request processing from an empty local cache. CXL-based disaggregated memory databases lose no local cache, as there isn't any, and retain the exact copies of dirty pages that the crashed node was working on. However, this is not enough to be able to resume request processign immediately:
 
@@ -567,7 +567,7 @@ The CXL switch is powered independently from any machine, and thus data in CXL m
 PolarDB-CXL solves the loss of in-memory data structures (1) by also storing metadata in CXL memory, such as the page's latch state.  Any pages which were write locked at the time of a crash may also have been affected by partial page updates (4), and can be recovered from redo logs instead. B-Tree structural modifications (3) are done using latches over all involved pages also in CXL memory, and any latched B-Tree pages are also rebuilt from redo logs. Similarly, mutexes over the LRU state are held in CXL memory, and if recovery finds the LRU mutexes locked (2), it rebuilds the list instead. During recovery, PolarDB-CXL fetches the maximum LSN from persistent redo logs, and discards any page newer than that LSN (5). 
 
 .PolarDB-CXL Multi-Primary Data Sharing
-image::PolarDBCXLMP.png[embed=true,align=center]
+image::PolarDBCXLMP.png[align=center]
 
 One can also build a multi-primary database based on CXL.  CXL 3.0 includes a cache coherency protocol, but PolarDB-CXL uses CXL 2.0, so they built their own page latching and ownership protocol. A hash table in each database node maintains metadata about each page in the CXL buffer pool it is using including its address in CXL memory, and _invalid_ and _removal_ flags are maintained for each page in CXL memory itself. Pages must be latched for access, and any updates performed to them must be ``clflush``ed back to CXL memory. As the latches are dropped, the Buffer Fusion Server updates the invalid flag for each node with the page in its metadata hashtable. Before a page access, the removal flag is checked to see if the page address must be re-requested from the Buffer Fusion Server, and the invalid flag is checked to see if the CPU cache must be evicted to force a re-read for other nodes' updates. A background process frees the least recently used pages to make room for new pages, and sets the removal flag on those evicted pages in each database node.
 
@@ -588,7 +588,7 @@ bibitem:[TaurusDB]
 The entire "Background and Related Work" section is a great read.  They set up excellent and concise comparisons against the same systems we've discussed above.  In very short summary: link:#_polarfs[PolarFS] uses a filesystem abstraction without smart storage and thus loses efficiency, Aurora uses 6-node quorums for both logs and pages which over-promises on durability and availability respectively, and Socrates added too much complexity with its four teir Compute/XLOG/Page Server/XSTORE architecture. TaurusDB delivers highly available 3-node logs for writing by leveraging fast failure detection and reconfiguration, and easily-scalable, eventually consistent and asynchronously replicated Page Stores for page data.
 
 .Taurus Architecture
-image::TaurusArchitecture.png[embed=true]
+image::TaurusArchitecture.png[align=center]
 
 In Taurus's Log Store, WAL segments are sent to a fixed-size, append-only, synchronously replicated storage object called a PLog. (Part of a Log? They never say what the P is.)  In a deployment, there are hundreds of Log Servers.  Three are chosen to form a PLog.  All three must ack the write, otherwise a new PLog is allocated.  (It's reconfiguation-based replication!)  The database WAL is an ordered collection of PLogs, itself stored in a metadata PLog.  When a metdata PLog reaches its size limit, a new metdata PLog is created, the latest metdata is written to it, and then the old metadata PLog is deleted.
 
@@ -597,7 +597,7 @@ The Page Stores exist to server page read requests from database primaries or re
 Taurus abstracts most of the logic of dealing with Log Stores and Page Stores into a Storage Abstraction Layer (SAL), which manages the mapping of WAL segments to PLogs and slices to Page Stores. The SAL maintains a Cluster Visible LSN, which is the highest LSN at which the B-tree is structurally consistent and redo logs have been persisted. The SAL is also responsible for sending logs to Page Servers after they've been persisted on the Log Store, and the SAL maintains per-slice buffers for writes to avoid trickling small writes to Page Stores. The CV-LSN is only advanced when the corresponding log entry in the per-slice buffer has also been persisted to at least one Page Store.
 
 .Taurus Write Path
-image::TaurusWritePath.png[embed=true]
+image::TaurusWritePath.png[align=center]
 
 TaurusDB is strongly in favor of its reconfiguration-based replication over quorum-based replication, and they make some bold arguments around its advantages. They argue that their probability of write unavailability from uncorrelated failures is effectively zero as all Log Stores or Page Stores from their global pool of nodes would have to be unavailable for a new shard to be un-allocatable. For reads, each Page Store can independantly serve a read. If all Page Stores return an error that they're too old for the requested LSN, they're repaired from the Log Store. In both cases, they have high availability at low cost.
 
@@ -621,7 +621,7 @@ bibitem:[TaurusNDP]
 Taurus Near Data Processing is motivated by MySQL query processing being designed for simple queries and short transactions, and correspondingly struggling with queries that must consume large amounts of data.  Early filtering of the data saves both network load, from the separated storage and compute, and the CPU load on the compute side.  NDP required changes in the optimizer, storage engine, and Page Stores, though a major goal was to minimize the effect of the NDP-related changes above the storage engine layer.  Only index scan operators need to be aware of its existence in the query plan.
 
 .Taurus NDP Architecture
-image::TaurusNDPArchitecture.png[embed=true,align=center]
+image::TaurusNDPArchitecture.png[align=center]
 
 An NDP request is a set of filters, projections, or aggregations that the query processor would like the Page Store to evaluate.  NDP pushdown requests are treated as best-effort if the Page Store has the idle CPU to perform the operations.  The Page Store is permitted to not respect the request, and return raw database pages instead.  If it does apply the pushdown operations, the results are returned in a special NDP Page, which is held separately in the storage engine, as it is not re-used by any other request.  Predicates are JIT compiled via LLVM on the Page Server for a more efficient evaluation.  Not all predicates are pushed down through NDP, and some residual predicates are still evaluated within MySQL's execution engine.  InnoDB's undo log-based MVCC cannot be traversed by Page Stores, and thus some rows not visible to the query must be returned to indicate to InnoDB that it must reconstruct the correct older version and perform the requested processing on that row instead.
 
@@ -630,7 +630,7 @@ In the optimizer, NDP pushdown is applied as a post-processing pass after optimi
 Within InnoDB, an "NDP descriptor" is formed which contains the schema, transaction information (for mvcc visibility), and the projection, filtering, and aggregation operations to perform.  An NDP request with its accompanying NDP descriptor is used by the Page Store to convert an InnoDB page (16KB) into a variable length NDP page.  An NDP page contains the same InnoDB page header, such that an InnoDB cursor can be used on the page unmodified, but with the "record type" field set to indicate an NDP page and if any projections or aggregations were applied to the rows. Records are maintained in the page in index sort order. The NDP page may be narrower, because of the projection, and if empty due to the filtering an empty result is indicated specially to avoid materializing an empty page.
 
 .Taurus NDP Parallel Scans
-image::TaurusNDPParallelScans.png[embed=true,align=center]
+image::TaurusNDPParallelScans.png[align=center]
 
 The returned NDP pages are allocated from InnoDB's buffer pool, but maintained private to the query thread, and the number of NDP pages allocated is controlled to avoid starving regular queries of buffer pool pages.  During a scan, leaf page IDs are collected from parent pages, and batched into a single I/O request.  To prevent concurrent modification to the tree structure during the large scan, a shared lock is taken from the root to the parent-of-leaf page, and an LSN corresponding to the locked tree structure is generated.  The Page Store only returns page versions matching the LSN value.  Any page which is already in the buffer pool is copied into the NDP buffer pool space as the page and tree structure may be modified once the LSN is recorded and the locks dropped. This batching of ~1000 page reads into one I/O request provides an opporunity for significant parallelism both on InnoDB's side of NDP processing and the Page Store's.
 
@@ -654,7 +654,7 @@ PolarDB mentioned the global page cache means they could support it, but such wo
 So TaurusDB is our chance to look at this design.
 
 .Taurus Multi-Master Architecture
-image::TaurusMMArchitecture.png[embed=true]
+image::TaurusMMArchitecture.png[align=center]
 
 Multi-master means concurrent modifications, and naively that means LSN is now a vector clock.
 Introduces a clock type that's a hybrid between a vector clock and a scalar lamport clock.
@@ -719,7 +719,7 @@ bibitem:[GaussDBMP]
 
 GaussDB-MP introduces multi-primary compute/memory/storage disaggregation for the previously single-node GaussDB.  There was no previous paper on the compute/storage separation unlike all previous systems, nor a paper covering the compute/memory/storage disaggregation before expanding it to multi-primary.  Instead, they've just packed the entire story into one paper, and view the description of the architecture as just a necessary setup to discussion the multi-primary design.  This paper was written after both Aurora's, Taurus's, and PolarDB's multi-primary designs were published.  Aurora's failing was its slow OCC and thus high abort rates, TaurusDB-MM had high concurrency control overhead from cross-node pessimistic locking, and PolarDB-MP used a stateful memory layer which was inefficient to recover in the event of failure. GaussDB-MP instead partitions logical pages to compute nodes, uses a Smart Routing Manager to route queries to the compute node that has ownership of the necessary pages, and utilizes a page ownership transfer to bring all pages needed for a transaction to one compute node.
 
-image::GaussDBMPArchitecture.png[embed=true,align=center]
+image::GaussDBMPArchitecture.png[align=center]
 
 GaussDB has three layers: compute, memory, and storage.  Storage nodes are given little discussion, other than that they are used for page, redo log, and undo segment persistence. Taurus-NDP mentioned that the Page Servers for Taurus and GaussDB are the same, except for a plugin used to interpret the page contents, and thus see the Taurus paper for a more detailed discussion of the storage nodes.
 
@@ -729,7 +729,7 @@ Memory nodes maintain global page ownership (ie. which node owns which page), gl
 
 Section 3 GaussDB Transaction Processing does a page-long detailed walkthrough of a transaction processing example including navigating page ownership and page/tuple locking, with a diagram for reference.  Summarizing it would lose all meaning, so if you're interested in the details, just see the paper.  A few optimizations are mentioned though. Read Authorizations are leases for other nodes to serve reads for pages, with a promise from the page owner that the authorization will be revoked before any modification to the page is performed, used to reduce cross-node communication for read-heavy pages. Pages that are write-heavy and whose owner is frequently updated are instead placed on memory nodes and compute nodes use single-sided RDMA to update such pages instead.
 
-image::GaussDBMPRecovery.png[embed=true,align=center]
+image::GaussDBMPRecovery.png[align=center]
 
 A strong focus of GaussDB-MP is to minimize the recovery time. Transferred pages leave their previous copy in-place on their previous owner, which marked as a past image of the page and used to accelerate recovery if the new owner fails.  A failure in the memory layer can reconstruct its Page Ownership Directory and global lock information by scanning the local information about page ownership and lock management on each compute node.  A failure in the compute layer requires scanning the global locks to release any page locks held by the failed compute node.  To recover pages from a compute node failure, undo/redo logs are applied on top of the most recent checkpoint, which can be pulled from storage, the memory layer (which also does its own checkpointing), or the a "past-image" of a transferred page from another compute node which had not yet been evicted from the buffer pool.  Multiple redo logs and undo segments may need to be merged (by lamport clock LSN) if the page has been transferred between compute nodes and involved in many transactions.
 
