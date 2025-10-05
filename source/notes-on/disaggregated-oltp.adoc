@@ -124,7 +124,9 @@ Aurora Limitless reuses the "Aurora" brand, but is much more similar to a shared
 .Aurora Limitless Architecture
 image::AuroraLimitlessArchitecture.png[embed=true,align=center]
 
-== Microsoft Socrates ★
+== Microsoft
+
+=== Socrates ★
 
 [.gray-bg]
 ====
@@ -164,10 +166,9 @@ The Socrates team is working on offloading bulk loading, index creation, DB reor
 
 Backup and restore uses XStore's Point-In-Time-Restore operation to save periodic snapshots of page data.  Restore identifies the snapshots taken before the restore, and the log range needed to bring the snapshots up to the requested point in time.  These are then copied to new blobs and each blob is attached to a new Page Server instance, with a new SLOG process bootstrapped on the copied log to facilitate applying the changs to the requested restore time.
 
-[discrete]
-=== Discussion
+==== Discussion
 
-Socrates feels like a very modern object storage-based database in the WarpStream or turbopuffer kind of way for it being a 2019 paper.  This architecture is the closest to Neon's as well.
+Socrates feels like a very modern object storage-based database in the WarpStream or turbopuffer kind of way for it being a 2019 paper.
 
 The extended buffer pool / "Resilient Cache" on the primary sounds like a really complicated mmap() implementation.
 
@@ -175,9 +176,58 @@ Would VM migration keep the cache?:: Probably not?  This raised an interesting p
 
 Are the caches actually local SSD or are they Azure Managed Disks?:: Consensus was that it seemed pretty strongly implied that they were actually SSD.
 
+=== Hyperscale RBPEX
+
+[.gray-bg]
+====
+bibitem:[RBPEX]
+====
+
+Years after Socrates has been placed into production under the brand name Azure SQL Database Hyperscale, Microsoft folk have returned with a deep dive on their Resilient Buffer Pool Extension (RBPEX), which extended the in-memory buffer pool to store pages on SSD in order to minimize the performance impact of process restarts. Traditionally, a buffer pool is only in memory, as is caching page reads from SSD. In Hyperscale, the buffer pool is on memory and local SSD, and is used to cache page reads from remote page servers. The same RBPEX is used on page servers as the local storage of pages held on object storage. On the compute node, it's an incomplete cache: a _non-covering RBPEX_. On the page servers, what is in "cache" is an exact mirror of the pages in object store: a _covering RBPEX_.
+
+.RBPEX Architecture
+image::HyperscaleRBPEXArchitecture.png[embed=true,align=center]
+
+The RBPEX File is the backing store for data pages cached in RBPEX. It is a local file, sized as a multiple of SQL Server's page size (8KB), broken into 1MB sized segments, and stores no extra metadata other than page contents. All metadata is instead tracked as SQL tables using Hekaton, SQL Server's in-memory engine. The hash-based table _PageTable_ maps a `<DbId, FileId, PageId>` tuple to its `<Offset, Timestamp, State>` information. Offset stores the offset in the RBPEX File, Timestamp stores when the page was last written to or read from the RBPEX, and State stores one of the states {Valid, Invalid, InFlight}. Valid pages are those where the RBPEX File has the exact same copy of the data as the underlying data file being cached. An InFlight page is one where a write operation is ongoing and the RBPEX File contents may be stale. At recovery time, the PageTable is scanned, and all rows with InFlight and Invalid statuses are removed. An RbpexMetadataTable persists metadata about the RBPEX File itself.
+
+SQL Server has an I/O abstraction layer called the File Control Block (FCB), which allows reads and writes to be re-routed through RBPEX's FCB for caching only within Hyperscale. When a page is to be read into memory, the RBPEX FCB intercepts the page read and serves it out of the RBPEX File if the PageTable says that there's a Valid page for the given PageId. If not, the read goes to the underlying data file (which on the primary node turns into a Page Server GetPage@LSN RPC). Statistics are tracked on page accesses so that a background thread can move frequently written pages into the RBPEX. The entire point of the RBPEX is to reduce cold start times, so it's important to ensure frequently read but rarely written pages still make it into the RBPEX. There's also a number of hints supported to avoid bringing writes from bulk data loads or reads from large analytical table scans into the RBPEX, as doing so would evict more useful pages to have in cache.
+
+image::HyperscaleRBPEXUpdates.png[embed=true,align=center]
+
+For page writes, one would expect the flow to be: mark page as InFlight, write page to RBPEX and underlying data file concurrently, and mark page as Valid again. However, this would require many small updates to the PageTable, imposing notable overhead, and would be many random I/O requests. Instead, when a page is first marked dirty in the buffer pool, it is asynchronously deleted from the PageTable. When dirty page writeback is initiated, the RBPEX FCB buffers the dirty page writes by placing them into a staging buffer. (Reads can still be served out of the staging buffer.) The staging buffer is flushed to the RBPEX File in full 1MB segments at a time. When the pages are flushed from the staging buffer, they are inserted into the PageTable as InFlight. After the whole segment is durable, all pages are updated to Valid. This flow of asynchronous deletes and inserts is better than updating a row, as deletes can be batched and inserts can also be lazily made durable. In the worst case, missing an insert to the PageTable on recovery just means the page won't be seen as in the cache even though it's on disk.
+
+Secondaries can have their cache primed to minimize the performance impact of a failover by prefetching hot pages in the database. The primary tracks hot pages, and periodically pushes a sample of page hit counts to the Page Servers. Secondaries can then query the Page Servers to know which pages to fetch to pre-warm their cache.
+
+A background trimmer thread handles cold page and eviction tasks. The timestamp of last access is maintained per segment in memory, and the least recently used segment has all of its pages evicted.  Segments with low occupancy, due to updates marking the old page as Invalid, are also released and their pages evicted.
+
+The Covering RBPEX on Page Servers is organized into 16MB segments of contiguous pages of the database. A Covering RBPEX stores its metadata in a separate SegmentTable, as per-page information doesn't need to be tracked. At startup, all data pages associated with the Page Server are loaded from object storage and inserted into the RBPEX. Updates are then pulled from the XLOG and applied, and then the Page Server is ready to serve pages. Page updates work similarly to what is described above, except a DirtyPageBitmap tracks which pages have been updated in a given segment. A Page Server can also evict cold segments, and Azure SQL metrics show ~40% of all segments as not having been accessed in the last 7 days.
+
+The evaluation shows a 600us local RBPEX read latency and a 1000us Page Server read latency, though they later state RBPEX reads on compute nodes are 200us. Their graphs for recovery performance show cache hit rate, remote page read QPS and page latch wait time, but not overall system QPS as I'd expect, but it takes about 12 seconds for a cold cache to be filled.
+
+=== Hyperscale XLOG
+
+[.gray-bg]
+====
+bibitem:[ScalingXLOG]
+====
+
+From the initial implementation described in the Socrates paper, there have been three major areas of improvements: moving from request processing from blocking to non-blocking, improving IO coalescing and caching for groups of older readers, and the addition of layers of checksum validation.
+
+image::HyperscaleXLOGArchitecture.png[embed=true,align=center]
+
+When Page Servers issued a GetLogBlocks request to XLOG and the page server was already fully caught up, XLOG would wait until there was another piece of log data before replying to the request, transforming it into a long polling request. This request processing was done synchronously, including the waiting, which would then block a request request handling thread.  Once the number of Page Servers exceeded the number of threads, this turned into incredibly poor latency and performance as new requests would be starved.  The solution was to change to an asynchronous, non-blocking model for processing requests.  The paper gives this topic a full treatment, but the problem and solution are no different than any other RPC-based or backend service handling long-running RPCs or doing blocking work on a threadpool.
+
+image::HyperscaleXLOGPool.png[embed=true,align=center]
+
+Rack outages, system upgrades, or restoring from backups all caused a large number of Page Servers to appear which requested log data that would no longer be in XLOG's local cache. XLOG would handle these requests all independently, issuing a read for potentially overlapping data from Azure Storage. This wave of reads would then trigger throttling in Azure Storage, severely penalizing the XLOG and affecting all requests to the Landing Zone. The fix to this was twofold. First, a rate limiter was built into XLOG itself to keep to 190MB/s of reads, and not cross the 200MB/s limit that causes Azure Storage to drastically penalize it. (The evaluation makes this look like exceeding 200MB/s meant 100MB/s would be enforced.) Second, a separate cache was added for recently fetched log blocks from Azure Storage and a data structure maintained in memory with the ranges for all outstanding requests.  New requests would then have their ranges be deduplicated against existing requests. Dedicated filler threads would fetch desired ranges into the XLOG Pool Cache, and then requests blocked on those ranges would consume the data. Coalescing these requests also meant more new log block could be fetched from Azure Storage, as the bandwidth wasn't being wasted re-fetching the same block repeatedly from concurrent requests.
+
+A high corruption rate associated with a specific model of SSDs by a "well-known vendor" seemed to drive a number of improvements on data integrity checking within Hyperscale. _Egress Validation_ was added, which kept a small hashmap in memory on XLOG of Block Sequence Number to hash of block. The first time a block was served to a client, the hash would be stored, and subsequent requests would validate that the calculated hash matched what had been stored in the hashmap for the same BSN. Any differing result implied a corruption.  End-to-end checksum validation was also added. Compute nodes stamp each block with a checksum, which is validated when first read by XLOG, before being served by the XLOG, and again upon being received by the Page Server. Code manipulating log blocks was changed to use overflow-detecting integer math libraries to ensure interpreting the block headers on corrupted blocks would not lead to crashes. Together, these changes provided more assurance that critical data remained intact.
+
+The evaluation showed the impact of each change. The impact was already well alluded to by the descriptions earlier in the paper, so nothing felt surprising. The combination of the async request processing and XLOG Pool changes permitted significantly better throughput of log blocks as page server count increased, which was exactly the goal of the work.
+
 == Alibaba
 
-As broad context, Alibaba is really about spending money on fancy hardware.  I had talked about this a bit in link:/blog/2024-modern-database-hardware.html[Modern Database Hardware], but Alibaba's papers quickly illustrate that they're more than happy to sol seems to be more than happy to solve difficult software problems by spending significant stacks of money on very modern hardware.  Notably, Alibaba has RDMA deployed out internally, seemingly to the same extent that Microsoft does, except Microsoft seems to keep a fallback-to-TCP option for most of their stack, and Alibaba seems comfortable building services that critically depend on RDMA's primitives.
+As broad context, Alibaba is really about spending money on fancy hardware.  I had talked about this a bit in link:/blog/2024-modern-database-hardware.html[Modern Database Hardware], but Alibaba's papers quickly illustrate that they're more than happy to solve difficult software problems by spending significant stacks of money on very modern hardware.  Notably, Alibaba has RDMA deployed out internally, seemingly to the same extent that Microsoft does, except Microsoft seems to keep a fallback-to-TCP option for most of their stack, and Alibaba seems comfortable building services that critically depend on RDMA's primitives.
 
 === PolarFS
 
@@ -493,6 +543,8 @@ In the evaluation, they show PolarDB-MP giving an 8x improvement with 8 primarie
 ====
 http://cighao.com/papers/PolarDB_CXL.pdf
 ====
+
+
 
 == Huawei
 
