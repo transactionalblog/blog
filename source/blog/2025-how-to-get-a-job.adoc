@@ -1,0 +1,187 @@
+= How to Get a Job in Databases
+:revdate: 2025-04-09
+:draft: true
+:page-hook-preamble: false
+:page-topic: career
+:page-aside: Many quotes in this article were taken from various semi-public slacks, discords, reddit posts, linkedin messages, twitter threads, HN comments, etc. To protect the original authors' identities, quotes have been paraphrased via an LLM and then edited to ensure no meaning was lost.
+
+If there's something you want to work on, and you have a current seniority level or compensation level, there's a fixed set of options that are available to you:
+
+* Apply for roles doing what you want to do, at the seniority you want.
+* Aim for companies that do what you want to do, but apply to roles closer to your experience at your current level of seniority.  Try to transfer to a team that does what you want to do at a later time.
+* Apply for roles doing what you want to do, but be willing to take a pay cut or title reduction.
+* Start a company doing what you want to do.
+
+Depending on your seniority, once of these options might be more likely to succeed than the others, or variations.
+
+== Strategies
+
+=== Persevere (and Upskill)
+
+Applying for roles already doing what you want to do is easier the lower in seniority that you are
+
+> I really was just applying everywhere (but could not really find that many C++ positions) And then on that interview I just impressed the guy, explained some code as well, we had a 2nd interview where I just literally read 2 articles on db internals and was able to explain the structure that I just learned. I have a really decent mathematical education, I'm reasonably good even with some complicated C++ and they wanted some fresh blood.
+
+If you don't
+
+=== Transfer
+
+=== Sacrifice
+
+> - Keep trying over time to get directly into a team doing exactly what you want at the exact seniority you want. Eventually you may get lucky.
+> - Join a company that does what you want at your seniority in the area you already know. Attempt to switch teams progressively over time by doing work projects with them.
+> - Start a company doing what you want to do.
+> - Join a startup doing what you want to do.
+> - Join a company doing what you want to do on the team you want to do but take a pay cut/title cut.
+
+
+
+- How do I reach out to really technical folks? I want to chat with them but I have no idea what to talk about.
+- What skills should I hone outside of work? There are so many topics in CS and SWE that I don't even know where to start.
+- How? I have a couple of side projects on databases, but nothing major. How do I make someone consider me without professional experience?
+- Since I am transitioning to a new domain, would I be down leveled and have a salary cut? (like Sr. Backend Engineer to Jr. Systems Engineer)
+- ~~Do side projects matter? If so, are there any good ways to demonstrate that I can learn the required skills and implement new solutions?~~
+- Another suggestion I have gotten is to join the company on the cloud/backend team and then transfer to systems. In your experience, have you seen something like this?
+- ~~Another suggestion is to work on open-source databases, which are better if they belong to the companies I am interested in and showcase my work. Is this viable?~~
+- what programming language do you recommend I use for learning db development, rust or c++?
+- With all this being said am I better off targeting a backend or a data engineer job? Am I supposed to choose one of those points or are there actually roles out there where you can do both?
+- Also, because of my ops background I have never gone through the real developer interview process, so I know I have to grind leetcode & CTCI, but on top of that what programming languages/skills should I start acquiring? OOP?
+- And one last thing: I have a lot of fear because I'm trying to look for a backend / data engineer job and am an infra / ops person on paper. I don't know how open minded companies are. Or if I'm better off spending another year at my current job, but requesting a transfer to the backend team to gain more experience.
+- I am having a kid later this year, how do one skill Up with a family? When i look up the web I find people delivering successful products while having a family & some still find plenty of time to blog or write books. How is this possible? Is it very rare? How do you keep managing these skills if you have kids/family?
+- How do you guys manage self-learning and Work? Is there any daily routine you guys follow?
+- I'm in $Location.  Will I need to move?
+
+
+== FAQ
+
+=== Should I have side projects?
+
+> Side projects can help you get jobs at early stage startups (like less than 30 people) but at bigger companies, in my experience, they don't really care at all
+> can help if a new grad to distinguish yourself
+
+
+=== Should I make OSS contributions?
+	> But if you contribute consistently/meaningfully to a (smallish) project run by a small company they'll likely want to hire you
+	> Or if you contribute meaningful optimizations/features to a major project, one of the companies who fund that project may want to hire you
+	> (that running joke about chrome not having OSS contributors because they all got hired)
+https://news.ycombinator.com/item?id=32862672
+https://medium.com/@glaubercosta-11125/career-advice-for-young-system-programmers-c7443f2d3edf
+
+=== Will I have to take a pay cut?
+
+Maybe.  The more junior you are already, the less likely it is.  If you're very senior, you likely already have some specialty, and leaving that specialty will likely involve taking a step back in your career.
+
+=== How do I evaluate offers?
+
+https://github.com/jlevy/og-equity-compensation
+levels.fyi has seemed roughly accurate (at least for bay area US every time I've checked)
+
+=== How does one up-skill with a family?
+
+> Family first. To a kid, the time you spend with them is much more valuable than any toys you bought them with money. Take care of your kid, your partner. Everything else is the second priority.
+> You'll level up anyway, just not in the way you maybe imagine? I got much tougher and more effective, also more caring myself (sleep). Also, a lot more frustration tolerant. This all translates to the workplace.
+> On how some people manage to "have it all", look for the spouse who gave up their (often her) career to do the majority of the extra work a child brings. Respect to single parents, it must suck so much at least for the first couple years.
+
+=== How does one up-skill with a demanding job?
+
+> how do you even manage to spend time apart when you are doing working around 10 - 12 hours per day including life?
+
+
+=== How do I learn about databases?
+
+See the other resources on this topic:
+
+- https://www.reddit.com/r/databasedevelopment/comments/unj8d1/getting_started_with_database_development/[/r/DatabaseDevelopment: Getting Started with Database Development]
+- https://hn.algolia.com/?dateRange=all&page=0&prefix=true&query=%22Ask%20HN%22%20learning%20database%20resources&sort=byDate&type=story[Lobsters: Resources for learning distributed systems]
+- https://hn.algolia.com/?dateRange=all&page=0&prefix=true&query=ask%20database%20implemenation&sort=byPopularity&type=story[The infinitely many HackerNews posts]
+- https://muratbuffalo.blogspot.com/2020/06/learning-about-distributed-systems.html[Murat Demirbas: Learning about Distributed Systems]
+- https://github.com/rxin/db-readings[Reynold Xin: Readings in Databases]
+- https://www.distributedsystemscourse.com/[Distributed Systems Course]
+- https://pierrezemb.fr/posts/distsys-resources/[Pierre Zemb: Best resources to learn about data and distributed systems]
+
+And all the resources linked therein will teach you about (distributed) databases.  However, education that gives some certificate for completion give you something to put on a resume.
+
+Most formal: master's in databases.
+
+Medium formal: Certificate in databases from various universities.
+
+Least formally, Massive Open Online Courses typically provide some form of certificate or record of class completion.
+- If Russian, https://dataschool.yandex.com/
+
+
+
+== The Strategies
+
+- Junior: Internship at database companies
+
+If you're reading this and currently in college, this is the strategy for you.  Company internship programs are hiring programs.  Get an internship, do well, and you'll get a full-time offer (modulo business/headcount constraints).
+
+Internship-adjacent things are also great.
+- Google Summer of Code
+- Linux Kernel Mentorship Program
+
+- Junior: Do a Masters/PhD
+
+This is especially relevant if there's not a lot of opportunities in your current location, and you feel like your chances of being (happily) employed remotely are low.  Graduate school allows you to get a student visa, move to a country with better job opportunities, and build experience and connections in your target field.  There's generally a well trodded path from student visas to permanent residence.
+
+- FANG: Transfer in a large company
+Not apple
+
+- ALL: Have a public presense
+	- 
+- ALL: Knowing people
+	- Having someone on the inside vouching for you can open doors
+
+- ALL: Work on adjacent and intersecting things
+
+> One thing I have found common when talking to a bunch of folks is there seems to be a lack of awareness around how broad distributed systems itself is. I have 6-7 years of experience, which is notably not a lot to give informed advice, but I have atleast started seeing through various stacks within dist systems itself. More specifically, I am starting to see the field from the following lenses:
+>
+> Working on a team that uses distributed services as building blocks to solve higher-level/business problems. As an example, one of the initiatives I've worked in the past used multiple AWS services to create a stream processing solution for data ingestion and then async materialization of data. Even though it did not involve working on things like replication or query optimization, I'd still categorize it within distributed systems as we had to deeply think about the overall system converging to an eventually consistent state (among many other things).  And that thought process can only be devised after knowing how those services work internally (like S3, DynamoDB, ledger databasea, etc)..
+>
+> Working on a distributed services org, like Snowflake, Databricks, an AWS/GCP org etc. There are many lanes within these companies/orgs - at least at AWS, each individual service itself had 10+ teams. All these teams will be working on a specific distributed system problem. For example, I was in the control plane/storage plane team at DynamoDB where I learnt a lot about automated capacity/fleet management, scheduling, and partitioning. But I had almost little to no exposure or knowledge about how for example backup and recovery will work or BTree specific work. People often spend years if not a decade moving around 2-3 teams within such an org to get an overall expertise. This is at a tech stack lower than than point 1.
+>
+> People working on teams/orgs similar to 2.), but the problems they tackle are niche/specialized like query optimization, network engineering, SRE, new replication protocol, compiler, pl etc. There's often overlap between 2 and 3 at smaller orgs/startups, however I've particularly seen people working this deep into the stack to already have had a substantial amount of experience it.
+>
+> I have spent most of my time around 2), a little around 1), and working towards getting to 3 by having some amazing mentors at work and ofcourse you all  I feel like 3. is something that atleast for me would be easier to join as a new grad or perhaps after a PhD. Joining 3. in mid-career stage at 6-7 YOE seems really hard as most employers are looking for experience in those specific niche/specializations. Or I'd need to take a massive paycut or down-level even if they were to take me. (edited)
+
+> Agreed that a project is barely ever a requirement. But there's an entire type of interview methodology that's mainly trying to get the candidate to geek out about the domain they have an interest in. If you have a cool side project and it's in your resume it gives a GREAT opener to steer the interview to something you know forward and backward and you can have a normal (fun!) conversation about the choices you made rather than just waiting to be grilled with questions. It proves you can learn something in depth and shows you can listen to the interviewers points and accept/respond to them from a place of problem solving. I'm convinced most people who got in with an "impressive side project" actually just had the opportunity to talk about what they were comfortable with with their interviewer.
+> IME startups that need people to own something completely (as themselves or part of a team) and need a dev to have algorithmic/product/stack/self-management knowledge/communication skills semi-equally. Another place I've personally experienced it is two Fortune 500 companies. Both for early stage internal projects they were bringing new talent in for.
+> IME startups that need people to own something completely (as themselves or part of a team) and need a dev to have algorithmic/product/stack/self-management knowledge/communication skills semi-equally. Another place I've personally experienced it is two Fortune 500 companies. Both for early stage internal projects they were bringing new talent in for.
+> Tbf, I've had heavy whiteboard posturing interviews too, as well as the free-for-all panel interviews. Usually together for the same companies. I'm just saying if you put something like that on your resume you can use it to +1 your charisma and pr
+
+
+Also note that some companies will tell you "no" instead of offering a lower title, out of concern of being insulting.
+
+> When I was searching for a similar role, the advice I got here and also in Recurse Center community, from database developers and veterans was that to apply to Cloud / Infra roles and then transition within the company. Very few companies want to hire (or bet on) people with web dev experience for core database roles. The work is entirely different. 
+>
+> Another path was to take internship or join as a junior (at pay cut)
+
+> system design interviews vary so much from company to company that it's hard to prepare for
+> interviews change significantly from senior to staff, and become more domain-specific
+
+
+
+
+=== Resumes
+
+Explain your work in a way that shows that you're expanding in scope and impact over time
+
+ * Modified request handling to improve tail latency by 10%
+* Identified systems-level deficiencies in the request processing loop, and implemented improvements totaling 30% less tail latency and 10% less median latency 
+* Designed and led a team of three in implementing a new RPC framework to allow for server-side chaining of requests.  Improved median and tail latency by 50%
+
+The IC track is generally about being able to take on projects with larger scope/complexity, with less oversight, and higher impact to the business.
+
+The levels roughly work out in my head as:
+* Junior engineers are given tasks in an existing design
+* (intermediate?) engineers are producing designs and implementation for sub-components of a larger design
+* Senior engineers and up are producing designs, and implementing or leading the implementation of those designed components, and the scale of the component increases with levels.
+
+I tried to get the above examples to roughly match with the hand waved leveling.  And not all projects are easy to explain in scope/complexity/impact in 3 sentences on a resume, but most interviews also have a section of talking about previous projects and what you were responsible for and did, so as long as it fits into a larger story and is overall enough to get you in the door it should be fine.
+
+https://jsonresume.org/
+https://thetechresume.com/
+
+=== See Also
+
+* https://letters.eatonphil.com/2023-01-01-letter-to-a-frontend-developer-asking-about-database-development.html[Phil Eaton: A Letter to a Frontend Developer Asking About Database Development]
