@@ -225,6 +225,8 @@ jit_func create_add_1_2() {
   assert (codedata != MAP_FAILED);
   jit_func ret = (jit_func)codedata;
   
+  // Concatenate our program together, while saving the
+  // locations that need to be patched.
   uint8_t* load_int_reg1_location = codedata;
   codedata = cnp_copy_load_int_reg1(codedata);
   uint8_t* load_int_reg2_location = codedata;
@@ -232,9 +234,13 @@ jit_func create_add_1_2() {
   codedata = cnp_copy_add_int1_int2(codedata);
   codedata = cnp_copy_return_int1(codedata);
 
+  // Overwrite the zero value placeholders with our intended
+  // specialized values: 1 and 2.
   cnp_patch_load_int_reg1(load_int_reg1_location, 1);
   cnp_patch_load_int_reg2(load_int_reg2_location, 2);
 
+  // Now that we're done writing, remove write access and
+  // allow execution from this page instead.
   int rc = mprotect(ret, 256, PROT_READ | PROT_EXEC);
   if (rc) {
     perror("mprotect");
