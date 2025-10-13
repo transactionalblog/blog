@@ -7,24 +7,49 @@
 :page-topic: compilers
 
 [.display-none]
-== Posts
+== Tutorial
 
 ++++
-<%= partial("partials/index_section", :locals => {}) %>
+<%= partial("partials/index_section", :locals => {:tagged => 'tutorial'}) %>
 ++++
+
+== Calculator
+
+Building a complete calculator rather than toy example involves solving a few more traditional compiler problems:
+
+++++
+<%= partial("partials/index_section", :locals => {:tagged => 'calcjit'}) %>
+++++
+
+And more posts will trickle out over time:
+
+* Stencil Library
+* Stencil Selection
+
+== Appendix
+
+++++
+<%= partial("partials/index_section", :locals => {:tagged => 'appendix'}) %>
+++++
+
+* Exceptions
+* Debug info
+* Profiling with JITDUMP
+
 
 ////
 Intro via copy&paste
 details on why it works
 control flow
 register allocation
-benchmarking via wasmnow
-automating with tooling
+Stencil Library
+Stencil Selection
 
 Appendix:
 exceptions
 debug info
 profiling JITDUMP
+benchmarking via wasmnow
 
 -mframe-pointer={'all' if opname == 'shim' else 'reserved'
 from https://github.com/python/cpython/issues/126910#issuecomment-2488846508

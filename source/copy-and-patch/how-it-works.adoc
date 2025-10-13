@@ -4,7 +4,8 @@
 :toc: right
 :page-hook-preamble: false
 :page-order: 2
-:page-hook: Clang optimizations, machine code models, relocations!
+:page-tag: tutorial
+:page-hook: Clang optimizations. Machine code models. Relocations!
 
 From the introduction, you've followed a set of given rules to produce stencils and relocation holes, with no explanation given as to why the rules are the way they are. We're now going to dive into that reasoning, and look at exactly how each part of the guidance on clang flags and relocation hole macros came to be.
 
@@ -192,13 +193,134 @@ jmp    27 <swap_ints+0x27>
 ----
 |===
 
-So it's helpful for when it matters.  It moves us from being able to only define stencils with 6 inputs and outputs to stencils that have 12 inputs and outputs, after which `preserve_none` also runs out of registers and has to start setting up a stack frame.  So if you need to support GCC, stick to 6 or less arguments, and then cdecl on x86_64 will still work okay.
+So it's helpful for when it matters.  It moves us from being able to only define stencils with 6 inputs and outputs to stencils that have 12 inputs and outputs, after which `preserve_none` also runs out of registers and has to start setting up a stack frame.  However, there's multiple categories of registers.  Floating point values and SSE operations use `xmm` registers, AVX uses `ymm` registers, and AVX-512 uses `zmm` registers.  The calling convention also controls how these operate:
 
-== Clang Optimization
+[%header,cols="2,9,9"]
+|===
+| | floating point | SIMD
+
+|
+a|
+[source,c]
+----
+STENCIL_FUNCTION
+void float_passthrough(float a) {
+  DECLARE_STENCIL_OUTPUT(float);
+  return stencil_output(a);
+}
+----
+a|
+[source,c]
+----
+#include <immintrin.h>
+STENCIL_FUNCTION
+void simd_passthrough(__m512 a) {
+  DECLARE_STENCIL_OUTPUT(__m512);
+  return stencil_output(a);
+}
+----
+
+| cdecl
+a|
+[source,nasm]
+----
+; <float_passthrough>:
+push   r15
+push   r14
+push   r13
+push   r12
+push   rbx
+call   10e <float_passthrough+0xe>
+;; R_X86_64_PLT32
+pop    rbx
+pop    r12
+pop    r13
+pop    r14
+pop    r15
+ret
+----
+a|
+[source,nasm]
+----
+; <simd_passthrough>:
+push   r15
+push   r14
+push   r13
+push   r12
+push   rbx
+call   12e <simd_passthrough+0xe>
+;; R_X86_64_PLT32
+pop    rbx
+pop    r12
+pop    r13
+pop    r14
+pop    r15
+vzeroupper
+ret
+----
+
+| preserve none
+a|
+[source,nasm]
+----
+; <float_passthrough>:
+jmp    105 <float_passthrough+0x5>
+;; R_X86_64_PLT32
+----
+a|
+[source,nasm]
+----
+; <simd_passthrough>:
+jmp    115 <simd_passthrough+0x5>
+;; R_X86_64_PLT32
+----
+|===
+
+_Any_ number of floating point or simd registers cause a stack frame to get emitted on cdecl, and thus if you're trying to use them in stencils, you'll have to use preserve_none. You'll then be limited to 8 function arguments / registers before it will start passing arguments on the stack.
+
+For SIMD specifically, note that one can use `__attribute__((target("arch")))` to be able to generate code for different SIMD feature sets, and detect which one to select as the code for the stencil at runtime:
+
+[source,c]
+----
+__attribute__((preserve_none,target("avx")))
+void fused_multiply_add_avx(__m512 a, __m512 b, __m512 c) {
+  DECLARE_STENCIL_OUTPUT(__m512);
+  return stencil_output(a * b + c);
+}
+
+__attribute__((preserve_none,target("no-avx")))
+void fused_multiply_add_sse2(__m512 a, __m512 b, __m512 c) {
+  DECLARE_STENCIL_OUTPUT(__m512);
+  return stencil_output(a * b + c);
+}
+----
+
+[source,nasm]
+----
+0000000000000100 <fused_multiply_add_avx>:
+ 100:	62 f2 75 48 a8 c2    	vfmadd213ps zmm0,zmm1,zmm2
+ 106:	e9 00 00 00 00       	jmp    10b <fused_multiply_add_avx+0xb>
+			107: R_X86_64_PLT32	cnp_stencil_output-0x4
+ 10b:	0f 1f 44 00 00       	nop    DWORD PTR [rax+rax*1+0x0]
+
+0000000000000110 <fused_multiply_add_sse2>:
+ 110:	0f 59 c4             	mulps  xmm0,xmm4
+ 113:	0f 58 44 24 08       	addps  xmm0,XMMWORD PTR [rsp+0x8]
+ 118:	0f 59 cd             	mulps  xmm1,xmm5
+ 11b:	0f 58 4c 24 18       	addps  xmm1,XMMWORD PTR [rsp+0x18]
+ 120:	0f 59 d6             	mulps  xmm2,xmm6
+ 123:	0f 58 54 24 28       	addps  xmm2,XMMWORD PTR [rsp+0x28]
+ 128:	0f 59 df             	mulps  xmm3,xmm7
+ 12b:	0f 58 5c 24 38       	addps  xmm3,XMMWORD PTR [rsp+0x38]
+ 130:	e9 00 00 00 00       	jmp    135 <fused_multiply_add_sse2+0x25>
+			131: R_X86_64_PLT32	cnp_stencil_output-0x4
+----
+
+== Tail Call
 
 :uri-clang-musttail: https://clang.llvm.org/docs/AttributeReference.html#musttail
 
-As was mentioned, we rely on clang's optimization passes for two major things: eliding stack frames and converting to tailcalls.  Going back to our `swap_and_multiply` example:
+As was mentioned, we rely on clang's optimization primary for converting the `stencil_output` call to a tailcall.  It also happens to be necessary for eliding the stack frame prologue and epilogue when it's not necessary.  Going back to our `swap_and_multiply` example:
 
 [source,c]
 ----
@@ -311,12 +433,12 @@ So, unless that changes in the future, we have to rely on `-O3` magically doing 
 
 :uri-thegreenplace-code-models: https://eli.thegreenplace.net/2012/01/03/understanding-the-x64-code-models
 :uri-maskray-code-models: https://maskray.me/blog/2023-05-14-relocation-overflow-and-code-models
-
+:uri-abi-docs: https://docs.google.com/viewer?url=https://github.com/hjl-tools/x86-psABI/wiki/x86-64-psABI-1.0.pdf
 This far, we've examined the "copy" part of copy-and-patch.  It is now time to focus on the "patch" part instead.
 
 A relocation is a bit of information that clang leaves for the dynamic linker when referencing an external symbol, so that when the program is run and the executable and its various libraries are loaded into random addresses in memory, the dynamic linker can patch the executable with the correct addresses of all of the symbols it needs.  In copy-and-patch, we abuse this by referencing an external symbol every time that we want a hole to be inserted into the stencil, and then looking at the relocation information generated after compilation to know what offsets to patch within the generated code to fill the hole at JIT compile time.
 
-We lean heavily on the medium machine code model, which sets the expectation that code can be referenced within +-2GB (32-bit values), and large data needs to be referenced by full 64-bit values. Others have covered the topics of machine code models and relocations before, so please see {uri-thegreenplace-code-models}[Understanding the x64 code models] or {uri-maskray-code-models}[Relocation Overflow and Code Models] for background on this topic. Small views both code and data as 32-bit values, large views both as 64-bit values, and so using medium means we're able to generate holes of either 32-bit or 64-bit depending on if we reference code or data.
+We lean heavily on the medium machine code model, which sets the expectation that code can be referenced within +-2GB (32-bit values), and large data needs to be referenced by full 64-bit values. Others have covered the topics of machine code models and relocations before, so please see {uri-thegreenplace-code-models}[Understanding the x64 code models] or {uri-maskray-code-models}[Relocation Overflow and Code Models] for background on this topic.  The {uri-abi-docs}[official AMD64 ABI documentation] is atypically clear and useful as well. Small views both code and data as 32-bit values, large views both as 64-bit values, and so using medium means we're able to generate holes of either 32-bit or 64-bit depending on if we reference code or data.
 
 I've summarized everything to be aware of within the realm of making holes into one program:
 

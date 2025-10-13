@@ -1,4 +1,4 @@
-= Introduction
+= A Copy-and-Patch Tutorial
 :revdate: 2025-05-16
 :draft: true
 :toc: right
@@ -6,6 +6,7 @@
 :page-features: font-awesome
 :page-hook-preamble: false
 :page-order: 1
+:page-tag: tutorial
 :page-hook: If you can ctrl-c and ctrl-v, you can build a JIT.
 
 https://arxiv.org/abs/2011.13127[Copy-and-patch Compilation] is a fascinating way of constructing a baseline JIT{nospace}sidenote:ref[].  It permits incredibly fast runtime compilation of code fragments in a very easy to maintain fashion, requires barely any actual understanding of assembly code, and produces native code of sufficient quality to be within the same range as traditional, hand-written baseline JITs.
@@ -309,7 +310,7 @@ DECLARE_EXTERN_HOLES(1);
 DECLARE_EXTERN_HOLES(2);
 
 STENCIL_FUNCTION
-void fused_multiply_add_squareroot_ifnotzero() {
+void fused_multiply_add_sqrt_ifnotzero() {
   uint32_t a = STENCIL_HOLE32(1, uint32_t);
   uint32_t b = STENCIL_HOLE32(2, int32_t);
   uint64_t c = STENCIL_HOLE64(1, uint64_t);
@@ -332,7 +333,7 @@ void fused_multiply_add_squareroot_ifnotzero() {
 Which just for completeness sake, compiles into:
 
 ----
-0000000000000000 <fused_multiply_add_squareroot_ifnotzero>:
+0000000000000000 <fused_multiply_add_sqrt_ifnotzero>:
    0:	50                   	push   rax
    1:	b8 00 00 00 00       	mov    eax,0x0
 			2: R_X86_64_32	cnp_small_value_hole_2
@@ -343,8 +344,8 @@ Which just for completeness sake, compiles into:
   15:	00 00 00 
 			10: R_X86_64_64	cnp_large_value_hole_1
   18:	48 01 c8             	add    rax,rcx
-  1b:	75 05                	jne    22 <fused_multiply_add_squareroot_ifnotzero+0x22>
-  1d:	e8 00 00 00 00       	call   22 <fused_multiply_add_squareroot_ifnotzero+0x22>
+  1b:	75 05                	jne    22 <fused_multiply_add_sqrt_ifnotzero+0x22>
+  1d:	e8 00 00 00 00       	call   22 <fused_multiply_add_sqrt_ifnotzero+0x22>
 			1e: R_X86_64_PLT32	cnp_near_func_hole_1-0x4
   22:	48 b8 00 00 00 00 00 	movabs rax,0x0
   29:	00 00 00 
@@ -355,6 +356,6 @@ Which just for completeness sake, compiles into:
   36:	ff d0                	call   rax
   38:	49 89 c4             	mov    r12,rax
   3b:	58                   	pop    rax
-  3c:	e9 00 00 00 00       	jmp    41 <fused_multiply_add_squareroot_ifnotzero+0x41>
+  3c:	e9 00 00 00 00       	jmp    41 <fused_multiply_add_sqrt_ifnotzero+0x41>
 			3d: R_X86_64_PLT32	cnp_stencil_output-0x4
 ----
