@@ -1,21 +1,97 @@
-= WasmNow Versus Liftoff
+= Benchmarking with WasmNow
 :revdate: 2025-04-28
 :draft: true
+:page-tag: appendix
+:page-order: 10
 :page-topic: compilers
 :page-hook-preamble: false
-:page-hook: Does copy-and-patch beat a handwritten baseline JIT in execution time?  Not really.
+:page-hook: A closer look at WasmNow vs V8 Liftoff.
+:page-aside: With thanks to Jamie Brandon for his technical and emotional support, and Dan Gohman for answering wasm questions as a public service.
+
+https://arxiv.org/abs/2011.13127[Copy-and-patch Compilation] is a fascinating way of constructing a baseline JIT by copying pre-compiled stencils of code fragments and patching the stencils to change embedded constants or addresses as needed.  It offers a way of engineering native code generation that is only slightly more difficult to write and maintain than an interpreter, but offers potentially significant speedups by removing the interpretation overhead.
+
+The percent improvement that one will see thus depends greatly upon the interpretation overhead, and thus the design of the virtual machine and how complex its instructions are.  The more work packed into one VM instruction, the less time there is spent in the interpreter itself as overhead. Python 3.13 includes a JIT based on copy-and-patch, where each of the interpreter's opcode handlers are compiled into a stencil. They see a 2%-9% speedup from the initial implementation, as a language with relatively complex instructions.  Oppositely, alongside the Copy-and-Patch paper, WasmNow was published as a Copy-and-Patch based WASM engine.  WASM has very simple instructions, and thus a large portion of execution time would be spent in an interpreter as overhead, and thus any form of native compilation can be highly effective.
+
+The Copy-and-Patch paper included a comparison against V8's Liftoff, and handwritten baseline JIT, and saw it being 4.9x-6.5x faster in compiling, and its code executing 39%-63% faster than Liftoff's as well. This seemed surprising, as WASM instructions are very simple, so there's not much an ahead-of-time compiler can do on optimization, and Copy-and-Patch is much more limited on what code it can generate per instruction.  I've re-run this comparison (recreating Fig. 21 from the paper):
+
+And thus we can clearly see: Liftoff isn't slower in execution. It's uniformly better. To be incredibly clear, this is not an accusation that the Copy-and-Patch paper was deceitful, it's that we're comparing two different things!  I'm benchmarking Liftoff in 2025, and the paper looked at Liftoff in 2020.  The V8 team has made great progress!
+
+But these new numbers change some of how one should interpret results from the Copy-and-Patch paper.  Copy-and-Patch forms a new point on the Pareto frontier of JIT design in compilation time versus execution time, not a direct improvement over handwritten baseline JITs. I've experimented with a number of WASM implementations, and using the following engines as representing their class of compilers:
+
+Interpreter: Wizard
+Copy-and-Patch JIT: WasmNow
+Baseline JIT: Liftoff
+Optimizing JIT: TurboFan
+LLVM JIT: WAVM
+Native Compilation: wasm2c
+
 
 == Compilation Differences
 
-=== Liftoff Tier-Up Checks
+We're going to be pulling apart the generated code for one webassembly program.  That is:
 
-=== Stack Safety
+[source,wat]
+----
+* Does a call
+* Does a divide
+* Does a branch
+----
 
-=== Div Safety
+=== WasmNow's Stack Safety
+
+The prologue of every function Liftoff process includes a stack check.  The prologue for WasmNow doesn't have one.  We can illustrate this with a simple recursive program:
+
+.recursive.wat
+[source,wat]
+----
+(module
+  (func $main
+    (call $main)
+  )
+  (export "_start" (func $main))
+)
+----
+
+
+=== Liftoff's Tier-Up Checks
+
+=== Liftoff's Inlining Stats
+
+For Liftoff's translation of `(call $func)`, we see:
+
+[source,nasm]
+----
+0x27dedc25d859    19  488b45e8             REX.W movq rax,[rbp-0x18]
+0x27dedc25d85d    1d  83400702             addl [rax+0x7],0x2
+0x27dedc25d861    21  e89af7ffff           call 0x27dedc25d000  (jump table)
+----
+
+What's being loaded from `rbp-0x18`?  Why is it being incremented?  These instructions are generated in `liftoff-compiler.cc` as part of `LiftoffCompiler::CallDirect` where the code for a `call` is being generated:
+
+[source,cpp]
+----
+// Update call counts for inlining.
+if (v8_flags.wasm_inlining) {
+  CODE_COMMENT("call wasm inlining");
+  LiftoffRegister vector = asm_.GetUnusedRegister(kGpReg, {});
+  asm_.Fill(vector, WasmLiftoffFrameConstants::kFeedbackVectorOffset,
+          kIntPtrKind);
+  asm_.IncrementSmi(vector,
+                  wasm::ObjectAccess::ElementOffsetInTaggedFixedArray(
+                      static_cast<int>(vector_slot)));
+  // Warning: {vector} may be clobbered by {IncrementSmi}!
+}
+----
+
+So, it's loading and incrementing a counter from a feedback vector as part of gathering information from execution to feed into Turbofan's inlining decisions.  Do we need this? No! We're not using Turbofan!  Thus, we must pass `--no-wasm-inlining --no-wasm-inlining-call-indirect` to d8.  Doing so removes these two instructions from every call yields the following changes in benchmark performance:
+
+
+=== WasmNow's Div Safety
 
 WasmNow and Liftoff differ in terms of what code they generate for divide operations.  We can see this by just having a very simple program implementing `quotient = divident / divisor`.
 
-[source]
+.safediv.wat
+[source,wat]
 ----
 (module
   (func $main
@@ -633,3 +709,34 @@ wat2wasm $WATFILE -o $WASMFILE
 WASM_TEST_FILE=$WASMFILE ./main --gtest_filter=WasmExecution.from_env
 ndisasm -b64 0.bin
 ----
+
+=== Spec Test Complaints
+
+:uri-wizard-spectest: https://github.com/titzer/wizard-engine/blob/ae8cae2323e0bc6d8cd05a4757309499eda16dff/test/wasm-spec/SpecTestParser.v3
+:uri-ladybird-spectest: https://github.com/LadybirdBrowser/ladybird/blob/58b735010b08d57d64408816ab0242129afb9d49/Meta/generate-libwasm-spec-test.py
+
+I'd like to take a moment here to just rant about how difficult it is to apply the official wasm spec's test suite to a new wasm engine.
+
+The spec's tests are defined in a `wast` syntax, which is `wat` that allows multiple modules per file plus some extra scripting support to allow defining tests:
+
+* `(assert_return (invoke "add" (i32.const 1) (i32.const 1)) (i32.const 2))` or 
+* `(assert_trap (invoke "div_s" (i32.const 0) (i32.const 0)) "integer divide by zero")`
+* `(assert_invalid (module (func (result i32) (i32.ctz (i64.const 0)))) "type mismatch")`
+* `(assert_malformed (module quote "(func (result i32) (i32.const nan:arithmetic))") "unexpected token")`
+
+Supporting these functions directly in an engine just isn't overly tractable.  `assert_return` is probably JIT-able, but the "runtime" function lookup from `(invoke)` is annoying, except it's always a string constant so it's technically doable at compile time.  `assert_trap` means you _must_ implement trapping gracefully, as a valid return value.  `assert_invalid` is applying validation at runtime, which isn't how the rest of a wasm engine works.  `assert_malformed` is just right out.
+
+And thus, this ends up turning into that implementations have to write {uri-wizard-spectest}[their own spectest parser]. Sorry, I mean {uri-ladybird-spectest}[their own spectest test generator].  No, wait, I mean .  If every consumer of your test suite has to devote hours to transforming your testsuite into something they can actually use, there's probably something to fix.
+
+You might think that `wast2json` would be a great help by exploding the wast tests out into a collection of wasm files and a json file telling you what all the tests are.  However, that leaves you to emit the assertions as WASM, and link in the corresponding module definitions that were emitted.  Linking with 
+What happens when you try to use `wast2json --relocatable` on the spectests to be able to do that?
+
+----
+/usr/include/c++/14/string_view:256: constexpr const std::basic_string_view<_CharT, _Traits>::value_type& std::basic_string_view<_CharT, _Traits>::operator[](size_type) const [with _CharT = char; _Traits = std::char_traits<char>; const_reference = const char&; size_type = long unsigned int]: Assertion '__pos < this->_M_len' failed.
+----
+
+And before you say "that's just a bug, report it."  https://github.com/WebAssembly/wabt/issues/2595[I did].  And the overall sentiment was that (1) it's maybe better to just remove --relocatable, and (2) it's not really a good solution to this problem anyway. (Ladybird's LibWasm uses it well though from a context where modules are loadable from javascript, and a python file emits javascript loading the module and checking it according to the test the json says should be applied.)
+
+I'm very happy to see that there's an official suite of tests to check compliance with the specification, so please don't take this as me not being appreciative of the labor that went into building out the test suite, but I'm very disappointed in how difficult they are to actually apply to a minimal WASM implementation. Hence it's not surprising that spectests weren't applied to WasmNow during its development.  But that's literally what they exist for!
+
+What would be useful is if each `assert` was its own file.  I started writing a script to try and track the module and definition dependencies and programmatically generate one minimal file for each assertion test from the .wast definition, but such work became quickly apparent that it'd take more than the couple days I was willing to spend on it.  Each assertion being its own test means that it's fine if the WASM runtime exits with a return code indicating the type of error that it detected, and then there doesn't need to be any first class support for parsing and validating new code at runtime or having first class traps. One can just point the WASM engine at the entirely self-contained file, and the harness can assert that a malformed wasm file yields a malformed wasm file error return code, and the same for traps, invalid, or successful execution.

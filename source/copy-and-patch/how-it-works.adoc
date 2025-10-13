@@ -1,13 +1,12 @@
 = How It Works
-:revdate: 2025-05-20
-:draft: true
+:revdate: 2025-10-13
 :toc: right
 :page-hook-preamble: false
 :page-order: 2
 :page-tag: tutorial
 :page-hook: Clang optimizations. Machine code models. Relocations!
 
-From the introduction, you've followed a set of given rules to produce stencils and relocation holes, with no explanation given as to why the rules are the way they are. We're now going to dive into that reasoning, and look at exactly how each part of the guidance on clang flags and relocation hole macros came to be.
+From the tutorial, you've followed a set of given rules to produce stencils and relocation holes, with no explanation given as to why the rules are the way they are. We're now going to dive into that reasoning, and look at exactly how each part of the guidance on clang flags and relocation hole macros came to be.
 
 == Stencil Creation
 

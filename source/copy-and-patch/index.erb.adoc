@@ -23,7 +23,9 @@ Building a complete calculator rather than toy example involves solving a few mo
 
 And more posts will trickle out over time:
 
-* Stencil Library
+* Control Flow
+* Register Allocation
+* Stencil Library Generation
 * Stencil Selection
 
 == Appendix

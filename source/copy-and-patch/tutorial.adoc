@@ -1,6 +1,5 @@
 = A Copy-and-Patch Tutorial
-:revdate: 2025-05-16
-:draft: true
+:revdate: 2025-10-13
 :toc: right
 :icons: font
 :page-features: font-awesome
