@@ -15,13 +15,13 @@
 
 == Calculator
 
-Building a complete calculator rather than toy example involves solving a few more traditional compiler problems:
+Building a complete calculator rather than toy example involves solving a few more traditional compiler problems.
 
 ++++
 <%= partial("partials/index_section", :locals => {:tagged => 'calcjit'}) %>
 ++++
 
-And more posts will trickle out over time:
+More posts will trickle out over time:
 
 * Control Flow
 * Register Allocation
@@ -37,7 +37,7 @@ And more posts will trickle out over time:
 * Exceptions
 * Debug info
 * Profiling with JITDUMP
-
+* Benchmarking with WasmNow
 
 ////
 Intro via copy&paste
