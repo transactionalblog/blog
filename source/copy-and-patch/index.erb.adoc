@@ -1,6 +1,5 @@
 = Copy-and-Patch
-:revdate: 2025-05-16
-:draft: true
+:revdate: 2025-10-13
 :page-layout: index
 :page-hook-preamble: false
 :page-aggregate: true
