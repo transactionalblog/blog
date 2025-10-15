@@ -1,4 +1,4 @@
-= A Copy-and-Patch Tutorial
+= A Tutorial
 :revdate: 2025-10-13
 :toc: right
 :icons: font
@@ -265,6 +265,8 @@ JIT'd 1 + 2 = 3
 ----
 
 We've successfully built runtime code generation, while letting clang do the hard work of actually writing the assembly code, and our JIT compiler is just a bunch of memcpy calls!
+
+For the deeper explanation of how and why all this magic fits together, continue to link:how-it-works.html[How It Works].
 
 == Try It Yourself
 
