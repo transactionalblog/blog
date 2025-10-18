@@ -1,0 +1,19 @@
+= Stencil Selection
+:revdate: 2025-07-15
+:draft: true
+:page-hook-preamble: false
+:page-order: 6
+:page-tag: calcjit
+:page-hook: Building a library of stencils and efficiently selecting variants during code generation.
+
+Simple: dense table dispatch
+
+Peephole: ML pattern matching
+
+1. Compiling Pattern Matching to Good Decision Trees
+2. "How to compile pattern matching" by Jules Jacobs 2021
+3. https://github.com/yorickpeterse/pattern-matching-in-rust/tree/main/jacobs2021
+
+Advanced BURG trees
+
+LLVM: SelectionDAG

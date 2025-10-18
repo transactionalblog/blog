@@ -1,0 +1,122 @@
+= Stencil Library Generation
+:revdate: 2025-08-26
+:draft: true
+:toc: right
+:page-order: 5
+:page-tag: calcjit
+:page-hook-preamble: false
+:page-hook: Turning compiled stencils into a library of code emitting and patching functions.
+
+WasmNow uses a high tech solution of defining stencils as templates in C++, and then using LLVM's JIT infrastructure to be able to load a stencil, fill in the template parameters in all the combinations, invoke the JIT to produce code, and then store the code as a compiled stencil.  We're going to pursue a low-tech solution: mass emitting C stencils, and parsing object files.
+
+
+== Mass Instantiating Stencils
+
+Continuing with our calculator JIT example, the resulting opcodes from register allocation are of the form (N values passed through in registers, M values passed on the stack.  Thus, for each operation, we need to generate:
+
+* 0-9 registers of passthrough + two arguments which are operated upon
+* 10 registers of passthrough, 1 register of an argument, 1 stack pointer where the top of stack is the other argument.
+* 11 registers of passthrough, 1 stack pointer, top of stack and stack-1 are the arguments to the operation.
+
+We'll encode this as stencils named as `operation_<N passthrough>_<M arguments on stack>`.  This low tech name-mangling scheme allows us to also generate code to reduce the boilerplate in emitting the right stencil variant -- the subject of the next post.
+
+It's relatively easy to mass produce these, just via for loops and your string templating library of choice.
+
+
+----
+REGREG_OP_TEMPLATE = """\
+STENCIL_FUNCTION void {{name}}_{{passthroughs|count}}_0(
+{%- for arg in passthroughs -%}
+uint64_t {{arg}},
+{%- endfor -%}
+uint64_t lhs, uint64_t rhs) {
+    DECLARE_STENCIL_OUTPUT(
+    {%- for arg in passthroughs -%}
+    uint64_t,
+    {%- endfor -%}
+    uint64_t);
+    stencil_output(
+    {%- for arg in passthroughs -%}
+    {{arg}},
+    {%- endfor -%}
+    lhs {{op}} rhs);
+}
+"""
+REGSTACK_OP_TEMPLATE = """\
+STENCIL_FUNCTION void {{name}}_{{passthroughs|count}}_1(
+{%- for arg in passthroughs -%}
+uint64_t {{arg}},
+{%- endfor -%}
+uint64_t lhs, uint64_t* sp) {
+    DECLARE_STENCIL_OUTPUT(
+    {%- for arg in passthroughs -%}
+    uint64_t,
+    {%- endfor -%}
+    uint64_t);
+    stencil_output(
+    {%- for arg in passthroughs -%}
+    {{arg}},
+    {%- endfor -%}
+    lhs {{op}} *sp);
+}
+"""
+STACKSTACK_OP_TEMPLATE = """\
+STENCIL_FUNCTION void {{name}}_{{passthroughs|count}}_2(
+{%- for arg in passthroughs -%}
+uint64_t {{arg}},
+{%- endfor -%}
+uint64_t* sp) {
+    DECLARE_STENCIL_OUTPUT(
+    {%- for arg in passthroughs -%}
+    uint64_t,
+    {%- endfor -%}
+    uint64_t);
+    uint64_t *const lhs = (sp-1);
+    *lhs = *lhs {{op}} *rhs;
+    stencil_output(
+    {%- for arg in passthroughs -%}
+    {{arg}},
+    {%- endfor -%}
+    lhs);
+}
+"""
+
+regreg_binary_op = jinja_env.from_string(REGREG_OP_TEMPLATE)
+regstack_binary_op = jinja_env.from_string(REGSTACK_OP_TEMPLATE)
+stackstack_binary_op = jinja_env.from_string(STACKSTACK_OP_TEMPLATE)
+for (name, op) in [('add', '+'), ('subtract', '-'), ('multiply', '*'), ('divide', '/')]:
+    for pts in range(10):
+        print(regreg_binary_op.render(
+            {
+                "passthroughs": [f'pt{x+1}' for x in range(pts)],
+                "name": name,
+                "op": op
+            }))
+    pts = 10
+    print(regstack_binary_op.render(
+        {
+            "passthroughs": [f'pt{x+1}' for x in range(pts)],
+            "name": name,
+            "op": op
+        }))
+    print(regstack_binary_op.render(
+        {
+            "passthroughs": [f'pt{x+1}' for x in range(pts)],
+            "name": name,
+            "op": op
+        }))
+----
+
+== Library Generation
+
+https://github.com/thisismiller/stenciltool
+
+== rodata
+
+using pow() generates code which references labels like .LCPI74_0 which hold constants and live in rodata.
+
+this is very annoying.  I don't know how to get that inlined.  Maybe the stencil tool needs to be able to grab that and patch it too.
+
+== External Function Calls
+
+todo: how to identify and patch memcpy versus some hole value

@@ -1,0 +1,40 @@
+= Register Allocation
+:revdate: 2025-06-25
+:draft: true
+:toc: right
+:page-tag: calcjit
+:page-order: 4
+:page-hook-preamble: false
+:page-hook: Efficient complex expressions and function bodies.
+
+When concatenating stencils, it is the JIT compiler's responsibility to select the appropriate variant of a stencil which passes through the arguments which shouldn't be modified and operates on the arguments which contain the intended input. Thus we must solve the register allocation problem.  However, we'd ideally like to solve register allocation in a fashion which runs quickly, and is easy to write.  I have three incremental suggestions.
+
+== Stack-based Bytecode
+
+In the easiest case, you have a tree to evaluate, which gives us two very nice properties:
+
+* Each value is produced once and consumed once.
+* The live ranges of each value are hierarchically nested.
+
+This means that we can have a simple stack of available registers, which for our stencil definitions translates to: the first N arguments will be passed through unchanged, and then the remaining arguments are the inputs to the function.  Any outputs from the function will be passed as the rightmost arguments to the stencil output function.
+
+----
+STENCIL_FUNCTION void some_stencil(
+    /* N pass through values, from 0..12-M*/
+    /* The M actual arguments */
+) {
+
+}
+----
+
+The "register allocator" is actually just an abstract interpretation of the bytecode which computes "this bytecode consumes X stack entries and emits Y stack entries, and must pass through Z entries", and maintains the current stack depth across the evaluation, so that one may appropriately label each stencil with the exact variant required to maintain Z passthroughs.  Keep in mind that we're limited to 12 values passed by registers, after which one will need to generate a stencil variant that operates on a slot in the stack instead. If the operation takes more than one argument, you'll need to generate variants which take each combination of earlier arguments in registers and later ones on the stack until all arguments are consumed from the stack and the return value placed back onto the stack.
+
+It might be wise to leave the 12th register (`RAX` in the `preserve_none` calling convention) as unused, so that there's always a free register the compiler may use to load into from the stack, as instruction sets are generally limited on what operations can apply directly to memory, but I haven't personally hit that issue yet.
+
+== Non-Branching SSA
+
+https://www.mattkeeter.com/blog/2022-10-04-ssra/
+
+== Branching SSA or AST
+
+https://bernsteinbear.com/blog/ddcg/

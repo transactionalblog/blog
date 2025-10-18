@@ -1,0 +1,183 @@
+= Control Flow
+:revdate: 2025-05-22
+:draft: true
+:toc: right
+:page-order: 3
+:page-tag: calcjit
+:page-hook-preamble: false
+:page-hook: Ifs, loops, and more.
+
+So far, we've only covered straight-line programs, which execute a sequence of instructions and then stop.  Copy-and-patch also supports generating arbitrarily complex control flow, but it requires tracking jump sources and destinations ourselves.
+
+== Labels
+
+I would recommend including an opcode for `LABEL` in your bytecode as it makes implementing control flow much easier for two reasons.  First, it's a very nice idiom for making the bytecode easy to write.  You can use a string or a counter as the key to associate jumps back to a label, and a hash map or dense array to record labels, accordingly.  Second, it lets you insert the necessary padding to align your jump targets.  This isn't _necessary_, but a number of architectures note performance advantages of doing so, and x86_64 is at the top of that list.
+
+A single data structure of the form `label -> void*` lets one do a two-pass code generation strategy to easily resolve forward branches.
+
+[source]
+----
+// nops[x] is a NOP of length x (for x86_64).
+uint8_t nops[7][8] = {
+    // NOP
+    { 0x90 },
+    // 66 NOP
+    { 0x66, 0x90 },
+    // NOP DWORD ptr [EAX]
+    { 0x0F, 0x1F, 0x00 },
+    // NOP DWORD ptr [EAX + 00H]
+    { 0x0F, 0x1F, 0x40, 0x00 },
+    // NOP DWORD ptr [EAX + EAX*1 + 00H]
+    { 0x0F, 0x1F, 0x44, 0x00, 0x00 },
+    // NOP DWORD ptr [AX + AX*1 + 00H]
+    { 0x66, 0x0F, 0x1F, 0x44, 0x00, 0x00 },
+    // NOP DWORD ptr [EAX + 00000000H]
+    { 0x0F, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00 },
+}
+
+void* cnp_copy_label(void* codebuf) {
+    uintptr_t codebuf_int = reinterpret_cast<uintptr_t>(codebuf);
+    if (codebuf_int % 4 == 0) {
+        return codebuf;
+    } else {
+        const int nop_size = 4 - codebuf_int % 4;
+        memcpy(codebuf, &nops[nop_size], nop_size);
+        return reinterpret_cast<void*>(codebuf_int + nop_size);
+    }
+}
+
+void* generate_code(std::vector<Bytecode> program) {
+    void* codebuf_start = /* mmap and initialize buffer */;
+    void* codebuf_current = codebuf_start;
+    std::vector<std::pair<Bytecode&, void*>> to_patch;
+    std::map<int, void*> labels;
+    for (auto& bytecode : program) {
+        switch (bytecode.type) {
+        case Bytecode::LABEL:
+            codebuf_current = cnp_copy_label(codebuf_current);
+            labels.emplace(bytecode.label.key, codebuf_current);
+            break;
+        case Bytecode::JUMP:
+            to_patch.emplace_back(bytecode, codebuf_current);
+            codebuf_current = cnp_copy_jump(codebuf_current);
+            break;
+        // ...
+        }
+    }
+    for (auto& pair : to_patch) {
+        Bytecode& bytecode = pair.first;
+        void* codebuf = pair.second;
+        switch (bytecode.type) {
+        case Bytecode::JUMP:
+            cnp_patch_jump(codebuf, labels[bytecode.jump.target]);
+            break;
+        // ...
+        }
+    }
+    return codebuf_start
+}
+----
+
+== Jump
+
+Generating an unconditional jump, to implement a `JUMP` bytecode instruction, is rather trivial:
+
+[source,c]
+----
+STENCIL_FUNCTION
+void stencil_jmp() {
+    DECLARE_STENCIL_OUTPUT(void);
+    return stencil_output(void);
+}
+----
+
+[source,nasm]
+----
+0000000000000010 <stencil_jmp>:
+  10:	e9 00 00 00 00       	jmp    15 <stencil_jmp+0x5>
+			11: R_X86_64_PLT32	cnp_stencil_output-0x4
+----
+
+Theoretically, this requires variants to pass through however many registers
+need to be preserved across the jump, but I'm suspicious that in practice one
+can likely get away with just not doing that.
+
+=== Intel Errata
+
+:uri-intel-errata: https://www.phoronix.com/review/intel-jcc-microcode
+:uri-intel-errata-penalty: https://www.phoronix.com/review/intel-jcc-microcode
+
+Note that on Intel processors, it's recommended to have jump instructions not cross or end on a 32 byte boundary due to a {uri-intel-errata}[processor errata].  Copy-and-patch, as it just blinding copies and concatenates fragments of code, has no way to to respect this errata and generate different jumps depending on alignment.  Any Intel processor which will run Copy-and-Patch generated code thus needs to have the microcode update installed, and this comes with a {uri-intel-errata-penalty}[performance penalty], or be sufficiently recent that the errata doesn't apply (11th gen or newer Intel Core, or CPUs from 2021 onwards).
+
+== If
+
+To generate code for
+
+[source,c]
+----
+if (condition) {
+    // then body
+} else {
+    // else body
+}
+----
+
+It's easiest to structure it as
+
+[source]
+----
+COMPARE // condition
+IF_NOT else_body
+// <body of then clause>
+JUMP after_else
+LABEL else_body
+// <body of else clause>
+LABEL after_else
+----
+
+The implementation of `IF_NOT` is just a naive `if` implementation of jumping to the address of the `then` and `else` clause bodies:
+
+[source,c]
+----
+STENCIL_FUNCTION                                             
+void stencil_if(int condition) {
+  typedef void(*body_fn_t)(void) STENCIL_FUNCTION;
+  if (condition) {
+    body_fn_t then_fn = STENCIL_FN_NEAR(1, body_fn_t);
+    then_fn();
+  } else {
+    body_fn_t else_fn = STENCIL_FN_NEAR(2, body_fn_t);
+    else_fn();
+  }
+}
+----
+
+And then clang will transform it to our desired pattern.
+
+[source,nasm]
+----
+0000000000000000 <stencil_if>:
+   0:	45 85 e4             	test   r12d,r12d
+   3:	0f 84 00 00 00 00    	je     9 <stencil_if+0x9>
+			5: R_X86_64_PLT32	cnp_near_func_hole_2-0x4
+   9:	e9 00 00 00 00       	jmp    e <stencil_if+0xe>
+			a: R_X86_64_PLT32	cnp_near_func_hole_1-0x4
+----
+
+(Note that 2 is before 1.)
+
+
+== Loops
+
+Loops then become just a combination of all the features thus far.  They need to be broken down into bytecode to implement the test and branch:
+
+----
+LABEL loop_head
+COMPARE ...
+IF_NOT after_loop
+// the loop body
+JUMP loop_head
+LABEL after_loop
+----
+
+But otherwise require no additional support or bytecode instructions.  `LABEL` aligning the `loop_head` can be very nice here though!
