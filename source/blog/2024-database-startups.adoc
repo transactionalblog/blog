@@ -220,6 +220,7 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == Other/Multi-Models
 
+* https://dataware.dev[DataWave] (2024) -- Redis
 * https://tonbo.io/[Tonbo] (2024) -- Arrow/Parquet embedded KV-like store
 * https://spiraldb.com/[SpiralDB] (2023) -- Multi-model analytics
 * https://lumidb.com[LumiDB] (2023) -- 3D scanning data
@@ -284,6 +285,8 @@ The categorizations are clearly subjective.  I'm aware that some companies fit i
 
 == AI and Vectors
 
+* https://cyborg.co/[Cyborg] (2025)
+** Founded in 2013, launched CyborgDB vector offering in 2025.
 * https://deployql.com[DeployQL] (2024) -- github:DeployQL/LintDB[]
 * https://vectroid.com/[Vectroid] (2023)
 * https://turbopuffer.com[turbopuffer] (2023)
