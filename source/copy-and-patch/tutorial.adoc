@@ -80,7 +80,7 @@ STENCIL_FUNCTION int return_int1(int a) {
 }
 ----
 
-We compile this with `clang -O3 -mcmodel=medium -c stencils.c`, and examine the generated code via `objdump -d -Mintel,x86-64 --disassemble --reloc stencils.o`.  This yields:
+We compile this with `clang -O3 -fno-pic -mcmodel=medium -c stencils.c`, and examine the generated code via `objdump -d -Mintel,x86-64 --disassemble --reloc stencils.o`.  This yields:
 
 [source,nasm]
 ----
